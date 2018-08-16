@@ -1,2 +1,3 @@
-# ovs-cni
-Open vSwitch CNI plugin
+# Open vSwitch CNI plugin
+
+ * [Development](docs/devel.md)
