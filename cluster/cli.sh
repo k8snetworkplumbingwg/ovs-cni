@@ -19,4 +19,10 @@ set -e
 
 source ./cluster/gocli.sh
 
-$gocli_interactive ssh node01
+interactive=$1
+
+if [[ $interactive == "-i" ]]; then
+    docker exec -it kubevirt-node01 ssh.sh
+else
+    docker exec kubevirt-node01 ssh.sh $@
+fi

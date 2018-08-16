@@ -19,7 +19,7 @@ set -e
 
 source ./cluster/gocli.sh
 
-$gocli run --random-ports --nodes 1 --background kubevirtci/k8s-1.10.3
+$gocli run --random-ports --nodes 1 --background kubevirtci/k8s-multus-1.11.1
 
 k8s_port=$($gocli ports k8s | tr -d '\r')
 
@@ -36,3 +36,6 @@ echo 'Wait until all pods are running'
 until [[ $(./cluster/kubectl.sh get pods --all-namespaces --no-headers | wc -l) -eq $(./cluster/kubectl.sh get pods --all-namespaces --no-headers | grep Running | wc -l) ]]; do
     sleep 1
 done
+
+./cluster/cli.sh sudo yum install -y openvswitch
+./cluster/cli.sh sudo systemctl start openvswitch

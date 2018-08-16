@@ -1,0 +1,20 @@
+[[constraint]]
+  name = "github.com/containernetworking/cni"
+  version = "0.6.0"
+
+[[constraint]]
+  name = "github.com/containernetworking/plugins"
+  version = "0.7.1"
+
+[[constraint]]
+  name = "github.com/vishvananda/netlink"
+  version = "1.0.0"
+
+# https://github.com/golang/dep/issues/1799
+[[override]]
+  source = "https://github.com/fsnotify/fsnotify/archive/v1.4.7.tar.gz"
+  name = "gopkg.in/fsnotify.v1"
+
+[prune]
+  go-tests = true
+  unused-packages = true
