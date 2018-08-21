@@ -17,11 +17,19 @@
 
 set -e
 
-component=$1
-
 source ./cluster/gocli.sh
 
 registry_port=$($gocli ports registry | tr -d '\r')
 registry=localhost:$registry_port
 
-REGISTRY=$registry make docker-push-$component
+REGISTRY=$registry make docker-build
+REGISTRY=$registry make docker-push
+
+./cluster/kubectl.sh delete --ignore-not-found -f ./cluster/examples/ovs-cni.yml
+
+# Wait until all objects are deleted
+until [[ $(./cluster/kubectl.sh get -f ./cluster/examples/ovs-cni.yml 2>&1 | grep NotFound | wc -l) -eq $(./cluster/kubectl.sh get -f ./cluster/examples/ovs-cni.yml 2>&1 | wc -l) ]]; do
+    sleep 1
+done
+
+./cluster/kubectl.sh create -f ./cluster/examples/ovs-cni.yml

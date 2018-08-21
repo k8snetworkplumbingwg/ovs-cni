@@ -18,10 +18,10 @@ format:
 	go vet ./pkg/...
 
 test:
-	go test ./cmd/... ./pkg/...
+	go test ./cmd/... ./pkg/... -v --ginkgo.v
 
 test-%:
-	go test ./$(subst -,/,$*)/...
+	go test ./$(subst -,/,$*)/... -v --ginkgo.v
 
 docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
 
@@ -46,10 +46,7 @@ cluster-up:
 cluster-down:
 	./cluster/down.sh
 
-cluster-sync: $(patsubst %, cluster-sync-%, $(COMPONENTS))
-
-cluster-sync-%:
-	./cluster/build.sh $*
-	./cluster/sync.sh $*
+cluster-sync: build
+	./cluster/sync.sh
 
 .PHONY: build format test docker-build docker-push dep clean-dep cluster-up cluster-down cluster-sync
