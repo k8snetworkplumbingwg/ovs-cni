@@ -1,2 +1,8 @@
 # configuration created for local cluster access
-kubeconfig
+cluster/*/.kubeconfig
+cluster/*/.kubectl
+cluster/*/.oc
+hack/config-provider-*
+cluster/.console.vv
+build-tools/desc/desc
+hack/config-local.sh

@@ -17,9 +17,12 @@
 
 set -e
 
+source hack/common.sh
+source cluster/$KUBEVIRT_PROVIDER/provider.sh
+source hack/config.sh
 source ./cluster/gocli.sh
 
-registry_port=$($gocli ports registry | tr -d '\r')
+registry_port=$($gocli --prefix $provider_prefix ports registry | tr -d '\r')
 registry=localhost:$registry_port
 
 REGISTRY=$registry make docker-build
@@ -28,7 +31,7 @@ REGISTRY=$registry make docker-push
 ./cluster/kubectl.sh delete --ignore-not-found -f ./cluster/examples/ovs-cni.yml
 
 # Wait until all objects are deleted
-until [[ $(./cluster/kubectl.sh get -f ./cluster/examples/ovs-cni.yml 2>&1 | grep NotFound | wc -l) -eq $(./cluster/kubectl.sh get -f ./cluster/examples/ovs-cni.yml 2>&1 | wc -l) ]]; do
+until [[ $(./cluster/kubectl.sh get --ignore-not-found -f ./cluster/examples/ovs-cni.yml 2>&1 | wc -l) -eq 0 ]]; do
     sleep 1
 done
 
