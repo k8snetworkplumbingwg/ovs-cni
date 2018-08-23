@@ -56,10 +56,27 @@ REGISTRY=example.com/jdoe make docker-build docker-push
 ## Local Cluster
 
 This project uses [kubevirtci](https://github.com/kubevirt/kubevirtci) to
-deploy local cluster, use following commands to control it.
+deploy local cluster.
+
+### Dockerized Kubernetes Provider
+
+Refer to the [kubernetes 1.11.1 with multus document](../cluster/k8s-multus-1.11.1/README.md)
+
+### Dockerized OCP Provider
+
+Refer to the [OCP 3.10 with multus document](../cluster/os-3.10.0-multus/README.md)
+
+
+### Usage
+
+Use following commands to control it.
+
+*note:* Default Provider is one node (master + worker) of kubernetes 1.11.1 with multus cni plugin.
 
 ```shell
-# Deploy local Kubernetes cluster with one node
+# Deploy local Kubernetes cluster
+export KUBEVIRT_PROVIDER=k8s-multus-1.11.1 # choose this provider
+export KUBEVIRT_NUM_NODES=3 # master + two nodes
 make cluster-up
 
 # SSH to the node and open interactive shell

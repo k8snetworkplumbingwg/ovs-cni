@@ -2,15 +2,13 @@
 
 Provides a pre-deployed Kubernetes with version 1.11.1 purely in docker
 containers with qemu. The provided VMs are completely ephemeral and are
-recreated on every cluster restart. The KubeVirt containers are built on the
-local machine and are the pushed to a registry which is exposed at
-`localhost:5000`.
+recreated on every cluster restart.
 
 ## Bringing the cluster up
 
 ```bash
 export KUBEVIRT_PROVIDER=k8s-multus-1.11.1
-export KUBEVIRT_NUM_NODES=2 # master + one nodes
+export KUBEVIRT_NUM_NODES=2 # master + one node
 make cluster-up
 ```
 

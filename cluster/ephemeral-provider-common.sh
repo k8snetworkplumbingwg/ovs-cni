@@ -30,38 +30,7 @@ function _registry_volume() {
 
 function _add_common_params() {
     local params="--nodes ${KUBEVIRT_NUM_NODES} --cpu 4 --random-ports --background --prefix $provider_prefix --registry-volume $(_registry_volume) kubevirtci/${image} ${KUBEVIRT_PROVIDER_EXTRA_ARGS}"
-    if [[ $TARGET =~ windows.* ]]; then
-        params="--memory 8192M --nfs-data $WINDOWS_NFS_DIR $params"
-    fi
     echo $params
-}
-
-function build() {
-    # Let's first prune old images, keep the last 5 iterations to improve the cache hit chance
-    for arg in ${docker_images}; do
-        local name=$(basename $arg)
-        images_to_prune="$(docker images --filter "label=${job_prefix}" --filter "label=${name}" --format="{{.ID}} {{.Repository}}:{{.Tag}}" | cat -n | sort -uk2,2 | sort -k1 | tr -s ' ' | grep -v "<none>" | cut -d' ' -f3 | tail -n +6)"
-        if [ -n "${images_to_prune}" ]; then
-            docker rmi ${images_to_prune}
-        fi
-    done
-
-    # Build everyting and publish it
-    ${KUBEVIRT_PATH}hack/dockerized "DOCKER_TAG=${DOCKER_TAG} KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER} ./hack/build-manifests.sh"
-    make push
-
-    # Make sure that all nodes use the newest images
-    container=""
-    container_alias=""
-    for arg in ${docker_images}; do
-        local name=$(basename $arg)
-        container="${container} ${manifest_docker_prefix}/${name}:${docker_tag}"
-        container_alias="${container_alias} ${manifest_docker_prefix}/${name}:${docker_tag} kubevirt/${name}:${docker_tag}"
-    done
-    for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-        ${_cli} ssh --prefix $provider_prefix "node$(printf "%02d" ${i})" "echo \"${container}\" | xargs \-\-max-args=1 sudo docker pull"
-        ${_cli} ssh --prefix $provider_prefix "node$(printf "%02d" ${i})" "echo \"${container_alias}\" | xargs \-\-max-args=2 sudo docker tag"
-    done
 }
 
 function _kubectl() {
