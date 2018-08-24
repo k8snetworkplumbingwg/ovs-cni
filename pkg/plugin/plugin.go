@@ -191,17 +191,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 }
 
 func getOvsPortForContIface(contIface string, contNetnsPath string) (string, bool, error) {
-	contNetns, err := ns.GetNS(contNetnsPath)
-	if err != nil {
-		return "", false, fmt.Errorf("failed to open netns %q: %v", contNetnsPath, err)
-	}
-	defer contNetns.Close()
-
 	// External IDs were set on the port during ADD call.
 	portsOutRaw, err := exec.Command(
 		"ovs-vsctl", "--format=json", "--column=name",
 		"find", "Port",
-		fmt.Sprintf("external-ids:contNetns=%s", contNetns.Path()),
+		fmt.Sprintf("external-ids:contNetns=%s", contNetnsPath),
 		fmt.Sprintf("external-ids:contIface=%s", contIface),
 	).Output()
 	if err != nil {
