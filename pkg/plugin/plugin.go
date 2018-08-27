@@ -13,10 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Go version 1.10 or greater is required. Before that, switching namespaces in
-// long running processes in go did not work in a reliable way.
-// +build go1.10
-
 package plugin
 
 import (
@@ -25,12 +21,12 @@ import (
 	"log"
 	"os/exec"
 	"runtime"
+	"strings"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
-	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 )
 
@@ -86,32 +82,56 @@ func setupBridge(brName string) (*current.Interface, error) {
 	}, nil
 }
 
-func setupVeth(contNetns ns.NetNS, contIfaceName string) (*current.Interface, *current.Interface, error) {
+func getIfaceMac(netnsPath string, ifaceName string) (string, error) {
+	rawLinkOut, err := withNetNS(netnsPath, "ip", "-br", "link")
+	if err != nil {
+		return "", err
+	}
+	for _, linkLine := range strings.Split(strings.TrimSpace(string(rawLinkOut)), "\n") {
+		linkFields := strings.Fields(linkLine)
+		// veth interfaces have names in format ifname@ifXX, we are interested
+		// only in the part before @
+		linkName := strings.Split(linkFields[0], "@")
+		if len(linkName) == 2 {
+			if linkName[0] == ifaceName {
+				return linkFields[2], nil
+			}
+		}
+	}
+	return "", fmt.Errorf("Link %s was not found in namespace %s", ifaceName, netnsPath)
+}
+
+func setupVeth(contNetnsPath string, contIfaceName string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
 
-	// Enter container network namespace and create veth pair inside. Doing
-	// this we will make sure that both ends of the veth pair will be removed
-	// when the container is gone.
-	err := contNetns.Do(func(hostNetns ns.NetNS) error {
-		hostVeth, containerVeth, err := ip.SetupVeth(contIfaceName, 1500, hostNetns)
-		if err != nil {
-			return err
-		}
-		contIface.Name = containerVeth.Name
-		contIface.Mac = containerVeth.HardwareAddr.String()
-		contIface.Sandbox = contNetns.Path()
-		hostIface.Name = hostVeth.Name
-		return nil
-	})
+	hostIfaceName, err := ip.RandomVethName()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Refetch the hostIface since its MAC address may change during network namespace move.
-	if err = refetchIface(hostIface); err != nil {
+	// Enter container network namespace and create veth pair inside. Doing
+	// this we will make sure that both ends of the veth pair will be removed
+	// when the container is gone.
+	_, err = withNetNS(contNetnsPath, "ip", "link", "add", "dev", contIfaceName, "type", "veth", "peer", "name", hostIfaceName, "netns", "1")
+	if err != nil {
 		return nil, nil, err
 	}
+
+	contIface.Name = contIfaceName
+	contIface.Sandbox = contNetnsPath
+	contIfaceMac, err := getIfaceMac(contNetnsPath, contIfaceName)
+	if err != nil {
+		return nil, nil, err
+	}
+	contIface.Mac = contIfaceMac
+
+	hostIface.Name = hostIfaceName
+	hostLink, err := netlink.LinkByName(hostIface.Name)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to lookup %q: %v", hostIface.Name, err)
+	}
+	hostIface.Mac = hostLink.Attrs().HardwareAddr.String()
 
 	return hostIface, contIface, nil
 }
@@ -136,15 +156,6 @@ func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName stri
 	return nil
 }
 
-func refetchIface(iface *current.Interface) error {
-	link, err := netlink.LinkByName(iface.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", iface.Name, err)
-	}
-	iface.Mac = link.Attrs().HardwareAddr.String()
-	return nil
-}
-
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
 
@@ -162,13 +173,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	contNetns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer contNetns.Close()
-
-	hostIface, contIface, err := setupVeth(contNetns, args.IfName)
+	hostIface, contIface, err := setupVeth(args.Netns, args.IfName)
 	if err != nil {
 		return err
 	}
@@ -177,11 +182,12 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	// Refetch the bridge since its MAC address may change when the first
-	// veth is added.
-	if err = refetchIface(brIface); err != nil {
-		return err
+	// Refetch the bridge MAC since it may change when the first veth is added.
+	brLink, err := netlink.LinkByName(brIface.Name)
+	if err != nil {
+		return fmt.Errorf("failed to lookup %q: %v", brIface.Name, err)
 	}
+	brIface.Mac = brLink.Attrs().HardwareAddr.String()
 
 	result := &current.Result{
 		Interfaces: []*current.Interface{brIface, hostIface, contIface},
@@ -260,13 +266,10 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	// Delete can be called multiple times, so don't return an error if the
 	// device is already removed.
-	err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
-		err = ip.DelLinkByName(args.IfName)
-		if err != nil && err == ip.ErrLinkNotFound {
-			return nil
-		}
+	_, err = withNetNS(args.Netns, "ip", "link", "del", "dev", args.IfName)
+	if err != nil && strings.Contains(err.Error(), "Cannot find device") {
 		return err
-	})
+	}
 
-	return err
+	return nil
 }
