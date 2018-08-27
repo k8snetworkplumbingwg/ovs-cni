@@ -18,7 +18,7 @@ unset docker_tag master_ip network_provider kubeconfig manifest_docker_prefix na
 
 KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-${PROVIDER}}
 
-source ${KUBEVIRT_PATH}hack/config-default.sh source ${KUBEVIRT_PATH}hack/config-${KUBEVIRT_PROVIDER}.sh
+source ${KUBEVIRT_PATH}hack/config-default.sh
 
 # Allow different providers to override default config values
 test -f "hack/config-provider-${KUBEVIRT_PROVIDER}.sh" && source hack/config-provider-${KUBEVIRT_PROVIDER}.sh
