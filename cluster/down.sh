@@ -15,8 +15,6 @@
 # limitations under the License.
 #
 
-set -e
-
-source ./cluster/gocli.sh
-
-$gocli rm
+source hack/common.sh
+source cluster/$KUBEVIRT_PROVIDER/provider.sh
+down

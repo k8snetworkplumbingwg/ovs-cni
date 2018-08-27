@@ -15,14 +15,11 @@
 # limitations under the License.
 #
 
-set -e
+source $(dirname "$0")/../hack/common.sh
 
-source ./cluster/gocli.sh
+test -t 1 && USE_TTY="-it"
 
-interactive=$1
+source ${KUBEVIRT_DIR}/cluster/${KUBEVIRT_PROVIDER}/provider.sh
+source hack/config.sh
 
-if [[ $interactive == "-i" ]]; then
-    docker exec -it kubevirt-node01 ssh.sh
-else
-    docker exec kubevirt-node01 ssh.sh $@
-fi
+${_cli} --prefix $provider_prefix "$@"

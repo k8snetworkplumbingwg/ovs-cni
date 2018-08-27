@@ -17,25 +17,11 @@
 
 set -e
 
-source ./cluster/gocli.sh
+source hack/common.sh
+source cluster/$KUBEVIRT_PROVIDER/provider.sh
+up
 
-$gocli run --random-ports --nodes 1 --background kubevirtci/k8s-multus-1.11.1
-
-k8s_port=$($gocli ports k8s | tr -d '\r')
-
-$gocli scp /etc/kubernetes/admin.conf - > ./kubeconfig
-kubectl --kubeconfig=./kubeconfig config set-cluster kubernetes --server=https://127.0.0.1:$k8s_port
-kubectl --kubeconfig=./kubeconfig config set-cluster kubernetes --insecure-skip-tls-verify=true
-
-echo 'Wait until all nodes are ready'
-until [[ $(./cluster/kubectl.sh get nodes --no-headers | wc -l) -eq $(./cluster/kubectl.sh get nodes --no-headers | grep Ready | wc -l) ]]; do
-    sleep 1
+for i in `seq 1 ${KUBEVIRT_NUM_NODES}`;
+do
+    docker exec ${provider_prefix}-node0${i} ssh.sh "sudo yum install -y openvswitch && sudo systemctl start openvswitch"
 done
-
-echo 'Wait until all pods are running'
-until [[ $(./cluster/kubectl.sh get pods --all-namespaces --no-headers | wc -l) -eq $(./cluster/kubectl.sh get pods --all-namespaces --no-headers | grep Running | wc -l) ]]; do
-    sleep 1
-done
-
-./cluster/cli.sh sudo yum install -y openvswitch
-./cluster/cli.sh sudo systemctl start openvswitch
