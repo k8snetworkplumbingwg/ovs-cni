@@ -71,7 +71,8 @@ Refer to the [OCP 3.10 with multus document](../cluster/os-3.10.0-multus/README.
 
 Use following commands to control it.
 
-*note:* Default Provider is one node (master + worker) of kubernetes 1.11.1 with multus cni plugin.
+*note:* Default Provider is one node (master + worker) of kubernetes 1.11.1
+with multus cni plugin.
 
 ```shell
 # Deploy local Kubernetes cluster
@@ -79,11 +80,11 @@ export KUBEVIRT_PROVIDER=k8s-multus-1.11.1 # choose this provider
 export KUBEVIRT_NUM_NODES=3 # master + two nodes
 make cluster-up
 
-# SSH to the node and open interactive shell
-./cluster/cli.sh -i
+# SSH to node01 and open interactive shell
+./cluster/cli.sh ssh node01
 
-# SSH to the node and run command
-./cluster/cli.sh echo 'Hello World'
+# SSH to node01 and run command
+./cluster/cli.sh ssh node01 echo 'Hello World'
 
 # Communicate with the Kubernetes cluster using kubectl
 ./cluster/kubectl.sh
