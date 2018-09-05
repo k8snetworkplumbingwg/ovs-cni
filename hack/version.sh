@@ -27,8 +27,6 @@
 #        "dirty" indicates source code changes after the git commit id
 #        "archive" indicates the tree was produced by 'git archive'
 #    KUBEVIRT_GIT_VERSION - "vX.Y" used to indicate the last release version.
-#    KUBEVIRT_SOURCE_DATE_EPOCH - unix timestamp.  Set to ' ' to generate using
-#          'date' instead of 'git'.
 #
 
 # Grovels through git to set a set of env variables.
@@ -90,33 +88,4 @@ function kubevirt::version::get_version_vars() {
             fi
         fi
     fi
-}
-
-function kubevirt::version::ldflag() {
-    local key=${1}
-    local val=${2}
-
-    echo "-X kubevirt.io/kubevirt/pkg/version.${key}=${val}"
-}
-
-# Prints the value that needs to be passed to the -ldflags parameter of go build
-function kubevirt::version::ldflags() {
-    kubevirt::version::get_version_vars
-
-    SOURCE_DATE_EPOCH=${KUBEVIRT_SOURCE_DATE_EPOCH-$(git show -s --format=format:%ct HEAD)}
-
-    local buildDate
-    [[ -z ${SOURCE_DATE_EPOCH-} ]] || buildDate="--date=@${SOURCE_DATE_EPOCH}"
-    local -a ldflags=($(kubevirt::version::ldflag "buildDate" "$(date ${buildDate} -u +'%Y-%m-%dT%H:%M:%SZ')"))
-    if [[ -n ${KUBEVIRT_GIT_COMMIT-} ]]; then
-        ldflags+=($(kubevirt::version::ldflag "gitCommit" "${KUBEVIRT_GIT_COMMIT}"))
-        ldflags+=($(kubevirt::version::ldflag "gitTreeState" "${KUBEVIRT_GIT_TREE_STATE}"))
-    fi
-
-    if [[ -n ${KUBEVIRT_GIT_VERSION-} ]]; then
-        ldflags+=($(kubevirt::version::ldflag "gitVersion" "${KUBEVIRT_GIT_VERSION}"))
-    fi
-
-    # The -ldflags parameter takes a single string, so join the output.
-    echo "${ldflags[*]-}"
 }
