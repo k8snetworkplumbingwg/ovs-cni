@@ -16,6 +16,7 @@
 #
 #
 # Used https://github.com/kubernetes/kubernetes/blob/master/hack/lib/version.sh as a template
+# Used https://github.com/kubevirt/kubevirt/blob/master/hack/version.sh as a template
 
 # -----------------------------------------------------------------------------
 # Version management helpers.  These functions help to set, save and load the
