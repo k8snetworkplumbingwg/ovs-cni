@@ -1,0 +1,12 @@
+---
+- name: QUAY_REGISTRY_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: kubevirt_quay
+      key: stdci_bot_password
+
+- name: QUAY_REGISTRY_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: kubevirt_quay
+      key: stdci_bot_username
