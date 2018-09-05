@@ -1,6 +1,9 @@
 # built binaries
 cmd/plugin/plugin
 
+# used in build
+cmd/plugin/.version
+
 # configuration created for local cluster access
 cluster/*/.kubeconfig
 cluster/*/.kubectl
