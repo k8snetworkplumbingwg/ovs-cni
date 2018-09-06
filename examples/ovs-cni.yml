@@ -31,6 +31,8 @@ spec:
           limits:
             cpu: "100m"
             memory: "50Mi"
+        securityContext:
+          privileged: true
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin
