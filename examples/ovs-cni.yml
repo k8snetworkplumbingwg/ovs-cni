@@ -14,6 +14,7 @@ spec:
         tier: node
         app: ovs-cni-plugin
     spec:
+      hostNetwork: true
       nodeSelector:
         beta.kubernetes.io/arch: amd64
       tolerations:
