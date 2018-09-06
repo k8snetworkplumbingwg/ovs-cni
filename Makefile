@@ -11,6 +11,7 @@ all: build
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
 build-%:
+	hack/version.sh > ./cmd/$(subst -,/,$*)/.version
 	cd cmd/$(subst -,/,$*) && go fmt && go vet && go build
 
 format:
