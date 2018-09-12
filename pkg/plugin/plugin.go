@@ -23,6 +23,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
+	"net"
 	"os/exec"
 	"runtime"
 
@@ -33,6 +35,8 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 )
+
+const macSetupRetries = 2
 
 type netConf struct {
 	types.NetConf
@@ -86,6 +90,16 @@ func setupBridge(brName string) (*current.Interface, error) {
 	}, nil
 }
 
+func generateRandomMac() net.HardwareAddr {
+	prefix := []byte{0x02, 0x00, 0x00} // local unicast prefix
+	suffix := make([]byte, 3)
+	_, err := rand.Read(suffix)
+	if err != nil {
+		panic(err)
+	}
+	return net.HardwareAddr(append(prefix, suffix...))
+}
+
 func setupVeth(contNetns ns.NetNS, contIfaceName string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
@@ -98,8 +112,24 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string) (*current.Interface, *c
 		if err != nil {
 			return err
 		}
+
+		containerLink, err := netlink.LinkByName(containerVeth.Name)
+		if err != nil {
+			return fmt.Errorf("failed to lookup %q: %v", containerVeth.Name, err)
+		}
+
+		// In case the MAC address is already assigned to another interface, retry
+		var containerMac net.HardwareAddr
+		for i := 1; i <= macSetupRetries; i++ {
+			containerMac = generateRandomMac()
+			err = netlink.LinkSetHardwareAddr(containerLink, containerMac)
+			if err != nil && i == macSetupRetries {
+				return fmt.Errorf("failed to set container iface %q MAC %q: %v", containerVeth.Name, containerMac.String(), err)
+			}
+		}
+
 		contIface.Name = containerVeth.Name
-		contIface.Mac = containerVeth.HardwareAddr.String()
+		contIface.Mac = containerMac.String()
 		contIface.Sandbox = contNetns.Path()
 		hostIface.Name = hostVeth.Name
 		return nil
