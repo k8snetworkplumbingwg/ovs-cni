@@ -96,16 +96,6 @@ func generateRandomMac() net.HardwareAddr {
 	return net.HardwareAddr(append(prefix, suffix...))
 }
 
-func getIfaceMac(netnsPath string, ifaceName string) (string, error) {
-	rawLinkOut, err := withNetNS(netnsPath, "ip", "link", "show", ifaceName)
-	if err != nil {
-		return "", err
-	}
-	secondLine := strings.Split(strings.TrimSpace(string(rawLinkOut)), "\n")[1]
-	linkFields := strings.Fields(secondLine)
-	return linkFields[1], nil
-}
-
 func setupVeth(contNetnsPath string, contIfaceName string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
@@ -122,6 +112,17 @@ func setupVeth(contNetnsPath string, contIfaceName string) (*current.Interface, 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// In case the MAC address is already assigned to another interface, retry
+	var containerMac net.HardwareAddr
+	for i := 1; i <= macSetupRetries; i++ {
+		containerMac = generateRandomMac()
+		_, err = withNetNS(contNetnsPath, "ip", "link", "set", "dev", contIfaceName, "address", containerMac.String())
+		if err != nil && i == macSetupRetries {
+			return nil, nil, fmt.Errorf("failed to set container iface %q MAC %q: %v", contIfaceName, containerMac.String(), err)
+		}
+	}
+
 	_, err = withNetNS(contNetnsPath, "ip", "link", "set", "up", contIfaceName)
 	if err != nil {
 		return nil, nil, err
@@ -129,10 +130,7 @@ func setupVeth(contNetnsPath string, contIfaceName string) (*current.Interface, 
 
 	contIface.Name = contIfaceName
 	contIface.Sandbox = contNetnsPath
-	contIface.Mac, err = getIfaceMac(contNetnsPath, contIfaceName)
-	if err != nil {
-		return nil, nil, err
-	}
+	contIface.Mac = containerMac.String()
 
 	hostIface.Name = hostIfaceName
 	hostLink, err := netlink.LinkByName(hostIface.Name)
