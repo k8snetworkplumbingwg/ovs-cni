@@ -41,6 +41,9 @@ clean-dep:
 	rm -f ./Gopkg.lock
 	rm -rf ./vendor
 
+manifests:
+	./hack/build-manifests.sh
+
 cluster-up:
 	./cluster/up.sh
 
@@ -50,4 +53,4 @@ cluster-down:
 cluster-sync: build
 	./cluster/sync.sh
 
-.PHONY: build format test docker-build docker-push dep clean-dep cluster-up cluster-down cluster-sync
+.PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync

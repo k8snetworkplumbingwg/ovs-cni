@@ -1,7 +1,7 @@
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
-  name: ovs-cni-plugin-amd64
+  name: ovs-vsctl-amd64
   namespace: kube-system
   labels:
     tier: node
@@ -13,7 +13,6 @@ spec:
         tier: node
         app: ovs-cni
     spec:
-      hostNetwork: true
       nodeSelector:
         beta.kubernetes.io/arch: amd64
       tolerations:
@@ -21,8 +20,18 @@ spec:
         operator: Exists
         effect: NoSchedule
       containers:
-      - name: ovs-cni-plugin
-        image: quay.io/kubevirt/ovs-cni-plugin:latest
+      - name: ovs-vsctl
+        command:
+        - /bin/bash
+        - -c
+        - |
+          cp /usr/bin/ovs-vsctl /host/usr/bin/_ovs-vsctl
+          echo '#!/usr/bin/bash
+          _ovs-vsctl --db unix:///run/openvswitch/db.sock $@
+          ' > /host/usr/bin/ovs-vsctl
+          chmod +x /host/usr/bin/ovs-vsctl
+          sleep infinity
+        image: docker.io/openshift/origin-node:v3.10.0-rc.0
         resources:
           requests:
             cpu: "100m"
@@ -33,9 +42,9 @@ spec:
         securityContext:
           privileged: true
         volumeMounts:
-        - name: cnibin
-          mountPath: /host/opt/cni/bin
+        - name: usrbin
+          mountPath: /host/usr/bin
       volumes:
-        - name: cnibin
+        - name: usrbin
           hostPath:
-            path: /opt/cni/bin
+            path: /usr/bin

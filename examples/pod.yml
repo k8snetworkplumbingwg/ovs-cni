@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: samplepod-1
+  annotations:
+    k8s.v1.cni.cncf.io/networks: ovs-net-vlan100
+spec:
+  containers:
+  - name: samplepod
+    command: ["sleep", "99999"]
+    image: fedora
