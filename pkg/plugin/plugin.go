@@ -133,6 +133,15 @@ func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName stri
 		return fmt.Errorf("failed to attach veth to bridge: %s", string(output[:]))
 	}
 
+	hostLink, err := netlink.LinkByName(hostIfaceName)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetUp(hostLink); err != nil {
+		return err
+	}
+
 	return nil
 }
 
