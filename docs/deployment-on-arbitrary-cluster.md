@@ -11,9 +11,11 @@ local cluster](deployment-on-local-cluster.md) guide.
 
 ## Open vSwitch
 
-First of all, Open vSwitch must be installed and running on all nodes (unless
-you do [scheduling](scheduling.md)). OVS is available in repositories of all
-major distributions.
+### Kubernetes
+
+Open vSwitch must be installed and running on all nodes (unless you do
+[scheduling](scheduling.md)). OVS is available in repositories of all major
+distributions.
 
 On CentOS:
 
@@ -39,7 +41,18 @@ ovs-vsctl list-br
 ovs-vsctl del-br test-br
 ```
 
+### OpenShift
+
+With OpenShift you can either decide to install Open vSwitch from your
+repositories as described in previous section or using a DaemonSet.
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/openshift-ovs-vsctl.yml
+```
+
 ## Multus
+
+### Kubernetes
 
 Installation of Multus is currently a little tricky. If you have not installed
 any network plugin (Calico, Flannel,...) on your cluster, you can follow [quick
@@ -48,6 +61,15 @@ However, if you already have a network plugin running, you need to do some
 extra work. I would recommend you to study the quickstart guide and modify it
 for your own case. Multus should soon include better documentation of the
 installation process.
+
+### OpenShift
+
+Installation of Multus on OpenShift should be easier. Please note that this is
+not officially supported by OpenShift, it is only a dev preview with no warranties.
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/multus.yml
+```
 
 ## Open vSwitch CNI plugin
 
