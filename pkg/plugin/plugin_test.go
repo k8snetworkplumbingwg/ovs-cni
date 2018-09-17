@@ -50,8 +50,11 @@ var _ = Describe("CNI Plugin", func() {
 		output, err := exec.Command("ovs-vsctl", "add-br", BRIDGE_NAME).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
 
-		_, err = netlink.LinkByName(BRIDGE_NAME)
+		bridgeLink, err := netlink.LinkByName(BRIDGE_NAME)
 		Expect(err).NotTo(HaveOccurred(), "Interface of testing OVS bridge was not found in the system")
+
+		err = netlink.LinkSetUp(bridgeLink)
+		Expect(err).NotTo(HaveOccurred(), "Was not able to set bridge UP")
 	})
 
 	AfterEach(func() {
@@ -114,6 +117,9 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(brPorts).To(Equal([]string{hostIface.Name}))
 
+		By("Checking that the host iface is set UP")
+		Expect(hostLink.Attrs().OperState).To(Equal(netlink.LinkOperState(netlink.OperUp)))
+
 		By("Checking that port the VLAN ID matches expected state")
 		portVlan, err := getPortAttribute(hostIface.Name, "tag")
 		Expect(err).NotTo(HaveOccurred())
@@ -145,6 +151,9 @@ var _ = Describe("CNI Plugin", func() {
 			contHwaddr, err := net.ParseMAC(contIface.Mac)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(contLink.Attrs().HardwareAddr).To(Equal(contHwaddr))
+
+			By("Checking that container interface is set UP")
+			Expect(contLink.Attrs().OperState).To(Equal(netlink.LinkOperState(netlink.OperUp)))
 
 			return nil
 		})
