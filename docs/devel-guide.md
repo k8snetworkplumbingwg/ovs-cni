@@ -53,6 +53,34 @@ make docker-push-foo
 REGISTRY=example.com/jdoe make docker-build docker-push
 ```
 
+## Manifests
+
+Manifests in `examples/` folder are built from templates kept in `manifests/`.
+
+```shell
+# build manifests
+make manifests
+```
+
+Manifest templates contain following variables. It it possible to adjust them
+my setting environment variables before calling `make manifests`.
+
+```
+NAMESPACE # default kube-system}
+
+OVS_CNI_IMAGE_REPO # default quay.io/kubevirt
+OVS_CNI_IMAGE_NAME # default ovs-cni-plugin
+OVS_CNI_IMAGE_VERSION # default latest
+
+MULTUS_IMAGE_REPO # default docker.io/nfvpe
+MULTUS_IMAGE_NAME # default multus
+MULTUS_IMAGE_VERSION # default latest
+
+OPENSHIFT_NODE_IMAGE_REPO # default docker.io/openshift
+OPENSHIFT_NODE_IMAGE_NAME # default origin-node
+OPENSHIFT_NODE_IMAGE_VERSION # default v3.10.0-rc.0
+```
+
 ## Local Cluster
 
 This project uses [kubevirtci](https://github.com/kubevirt/kubevirtci) to
