@@ -12,6 +12,9 @@ quay_login() {
 
 main() {
     quay_login
+    mkdir -p go/src/ovs-cni go/pkg
+    ln -s ../ go/src/
+    export GOPATH=$(pwd)/go
     export IMAGE_TAG=`./hack/get_tag.sh`
     make docker-build
     make docker-push
