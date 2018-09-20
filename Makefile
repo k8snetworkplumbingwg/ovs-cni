@@ -1,4 +1,5 @@
 REGISTRY ?= quay.io/kubevirt
+IMAGE_TAG ?= latest
 
 COMPONENTS = $(sort \
 			 $(subst /,-,\
@@ -27,12 +28,12 @@ test-%:
 docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
 
 docker-build-%: build-%
-	docker build -t ${REGISTRY}/ovs-cni-$*:latest ./cmd/$(subst -,/,$*)
+	docker build -t ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ./cmd/$(subst -,/,$*)
 
 docker-push: $(patsubst %, docker-push-%, $(COMPONENTS))
 
 docker-push-%:
-	docker push ${REGISTRY}/ovs-cni-$*:latest
+	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
 
 dep:
 	dep ensure -v

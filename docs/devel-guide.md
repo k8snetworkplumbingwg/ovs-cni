@@ -51,6 +51,10 @@ make docker-push-foo
 # All mentioned targets support REGISTRY variable (default is quay.io/kubevirt)
 # Build images and push them to personal docker registry
 REGISTRY=example.com/jdoe make docker-build docker-push
+
+# All mentioned targets support IMAGE_TAG variable (default is latest)
+# Build images and push them with a custom image tag
+IMAGE_TAG=test make docker-build docker-push
 ```
 
 ## Manifests
