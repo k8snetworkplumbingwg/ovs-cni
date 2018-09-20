@@ -13,7 +13,7 @@ quay_login() {
 main() {
     quay_login
     cd ..
-    export OVS_CNI_GIT_VERSION=`./hack/get_tag.sh`
+    export IMAGE_TAG=`./hack/get_tag.sh`
     make docker-build
     make docker-push
 }
