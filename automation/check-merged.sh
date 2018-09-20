@@ -12,7 +12,10 @@ quay_login() {
 
 main() {
     quay_login
-    echo "TODO: Push image to a registry"
+    cd ..
+    export OVS_CNI_GIT_VERSION=`./hack/get_tag.sh`
+    make docker-build
+    make docker-push
 }
 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"

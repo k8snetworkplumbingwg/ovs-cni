@@ -1,4 +1,5 @@
 REGISTRY ?= quay.io/kubevirt
+OVS_CNI_GIT_VERSION ?= latest
 
 COMPONENTS = $(sort \
 			 $(subst /,-,\
@@ -27,7 +28,7 @@ test-%:
 docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
 
 docker-build-%: build-%
-	docker build -t ${REGISTRY}/ovs-cni-$*:latest ./cmd/$(subst -,/,$*)
+	docker build -t ${REGISTRY}/ovs-cni-$*:${OVS_CNI_GIT_VERSION} ./cmd/$(subst -,/,$*)
 
 docker-push: $(patsubst %, docker-push-%, $(COMPONENTS))
 
