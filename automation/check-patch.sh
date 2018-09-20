@@ -12,7 +12,20 @@ main() {
     cd go/src/kubevirt.io/ovs-cni
 
     echo "Run tests"
-    make build test
+
+    git describe --tags
+
+    if [ "$(git describe --tags --abbrev=0  --match 'v[0-9].[0-9].[0-9]' 2> /dev/null | wc -l)" == "0" ]
+    then
+        export IMAGE_TAG="master"
+    fi
+
+    if [ "$(git describe --tags --abbrev=0  --match 'v[0-9].[0-9].[0-9]' 2> /dev/null | wc -l)" == "1" ]
+    then
+        export IMAGE_TAG=`git describe --tags --abbrev=0  --match 'v[0-9].[0-9].[0-9]'`
+    fi
+
+    #make docker-build
 }
 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"
