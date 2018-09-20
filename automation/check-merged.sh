@@ -12,7 +12,6 @@ quay_login() {
 
 main() {
     quay_login
-    cd ..
     export IMAGE_TAG=`./hack/get_tag.sh`
     make docker-build
     make docker-push
