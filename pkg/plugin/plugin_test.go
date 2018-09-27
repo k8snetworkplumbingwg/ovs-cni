@@ -117,9 +117,6 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(brPorts).To(Equal([]string{hostIface.Name}))
 
-		By("Checking that the host iface is set UP")
-		Expect(hostLink.Attrs().OperState).To(Equal(netlink.LinkOperState(netlink.OperUp)))
-
 		By("Checking that port the VLAN ID matches expected state")
 		portVlan, err := getPortAttribute(hostIface.Name, "tag")
 		Expect(err).NotTo(HaveOccurred())
