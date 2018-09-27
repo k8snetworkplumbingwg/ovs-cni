@@ -2,3 +2,4 @@ docker
 make
 git
 go
+openvswitch
