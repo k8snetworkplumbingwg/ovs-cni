@@ -210,6 +210,62 @@ var _ = Describe("CNI Plugin", func() {
 				testAddDel(conf, false)
 			})
 		})
+		Context("random mac address on container interface", func() {
+			It("should create eth0 on two different namespace with different mac addresses", func() {
+				conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d
+				}`, BRIDGE_NAME, VLAN_ID)
+
+				const IFNAME = "eth0"
+
+				By("Creating two temporary target namespace to simulate two containers")
+				targetNsOne, err := ns.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				targetNsTwo, err := ns.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				defer targetNsOne.Close()
+				defer targetNsTwo.Close()
+
+				args := &skel.CmdArgs{
+					ContainerID: "dummy",
+					Netns:       targetNsOne.Path(),
+					IfName:      IFNAME,
+					StdinData:   []byte(conf),
+				}
+
+				var result *current.Result
+
+				By("Calling ADD command")
+				r, _, err := cmdAddWithArgs(args, func() error {
+					return CmdAdd(args)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that result of ADD command in in expected format")
+				result, err = current.GetResult(r)
+				Expect(err).NotTo(HaveOccurred())
+				contOneIface := result.Interfaces[2]
+
+				args.Netns = targetNsTwo.Path()
+				By("Calling ADD command")
+				r, _, err = cmdAddWithArgs(args, func() error {
+					return CmdAdd(args)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Checking that result of ADD command in in expected format")
+				result, err = current.GetResult(r)
+				Expect(err).NotTo(HaveOccurred())
+
+				contTwoIface := result.Interfaces[2]
+
+				Expect(contOneIface).NotTo(Equal(contTwoIface))
+			})
+		})
 	})
 })
 
