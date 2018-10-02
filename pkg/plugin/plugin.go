@@ -16,10 +16,10 @@
 package plugin
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
-	"math/rand"
 	"net"
 	"os/exec"
 	"runtime"
