@@ -20,6 +20,9 @@ main() {
 
     echo "Run tests"
     make build test
+
+    echo "Run functional tests"
+    exec automation/test.sh
 }
 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"
