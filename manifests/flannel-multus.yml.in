@@ -110,6 +110,7 @@ spec:
         command: ["/entrypoint.sh"]
         args: ["--multus-conf-file=/usr/src/multus-cni/images/00-multus.conf"]
         image: ${MULTUS_IMAGE_REPO}/${MULTUS_IMAGE_NAME}:${MULTUS_IMAGE_VERSION}
+        imagePullPolicy: ${MULTUS_IMAGE_PULL_POLICY}
         resources:
           requests:
             cpu: "100m"
