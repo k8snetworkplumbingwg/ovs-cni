@@ -36,6 +36,7 @@ fi
 export KUBEVIRT_NUM_NODES=2
 export RHEL_NFS_DIR=${RHEL_NFS_DIR:-/var/lib/stdci/shared/kubevirt-images/rhel7}
 export RHEL_LOCK_PATH=${RHEL_LOCK_PATH:-/var/lib/stdci/shared/download_rhel_image.lock}
+export KUBEVIRT_VERSION="v0.9.1"
 
 wait_for_download_lock() {
   local max_lock_attempts=60
@@ -103,6 +104,13 @@ kubectl get nodes
 
 make cluster-sync
 
+if [[ $TARGET =~ openshift.* ]]; then
+  kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-privileged
+  kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-controller
+  kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-apiserver
+fi
+kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/$KUBEVIRT_VERSION/kubevirt.yaml
+
 # OpenShift is running important containers under default namespace
 namespaces=(kube-system default)
 if [[ $NAMESPACE != "kube-system" ]]; then
@@ -118,6 +126,7 @@ for i in ${namespaces[@]}; do
   while [ -n "$(kubectl get pods -n $i --no-headers | grep -v Running)" ]; do
     echo "Waiting for kubevirt pods to enter the Running state ..."
     kubectl get pods -n $i --no-headers | >&2 grep -v Running || true
+    kubectl describe pods -n kube-system
     sleep $sample
 
     current_time=$((current_time + sample))
