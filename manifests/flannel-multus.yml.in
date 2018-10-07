@@ -68,15 +68,18 @@ metadata:
 data:
   00-multus.conf: |
     {
-      "name": "multus-cni-network",
-      "type": "multus",
-      "delegates": [{
-        "cniVersion": "0.2.0",
-        "type": "openshift-sdn",
-        "name": "openshift-sdn",
-        "masterplugin": true
-      }],
-      "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig"
+        "name": "multus-cni-network",
+        "type": "multus",
+        "delegates": [
+         {
+           "type": "flannel",
+           "name": "flannel.1",
+           "delegate": {
+             "isDefaultGateway": true
+           }
+         }
+        ],
+        "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig"
     }
 ---
 apiVersion: extensions/v1beta1

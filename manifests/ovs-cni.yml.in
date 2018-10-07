@@ -23,7 +23,7 @@ spec:
       containers:
       - name: ovs-cni-plugin
         image: ${OVS_CNI_IMAGE_REPO}/${OVS_CNI_IMAGE_NAME}:${OVS_CNI_IMAGE_VERSION}
-        imagePullPolicy: ${OVS_CNI_IMAGE_PULL_POLICY}
+        imagePullPolicy ${OVS_CNI_IMAGE_PULL_POLICY}
         resources:
           requests:
             cpu: "100m"
