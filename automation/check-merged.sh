@@ -12,12 +12,24 @@ quay_login() {
 
 main() {
     quay_login
-    mkdir -p go/src/ovs-cni go/pkg
-    ln -s ../ go/src/
+    cd ..
+    mkdir -p go/src/kubevirt.io
+    mkdir -p go/pkg
     export GOPATH=$(pwd)/go
-    export IMAGE_TAG=`./hack/get_tag.sh`
-    make docker-build
-    make docker-push
+    ln -s $(pwd)/ovs-cni go/src/kubevirt.io/
+    cd go/src/kubevirt.io/ovs-cni
+
+    if [ "$(git describe --tags --abbrev=0  --match 'v[0-9].[0-9].[0-9]' 2> /dev/null | wc -l)" == "0" ]
+    then
+        export TAG="master"
+    fi
+     if [ "$(git describe --tags --abbrev=0  --match 'v[0-9].[0-9].[0-9]' 2> /dev/null | wc -l)" == "1" ]
+    then
+        export TAG=`git describe --tags --abbrev=0  --match 'v[0-9].[0-9].[0-9]'`
+    fi
+
+    make docker-build IMAGE_TAG=$TAG
+
 }
 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"

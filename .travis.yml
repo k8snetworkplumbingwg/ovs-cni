@@ -1,0 +1,25 @@
+language: generic
+sudo: required
+dist: trusty
+
+services:
+- docker
+
+env:
+- BUILDER_NAME="ovs-cni/${TRAVIS_JOB_ID}builder"
+
+install:
+ - git reset --hard
+
+deploy:
+- provider: script
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" quay.io && make docker-build docker-push
+  skip_cleanup: true
+  on:
+    branch: master
+- provider: script
+  script: docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" quay.io && make docker-build docker-push IMAGE_TAG=$TRAVIS_TAG
+  skip_cleanup: true
+  file:
+  on:
+    tags: true
