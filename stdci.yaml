@@ -1,7 +1,3 @@
-archs: x86_64
-distros:
-- fc28
-
 sub-stages:
   - k8s-multus-1.11.1-release
   - openshift-3.10-multus-release
