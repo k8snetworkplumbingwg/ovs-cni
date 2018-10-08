@@ -32,6 +32,7 @@ spec:
           chmod +x /host/usr/bin/ovs-vsctl
           sleep infinity
         image: ${OPENSHIFT_NODE_IMAGE_REPO}/${OPENSHIFT_NODE_IMAGE_NAME}:${OPENSHIFT_NODE_IMAGE_VERSION}
+        imagePullPolicy ${OPENSHIFT_NODE_IMAGE_PULL_POLICY}
         resources:
           requests:
             cpu: "100m"
