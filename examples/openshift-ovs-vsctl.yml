@@ -32,7 +32,7 @@ spec:
           chmod +x /host/usr/bin/ovs-vsctl
           sleep infinity
         image: docker.io/openshift/origin-node:v3.10.0-rc.0
-        imagePullPolicy IfNotPresent
+        imagePullPolicy: IfNotPresent
         resources:
           requests:
             cpu: "100m"
