@@ -110,6 +110,7 @@ spec:
         command: ["/entrypoint.sh"]
         args: ["--multus-conf-file=/usr/src/multus-cni/images/00-multus.conf"]
         image: docker.io/nfvpe/multus:latest
+        imagePullPolicy: IfNotPresent
         resources:
           requests:
             cpu: "100m"
