@@ -25,7 +25,7 @@ kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1
 metadata:
   name: multus
-  namespace: ${NAMESPACE}
+  namespace: kube-system
 rules:
 - apiGroups:
   - '*'
@@ -49,41 +49,44 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: multus
-  namespace: ${NAMESPACE}
+  namespace: kube-system
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: multus
-  namespace: ${NAMESPACE}
+  namespace: kube-system
 ---
 kind: ConfigMap
 apiVersion: v1
 metadata:
   name: multus-cni-config
-  namespace: ${NAMESPACE}
+  namespace: kube-system
   labels:
     tier: node
     app: multus
 data:
   00-multus.conf: |
     {
-      "name": "multus-cni-network",
-      "type": "multus",
-      "delegates": [{
-        "cniVersion": "0.2.0",
-        "type": "openshift-sdn",
-        "name": "openshift-sdn",
-        "masterplugin": true
-      }],
-      "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig"
+        "name": "multus-cni-network",
+        "type": "multus",
+        "delegates": [
+         {
+           "type": "flannel",
+           "name": "flannel.1",
+           "delegate": {
+             "isDefaultGateway": true
+           }
+         }
+        ],
+        "kubeconfig": "/etc/cni/net.d/multus.d/multus.kubeconfig"
     }
 ---
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   name: kube-multus-ds-amd64
-  namespace: ${NAMESPACE}
+  namespace: kube-system
   labels:
     tier: node
     app: multus
@@ -106,8 +109,8 @@ spec:
       - name: kube-multus
         command: ["/entrypoint.sh"]
         args: ["--multus-conf-file=/usr/src/multus-cni/images/00-multus.conf"]
-        image: ${MULTUS_IMAGE_REPO}/${MULTUS_IMAGE_NAME}:${MULTUS_IMAGE_VERSION}
-        imagePullPolicy: ${MULTUS_IMAGE_PULL_POLICY}
+        image: docker.io/nfvpe/multus:latest
+        imagePullPolicy: IfNotPresent
         resources:
           requests:
             cpu: "100m"
