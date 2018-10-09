@@ -102,8 +102,7 @@ set -e
 echo "Nodes are ready:"
 kubectl get nodes
 
-make cluster-sync
-
+# Deploy upstream kubervirt to test the ovs-cni plugin with virtual machines 
 if [[ $TARGET =~ openshift.* ]]; then
   kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-privileged
   kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-controller
@@ -126,7 +125,6 @@ for i in ${namespaces[@]}; do
   while [ -n "$(kubectl get pods -n $i --no-headers | grep -v Running)" ]; do
     echo "Waiting for kubevirt pods to enter the Running state ..."
     kubectl get pods -n $i --no-headers | >&2 grep -v Running || true
-    kubectl describe pods -n kube-system
     sleep $sample
 
     current_time=$((current_time + sample))
@@ -141,8 +139,7 @@ for i in ${namespaces[@]}; do
     echo "Waiting for KubeVirt containers to become ready ..."
     kubectl get pods -n $i -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false || true
     sleep $sample
-
-    current_time=$((current_time + sample))
+     current_time=$((current_time + sample))
     if [ $current_time -gt $timeout ]; then
       exit 1
     fi
@@ -151,3 +148,4 @@ for i in ${namespaces[@]}; do
 done
 
 kubectl version
+
