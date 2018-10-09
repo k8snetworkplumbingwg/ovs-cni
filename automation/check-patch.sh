@@ -1,6 +1,13 @@
 #!/bin/bash -xe
 
 main() {
+    TARGET="$0"
+    TARGET="${TARGET#./}"
+    TARGET="${TARGET%.*}"
+    TARGET="${TARGET#*.}"
+    echo "TARGET=$TARGET"
+    export TARGET
+
     echo "Start ovs process"
     /usr/share/openvswitch/scripts/ovs-ctl --system-id=random start
 
@@ -13,6 +20,9 @@ main() {
 
     echo "Run tests"
     make build test
+
+    echo "Run functional tests"
+    exec automation/test.sh
 }
 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"
