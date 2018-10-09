@@ -20,8 +20,3 @@ set -e
 source hack/common.sh
 source cluster/$KUBEVIRT_PROVIDER/provider.sh
 up
-
-for i in `seq 1 ${KUBEVIRT_NUM_NODES}`;
-do
-    docker exec ${provider_prefix}-node0${i} ssh.sh "sudo yum install -y openvswitch && sudo systemctl start openvswitch"
-done
