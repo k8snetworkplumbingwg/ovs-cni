@@ -1,6 +1,7 @@
-language: generic
+language: go
 sudo: required
 dist: trusty
+go: "1.10"
 
 services:
 - docker
@@ -9,6 +10,10 @@ env:
 - BUILDER_NAME="ovs-cni/${TRAVIS_JOB_ID}builder"
 
 install: true
+script:
+  - cd ../..
+  - mv kubevirt ../kubevirt.io
+  - cd ../kubevirt.io/ovs-cni
 
 deploy:
 - provider: script
