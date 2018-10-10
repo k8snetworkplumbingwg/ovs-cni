@@ -1,6 +1,7 @@
-language: generic
+language: go
 sudo: required
 dist: trusty
+go: "1.10"
 
 services:
 - docker
@@ -9,6 +10,10 @@ env:
 - BUILDER_NAME="ovs-cni/${TRAVIS_JOB_ID}builder"
 
 install: true
+#script: true
+script:
+  - docker login -u="$DOCKER_USER" -p="$DOCKER_PASS" quay.io
+  - make docker-build
 
 deploy:
 - provider: script
