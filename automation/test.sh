@@ -116,6 +116,9 @@ if [[ $NAMESPACE != "kube-system" ]]; then
   namespaces+=($NAMESPACE)
 fi
 
+# Run cluster-sync to deploy ovs-cni on the nodes
+make cluster-sync
+
 timeout=300
 sample=30
 
