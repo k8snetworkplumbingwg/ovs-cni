@@ -102,14 +102,6 @@ set -e
 echo "Nodes are ready:"
 kubectl get nodes
 
-# Deploy upstream kubervirt to test the ovs-cni plugin with virtual machines 
-if [[ $TARGET =~ openshift.* ]]; then
-  kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-privileged
-  kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-controller
-  kubectl adm policy add-scc-to-user privileged system:serviceaccount:kube-system:kubevirt-apiserver
-fi
-kubectl apply -f https://github.com/kubevirt/kubevirt/releases/download/$KUBEVIRT_VERSION/kubevirt.yaml
-
 # OpenShift is running important containers under default namespace
 namespaces=(kube-system default)
 if [[ $NAMESPACE != "kube-system" ]]; then
