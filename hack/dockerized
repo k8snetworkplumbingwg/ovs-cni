@@ -1,0 +1,89 @@
+#!/bin/bash
+set -e
+
+source $(dirname "$0")/common.sh
+
+DOCKER_DIR=${KUBEVIRT_DIR}/hack/docker-builder
+
+SYNC_OUT=${SYNC_OUT:-true}
+
+BUILDER=${job_prefix}
+
+SYNC_VENDOR=${SYNC_VENDOR:-false}
+
+TEMPFILE=".rsynctemp"
+
+# Reduce verbosity if an automated build
+BUILD_QUIET=
+if [ -n "$JOB_NAME" -o -n "$TRAVIS_BUILD_ID" ]; then
+    BUILD_QUIET="-q"
+fi
+
+# Build the build container
+(cd ${DOCKER_DIR} && docker build . ${BUILD_QUIET} -t ${BUILDER})
+
+# Create the persistent docker volume
+if [ -z "$(docker volume list | grep ${BUILDER})" ]; then
+    docker volume create --name ${BUILDER}
+fi
+
+# Make sure that the output directory exists
+docker run -v "${BUILDER}:/root:rw,z" --security-opt label:disable --rm ${BUILDER} mkdir -p /root/go/src/kubevirt.io/ovs-cni/_out
+
+# Start an rsyncd instance and make sure it gets stopped after the script exits
+RSYNC_CID=$(docker run -d -v "${BUILDER}:/root:rw,z" --security-opt label:disable --expose 873 -P ${BUILDER} /usr/bin/rsync --no-detach --daemon --verbose)
+
+function finish() {
+    docker stop ${RSYNC_CID} >/dev/null 2>&1 &
+    docker rm -f ${RSYNC_CID} >/dev/null 2>&1 &
+}
+trap finish EXIT
+
+RSYNCD_PORT=$(docker port $RSYNC_CID 873 | cut -d':' -f2)
+
+rsynch_fail_count=0
+
+while ! rsync ${KUBEVIRT_DIR}/${RSYNCTEMP} "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/${RSYNCTEMP}" &>/dev/null; do
+    if [[ "$rsynch_fail_count" -eq 0 ]]; then
+        printf "Waiting for rsyncd to be ready"
+        sleep .1
+    elif [[ "$rsynch_fail_count" -lt 30 ]]; then
+        printf "."
+        sleep 1
+    else
+        printf "failed"
+        break
+    fi
+    rsynch_fail_count=$((rsynch_fail_count + 1))
+done
+
+printf "\n"
+
+rsynch_fail_count=0
+
+_rsync() {
+    rsync -al "$@"
+}
+
+# For backward compatibility. If vendorless branches are used we need to make sure
+# that they can sync again.
+rm -f ${KUBEVIRT_DIR}/.glide*.hash
+
+# Copy kubevirt into the persistent docker volume
+_rsync --delete --exclude 'cluster/**/.kubectl' --exclude 'cluster/**/.oc' --exclude 'cluster/**/.kubeconfig' --exclude "_out" --exclude ".vagrant" ${KUBEVIRT_DIR}/ "rsync://root@127.0.0.1:${RSYNCD_PORT}/build"
+
+# Run the command
+test -t 1 && USE_TTY="-it"
+docker run --rm -v "${BUILDER}:/root:rw,z" --security-opt label:disable ${USE_TTY} -w "/root/go/src/kubevirt.io/ovs-cni" ${BUILDER} "$@"
+
+# Copy the whole kubevirt data out to get generated sources and formatting changes
+_rsync --exclude '.glide*' --exclude 'cluster/**/.kubectl' --exclude 'cluster/**/.oc' --exclude 'cluster/**/.kubeconfig' --exclude "_out" --exclude "vendor" --exclude ".vagrant" --exclude ".git" "rsync://root@127.0.0.1:${RSYNCD_PORT}/build" ${KUBEVIRT_DIR}/
+#_rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/manifests/generated/" "${KUBEVIRT_DIR}/manifests/generated"
+#_rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/build/cluster/examples/" "${KUBEVIRT_DIR}/cluster/examples"
+if [ "$SYNC_VENDOR" = "true" ]; then
+    _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/vendor" "${VENDOR_DIR}/"
+fi
+# Copy the build output out of the container, make sure that _out exactly matches the build result
+if [ "$SYNC_OUT" = "true" ]; then
+    _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/out" ${OUT_DIR}
+fi
