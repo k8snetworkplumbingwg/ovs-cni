@@ -1,10 +1,6 @@
 FROM fedora:28
 
-ENV LIBVIRT_VERSION 4.2.0
-
-COPY fedora-virt-preview.repo /etc/yum.repos.d/fedora-virt-preview.repo
-
-RUN dnf -y install libvirt-devel-${LIBVIRT_VERSION} make git mercurial sudo gcc findutils gradle rsync-daemon rsync qemu-img protobuf-compiler && \
+RUN dnf -y install make git sudo gcc gradle rsync-daemon rsync protobuf-compiler python-pip && \
     dnf -y clean all
 
 ENV GIMME_GO_VERSION=1.9
@@ -18,18 +14,12 @@ ADD rsyncd.conf /etc/rsyncd.conf
 RUN \
     mkdir -p /go && \
     source /etc/profile.d/gimme.sh && \
-    go get github.com/mattn/goveralls && \
-    go get -u github.com/Masterminds/glide && \
     go get golang.org/x/tools/cmd/goimports && \
     git clone https://github.com/mvdan/sh.git $GOPATH/src/mvdan.cc/sh && \
     cd /go/src/mvdan.cc/sh/cmd/shfmt && \
     git checkout v2.5.0 && \
     go get mvdan.cc/sh/cmd/shfmt && \
-    go install && \
-    go get -u github.com/golang/mock/gomock && \
-    go get -u github.com/rmohr/mock/mockgen && \
-    go get -u github.com/rmohr/go-swagger-utils/swagger-doc && \
-    go get -u github.com/onsi/ginkgo/ginkgo && \
+    go install && go get -u github.com/onsi/ginkgo/ginkgo && \
     go get -u -d k8s.io/code-generator/cmd/deepcopy-gen && \
     go get -u -d k8s.io/code-generator/cmd/defaulter-gen && \
     go get -u -d k8s.io/code-generator/cmd/openapi-gen && \
