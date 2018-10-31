@@ -14,6 +14,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package version supplies the type for version information collected at build time.
-// +k8s:openapi-gen=true
-package version // import "k8s.io/apimachinery/pkg/version"
+// Package wait provides tools for polling or listening for changes
+// to a condition.
+package wait // import "k8s.io/apimachinery/pkg/util/wait"
