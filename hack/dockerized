@@ -73,7 +73,7 @@ test -t 1 && USE_TTY="-it"
 docker run --rm -v "${BUILDER}:/root:rw,z" --security-opt label:disable ${USE_TTY} -w "/root/go/src/kubevirt.io/ovs-cni" ${BUILDER} "$@"
 
 # Copy the whole kubevirt data out to get generated sources and formatting changes
-_rsync --exclude '.glide*' --exclude 'cluster/**/.kubectl' --exclude 'cluster/**/.oc' --exclude 'cluster/**/.kubeconfig' --exclude "_out" --exclude "vendor" --exclude ".git" "rsync://root@127.0.0.1:${RSYNCD_PORT}/build" ${KUBEVIRT_DIR}/
+_rsync --exclude 'cluster/**/.kubectl' --exclude 'cluster/**/.oc' --exclude 'cluster/**/.kubeconfig' --exclude "_out" --exclude "vendor" --exclude ".git" "rsync://root@127.0.0.1:${RSYNCD_PORT}/build" ${KUBEVIRT_DIR}/
 
 if [ "$SYNC_VENDOR" = "true" ]; then
     _rsync --delete "rsync://root@127.0.0.1:${RSYNCD_PORT}/vendor" "${VENDOR_DIR}/"
