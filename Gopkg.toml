@@ -18,3 +18,11 @@
 [prune]
   go-tests = true
   unused-packages = true
+
+[[constraint]]
+  branch = "release-1.11"
+  name = "k8s.io/apimachinery"
+
+[[constraint]]
+  version = "8.0.0"
+  name = "k8s.io/client-go"

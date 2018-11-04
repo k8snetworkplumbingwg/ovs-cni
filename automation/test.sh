@@ -144,3 +144,5 @@ done
 
 kubectl version
 
+# Run functional tests
+FUNC_TEST_ARGS=$ginko_params make functest

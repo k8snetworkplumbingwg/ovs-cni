@@ -12,3 +12,6 @@ hack/config-provider-*
 cluster/.console.vv
 build-tools/desc/desc
 hack/config-local.sh
+
+# testing
+_out
