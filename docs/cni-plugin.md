@@ -4,9 +4,9 @@
 
 With ovs plugin, containers (on the same host) are plugged into an Open vSwitch
 bridge (virtual switch) that resides in the host network namespace. It's host
-adminitrator's responsibility to create such bridge and optinally connect it to
+adminitrator's responsibility to create such bridge and optionally connect it to
 broader network, be it using L2 directly, NAT or an overlay. The containers
-receive one end of the veth pair with the other end connected to the bridge.
+receive one end of the veth pair and the other end is connected to the bridge.
 
 Please note that Open vSwitch must be installed and running on the host.
 
