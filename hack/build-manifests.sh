@@ -19,10 +19,15 @@ set -e
 
 namespace=${NAMESPACE:-kube-system}
 
-ovs_cni_image_repo=${OVS_CNI_IMAGE_REPO:-quay.io/kubevirt}
-ovs_cni_image_name=${OVS_CNI_IMAGE_NAME:-ovs-cni-plugin}
-ovs_cni_image_version=${OVS_CNI_IMAGE_VERSION:-latest}
-ovs_cni_image_pull_policy=${OVS_CNI_IMAGE_PULL_POLICY:-IfNotPresent}
+ovs_cni_plugin_image_repo=${OVS_CNI_PLUGIN_IMAGE_REPO:-quay.io/kubevirt}
+ovs_cni_plugin_image_name=${OVS_CNI_PLUGIN_IMAGE_NAME:-ovs-cni-plugin}
+ovs_cni_plugin_image_version=${OVS_CNI_PLUGIN_IMAGE_VERSION:-latest}
+ovs_cni_plugin_image_pull_policy=${OVS_CNI_PLUGIN_IMAGE_PULL_POLICY:-IfNotPresent}
+
+ovs_cni_marker_image_repo=${OVS_CNI_MARKER_IMAGE_REPO:-quay.io/kubevirt}
+ovs_cni_marker_image_name=${OVS_CNI_MARKER_IMAGE_NAME:-ovs-cni-marker}
+ovs_cni_marker_image_version=${OVS_CNI_MARKER_IMAGE_VERSION:-latest}
+ovs_cni_marker_image_pull_policy=${OVS_CNI_MARKER_IMAGE_PULL_POLICY:-IfNotPresent}
 
 multus_image_repo=${MULTUS_IMAGE_REPO:-docker.io/nfvpe}
 multus_image_name=${MULTUS_IMAGE_NAME:-multus}
@@ -38,10 +43,14 @@ for template in manifests/*.in; do
     name=$(basename ${template%.in})
     sed \
         -e "s#\${NAMESPACE}#${namespace}#g" \
-        -e "s#\${OVS_CNI_IMAGE_REPO}#${ovs_cni_image_repo}#g" \
-        -e "s#\${OVS_CNI_IMAGE_NAME}#${ovs_cni_image_name}#g" \
-        -e "s#\${OVS_CNI_IMAGE_VERSION}#${ovs_cni_image_version}#g" \
-        -e "s#\${OVS_CNI_IMAGE_PULL_POLICY}#${ovs_cni_image_pull_policy}#g" \
+        -e "s#\${OVS_CNI_PLUGIN_IMAGE_REPO}#${ovs_cni_plugin_image_repo}#g" \
+        -e "s#\${OVS_CNI_PLUGIN_IMAGE_NAME}#${ovs_cni_plugin_image_name}#g" \
+        -e "s#\${OVS_CNI_PLUGIN_IMAGE_VERSION}#${ovs_cni_plugin_image_version}#g" \
+        -e "s#\${OVS_CNI_PLUGIN_IMAGE_PULL_POLICY}#${ovs_cni_plugin_image_pull_policy}#g" \
+        -e "s#\${OVS_CNI_MARKER_IMAGE_REPO}#${ovs_cni_marker_image_repo}#g" \
+        -e "s#\${OVS_CNI_MARKER_IMAGE_NAME}#${ovs_cni_marker_image_name}#g" \
+        -e "s#\${OVS_CNI_MARKER_IMAGE_VERSION}#${ovs_cni_marker_image_version}#g" \
+        -e "s#\${OVS_CNI_MARKER_IMAGE_PULL_POLICY}#${ovs_cni_marker_image_pull_policy}#g" \
         -e "s#\${MULTUS_IMAGE_REPO}#${multus_image_repo}#g" \
         -e "s#\${MULTUS_IMAGE_NAME}#${multus_image_name}#g" \
         -e "s#\${MULTUS_IMAGE_VERSION}#${multus_image_version}#g" \

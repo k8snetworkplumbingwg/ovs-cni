@@ -22,9 +22,8 @@ set -e
 source hack/common.sh
 source hack/config.sh
 
-functest_docker_prefix=${manifest_docker_prefix-${docker_prefix}}
-
 if [[ ${TARGET} == openshift* ]]; then
     oc=${kubectl}
 fi
+export KUBEVIRT_PROVIDER=$KUBEVIRT_PROVIDER
 ${TESTS_OUT_DIR}/tests.test -kubeconfig=${kubeconfig}

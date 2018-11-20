@@ -1,7 +1,9 @@
 # built binaries
+cmd/marker/marker
 cmd/plugin/plugin
 
 # used in build
+cmd/marker/.version
 cmd/plugin/.version
 
 # configuration created for local cluster access

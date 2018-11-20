@@ -43,14 +43,11 @@ ovs-vsctl del-br test-br
 
 ### OpenShift
 
-With OpenShift you can either decide to install Open vSwitch from your
-repositories as described in previous section or using a DaemonSet.
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/openshift-ovs-vsctl.yml
-```
+For OpenShift, Open vSwitch deployment is a part of OVS CNI.
 
 ## Multus
+
+TODO: Webhook support is not yet available, update docs once it is.
 
 ### Kubernetes
 
@@ -77,8 +74,16 @@ Installation of ovs-cni can be done simply by deploying a daemon set that will
 deploy ovs-cni binaries on your nodes. Following command will install the
 latest image from this repository.
 
+### Kubernetes
+
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/ovs-cni.yml
+kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/kubernetes-ovs-cni.yml
+```
+
+### OpenShift
+
+```shell
+kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/openshift-ovs-cni.yml
 ```
 
 You can stop here and play with the cluster on your own or continue to

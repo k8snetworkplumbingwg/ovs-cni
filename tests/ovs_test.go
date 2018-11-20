@@ -16,26 +16,12 @@
 package tests_test
 
 import (
-	"flag"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 )
 
 var _ = Describe("ovs-cni", func() {
-	var clientset *kubernetes.Clientset
-	kubeconfig := flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
-	flag.Parse()
-
-	BeforeSuite(func() {
-		config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-		Expect(err).ToNot(HaveOccurred())
-		clientset, err = kubernetes.NewForConfig(config)
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	Describe("pod availability tests", func() {
 		Context("pod availability tests", func() {
 			It("assert pods exists", func() {
