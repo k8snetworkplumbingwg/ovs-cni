@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ovs-cni-marker-amd64
+  namespace: kube-system
+  labels:
+    name: ovs-cni
+spec:
+  selector:
+    matchLabels:
+      name: ovs-cni-marker
+  template:
+    metadata:
+      labels:
+        name: ovs-cni-marker
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+      - name: ovs-cni-marker
+        image: registry:5000/ovs-cni-marker
+        imagePullPolicy: Always
+        securityContext:
+          privileged: true
+        volumeMounts:
+          - name: ovs-run
+            mountPath: /host/var/run/openvswitch
+          - name: device-plugin
+            mountPath: /var/lib/kubelet/device-plugins
+      volumes:
+        - name: ovs-run
+          hostPath:
+            path: /var/run/openvswitch
+        - name: device-plugin
+          hostPath:
+            path: /var/lib/kubelet/device-plugins

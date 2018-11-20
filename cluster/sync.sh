@@ -28,11 +28,12 @@ registry=localhost:$registry_port
 REGISTRY=$registry make docker-build
 REGISTRY=$registry make docker-push
 
-./cluster/kubectl.sh delete --ignore-not-found -f ./cluster/examples/ovs-cni.yml
+./cluster/kubectl.sh delete --ignore-not-found -f ./cluster/examples/ovs-cni-plugin.yml
+./cluster/kubectl.sh delete --ignore-not-found -f ./cluster/examples/ovs-cni-marker.yml
 
 # Wait until all objects are deleted
-until [[ $(./cluster/kubectl.sh get --ignore-not-found -f ./cluster/examples/ovs-cni.yml 2>&1 | wc -l) -eq 0 ]]; do
-    sleep 1
-done
+until [[ $(./cluster/kubectl.sh get --ignore-not-found -f ./cluster/examples/ovs-cni-plugin.yml 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
+until [[ $(./cluster/kubectl.sh get --ignore-not-found -f ./cluster/examples/ovs-cni-marker.yml 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 
-./cluster/kubectl.sh create -f ./cluster/examples/ovs-cni.yml
+./cluster/kubectl.sh create -f ./cluster/examples/ovs-cni-plugin.yml
+./cluster/kubectl.sh create -f ./cluster/examples/ovs-cni-marker.yml

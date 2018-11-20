@@ -65,3 +65,4 @@ You can choose to deploy this plugin on [local virtualized cluster](docs/deploym
 ## Components
 
  * [CNI Plugin](docs/cni-plugin.md) - Documentation and usage of standalone Open vSwitch CNI plugin.
+ * [Marker](docs/marker.md) - Documentation and usage of standalone device plugin used to mark nodes with available bridges.

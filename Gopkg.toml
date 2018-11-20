@@ -26,3 +26,7 @@
 [[constraint]]
   version = "8.0.0"
   name = "k8s.io/client-go"
+
+[[constraint]]
+  branch = "master"
+  name = "github.com/kubevirt/device-plugin-manager"
