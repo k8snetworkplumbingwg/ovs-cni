@@ -20,3 +20,5 @@ set -e
 source hack/common.sh
 source cluster/$KUBEVIRT_PROVIDER/provider.sh
 up
+
+cluster/deploy-multus-webhook.sh

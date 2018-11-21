@@ -15,10 +15,6 @@
   source = "https://github.com/fsnotify/fsnotify/archive/v1.4.7.tar.gz"
   name = "gopkg.in/fsnotify.v1"
 
-[prune]
-  go-tests = true
-  unused-packages = true
-
 [[constraint]]
   branch = "release-1.11"
   name = "k8s.io/apimachinery"
