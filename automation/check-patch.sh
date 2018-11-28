@@ -9,11 +9,21 @@ main() {
     export TARGET
 
     cd ..
-    mkdir -p go/src/kubevirt.io
-    mkdir -p go/pkg
+    export GOROOT=/usr/local/go
     export GOPATH=$(pwd)/go
-    ln -s $(pwd)/ovs-cni go/src/kubevirt.io/
-    cd go/src/kubevirt.io/ovs-cni
+    export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+    mkdir -p $GOPATH
+
+    echo "Install Go 1.10"
+    export GIMME_GO_VERSION=1.10
+    mkdir -p /gimme
+    curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
+    source /etc/profile.d/gimme.sh
+
+    mkdir -p $GOPATH/src/kubevirt.io
+    mkdir -p $GOPATH/pkg
+    ln -s $(pwd)/ovs-cni $GOPATH/src/kubevirt.io/
+    cd $GOPATH/src/kubevirt.io/ovs-cni
 
     echo "Run functional tests"
     exec automation/test.sh
