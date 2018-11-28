@@ -8,15 +8,24 @@ main() {
     echo "TARGET=$TARGET"
     export TARGET
 
+    cd ..
+    export GOROOT=/usr/local/go
+    export GOPATH=$(pwd)/go
+    export PATH=$GOPATH/bin:$GOROOT/bin:$PATH
+    mkdir -p $GOPATH
+
+    echo "Install Go 1.10"
+    mkdir -p /gimme
+    curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
+    GIMME_GO_VERSION=1.10 source /etc/profile.d/gimme.sh
+
     echo "Start ovs process"
     /usr/share/openvswitch/scripts/ovs-ctl --system-id=random start
 
-    cd ..
-    mkdir -p go/src/kubevirt.io
-    mkdir -p go/pkg
-    export GOPATH=$(pwd)/go
-    ln -s $(pwd)/ovs-cni go/src/kubevirt.io/
-    cd go/src/kubevirt.io/ovs-cni
+    mkdir -p $GOPATH/src/kubevirt.io
+    mkdir -p $GOPATH/pkg
+    ln -s $(pwd)/ovs-cni $GOPATH/src/kubevirt.io/
+    cd $GOPATH/src/kubevirt.io/ovs-cni
 
     echo "Run tests"
     make build test

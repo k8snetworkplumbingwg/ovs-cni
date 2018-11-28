@@ -5,6 +5,8 @@ this project.
 
 ## Building
 
+**Note:** OVS CNI plugin must be compiled with Go 1.10 or newer.
+
 ```shell
 # Run Go format and vet check
 make format
