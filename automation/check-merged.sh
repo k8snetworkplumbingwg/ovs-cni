@@ -17,4 +17,5 @@ main() {
     make docker-push
 }
 
-[[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"
+# We use Travis to deploy built images
+# [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"
