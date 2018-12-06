@@ -11,9 +11,12 @@ env:
 
 install: true
 script:
+  - apt-get install openvswitch -y
+  - systemctl start openvswitch
   - cd ../..
   - mv kubevirt ../kubevirt.io
   - cd ../kubevirt.io/ovs-cni
+  - make test
 
 deploy:
 - provider: script
