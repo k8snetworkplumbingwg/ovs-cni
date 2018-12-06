@@ -14,6 +14,7 @@ script:
   - cd ../..
   - mv kubevirt ../kubevirt.io
   - cd ../kubevirt.io/ovs-cni
+  - make docker-test
 
 deploy:
 - provider: script

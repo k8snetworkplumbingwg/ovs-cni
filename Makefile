@@ -22,6 +22,9 @@ format:
 test:
 	go test ./cmd/... ./pkg/... -v --ginkgo.v
 
+docker-test:
+	hack/test-dockerized.sh
+
 test-%:
 	go test ./$(subst -,/,$*)/... -v --ginkgo.v
 
