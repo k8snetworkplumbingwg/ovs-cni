@@ -7,6 +7,10 @@ metadata:
     tier: node
     app: ovs-cni
 spec:
+  selector:
+    matchLabels:
+      tier: node
+      app: ovs-cni
   template:
     metadata:
       labels:
