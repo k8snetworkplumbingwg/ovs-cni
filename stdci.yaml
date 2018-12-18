@@ -1,6 +1,6 @@
 sub-stages:
-  - k8s-multus-1.11.1-release
-  - openshift-3.10-multus-release
+  - k8s-multus-1.12.2-release
+  - openshift-3.11-multus-release
 
 runtime_requirements:
   support_nesting_level: 2
