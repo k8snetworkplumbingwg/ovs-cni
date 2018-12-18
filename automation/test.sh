@@ -28,9 +28,9 @@ export WORKSPACE="${WORKSPACE:-$PWD}"
 readonly ARTIFACTS_PATH="$WORKSPACE/exported-artifacts"
 
 if [[ $TARGET =~ openshift-.* ]]; then
-  export KUBEVIRT_PROVIDER="os-3.10.0-multus"
+  export KUBEVIRT_PROVIDER="os-3.11.0-multus"
 else
-  export KUBEVIRT_PROVIDER="k8s-multus-1.11.1"
+  export KUBEVIRT_PROVIDER="k8s-multus-1.12.2"
 fi
 
 export KUBEVIRT_NUM_NODES=2
