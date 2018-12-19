@@ -28,15 +28,12 @@ export WORKSPACE="${WORKSPACE:-$PWD}"
 readonly ARTIFACTS_PATH="$WORKSPACE/exported-artifacts"
 
 if [[ $TARGET =~ openshift-.* ]]; then
-  export KUBEVIRT_PROVIDER="os-3.10.0-multus"
+  export KUBEVIRT_PROVIDER="os-3.11.0-multus"
 else
-  export KUBEVIRT_PROVIDER="k8s-multus-1.11.1"
+  export KUBEVIRT_PROVIDER="k8s-multus-1.12.2"
 fi
 
 export KUBEVIRT_NUM_NODES=2
-export RHEL_NFS_DIR=${RHEL_NFS_DIR:-/var/lib/stdci/shared/kubevirt-images/rhel7}
-export RHEL_LOCK_PATH=${RHEL_LOCK_PATH:-/var/lib/stdci/shared/download_rhel_image.lock}
-export KUBEVIRT_VERSION="v0.9.1"
 
 wait_for_download_lock() {
   local max_lock_attempts=60
@@ -59,30 +56,12 @@ release_download_lock() {
     echo "Released lock: $1"
   fi
 }
-
-if [[ $TARGET =~ openshift.* ]]; then
-    # Create images directory
-    if [[ ! -d $RHEL_NFS_DIR ]]; then
-        mkdir -p $RHEL_NFS_DIR
-    fi
-
-    # Download RHEL image
-    if wait_for_download_lock $RHEL_LOCK_PATH; then
-        if [[ ! -f "$RHEL_NFS_DIR/disk.img" ]]; then
-            curl http://templates.ovirt.org/kubevirt/rhel7.img > $RHEL_NFS_DIR/disk.img
-        fi
-        release_download_lock $RHEL_LOCK_PATH
-    else
-        exit 1
-    fi
-fi
-
 kubectl() { cluster/kubectl.sh "$@"; }
 
 export NAMESPACE="${NAMESPACE:-kube-system}"
 
 # Make sure that the VM is properly shut down on exit
-trap '{ release_download_lock $RHEL_LOCK_PATH; release_download_lock $WINDOWS_LOCK_PATH; make cluster-down; }' EXIT SIGINT SIGTERM SIGSTOP
+trap '{ make cluster-down; }' EXIT SIGINT SIGTERM SIGSTOP
 
 make cluster-down
 make cluster-up
