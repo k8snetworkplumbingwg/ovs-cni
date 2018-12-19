@@ -16,13 +16,32 @@
 package tests_test
 
 import (
+	"flag"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
 )
+
+var kubeconfig *string
+var clientset *kubernetes.Clientset
 
 func TestPlugin(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Plugin Suite")
+}
+
+var _ = BeforeSuite(func() {
+	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+	Expect(err).ToNot(HaveOccurred())
+	clientset, err = kubernetes.NewForConfig(config)
+	Expect(err).ToNot(HaveOccurred())
+})
+
+func init() {
+	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
+	flag.Parse()
 }

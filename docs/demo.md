@@ -81,6 +81,9 @@ passed to ovs-cni plugin on nodes during pod configuration. Such networks can
 be referenced from pod using their names. If this object, we specify name of
 the bridge and optionaly a VLAN tag.
 
+Also note `resourceName` annotation. It is used to make sure that pod will
+be scheduled on a node with bridge `br1` available.
+
 First, let's create a simple OVS network that will connect pods in trunk mode.
 
 ```shell
@@ -89,6 +92,8 @@ apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
   name: ovs-net-1
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
 spec:
   config: '{
       "cniVersion": "0.3.1",
@@ -107,6 +112,8 @@ apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
   name: ovs-net-2-vlan
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
 spec:
   config: '{
       "cniVersion": "0.3.1",
@@ -195,10 +202,3 @@ Once both Pods are up and running, we can try to ping from one to another.
 ```shell
 kubectl exec -it samplepod-2 -- ping 11.0.0.3
 ```
-
-## Scheduling
-
-If your OVS bridges are available only on certain nodes, scheduling must be
-involved. It is not yet natively implemented in ovs-cni, but you can use
-Kubernetes node labels and pod label selectors to do so. If that is your case,
-follow [scheduling guide](scheduling.md).

@@ -1,0 +1,155 @@
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: ovs-cni-amd64
+  namespace: kube-system
+  labels:
+    tier: node
+    app: ovs-cni
+spec:
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: ovs-cni
+    spec:
+      serviceAccountName: ovs-cni-marker
+      hostNetwork: true
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: ovs-cni-plugin
+        image: quay.io/kubevirt/ovs-cni-plugin:latest
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+      - name: ovs-cni-marker
+        image: quay.io/kubevirt/ovs-cni-marker:latest
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        args:
+          - -node-name
+          - $(NODE_NAME)
+          - -ovs-socket
+          - unix:///host/run/openvswitch/db.sock
+        volumeMounts:
+          - name: ovs-run
+            mountPath: /host/run/openvswitch
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+      volumes:
+        - name: cnibin
+          hostPath:
+            path: /opt/cni/bin
+        - name: ovs-run
+          hostPath:
+            path: /run/openvswitch
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: ovs-cni-marker-cr
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - nodes
+  - nodes/status
+  verbs:
+  - get
+  - update
+  - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: ovs-cni-marker-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ovs-cni-marker-cr
+subjects:
+- kind: ServiceAccount
+  name: ovs-cni-marker
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ovs-cni-marker
+  namespace: kube-system
+---
+apiVersion: extensions/v1beta1
+kind: DaemonSet
+metadata:
+  name: ovs-vsctl-amd64
+  namespace: kube-system
+  labels:
+    tier: node
+    app: ovs-cni
+spec:
+  selector:
+    matchLabels:
+      tier: node
+      app: ovs-cni
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: ovs-cni
+    spec:
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        operator: Exists
+        effect: NoSchedule
+      containers:
+      - name: ovs-vsctl
+        command:
+        - /bin/bash
+        - -c
+        - |
+          cp /usr/bin/ovs-vsctl /host/usr/bin/_ovs-vsctl
+          echo '#!/usr/bin/bash
+          _ovs-vsctl --db unix:///run/openvswitch/db.sock $@
+          ' > /host/usr/bin/ovs-vsctl
+          chmod +x /host/usr/bin/ovs-vsctl
+          sleep infinity
+        image: docker.io/openshift/origin-node:v3.10.0-rc.0
+        imagePullPolicy: IfNotPresent
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "50Mi"
+          limits:
+            cpu: "100m"
+            memory: "50Mi"
+        securityContext:
+          privileged: true
+        volumeMounts:
+        - name: usrbin
+          mountPath: /host/usr/bin
+      volumes:
+        - name: usrbin
+          hostPath:
+            path: /usr/bin

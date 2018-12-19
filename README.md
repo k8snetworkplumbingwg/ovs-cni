@@ -14,6 +14,8 @@ apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
   name: ovs-conf
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
 spec:
   config: '{
       "cniVersion": "0.3.1",
@@ -24,7 +26,7 @@ spec:
 EOF
 ```
 
-Once the network definition is created and desired Open vSwitch bridges are available on all nodes, a pod requesting the network can be created.
+Once the network definition is created and desired Open vSwitch bridges are available on nodes, a pod requesting the network can be created.
 
 ```shell
 cat <<EOF | kubectl create -f -
@@ -37,7 +39,7 @@ metadata:
 spec:
   containers:
   - name: samplepod
-    command: ["/bin/bash", "-c", "sleep 99999"]
+    command: ["/bin/sh", "-c", "sleep 99999"]
     image: alpine
 EOF
 ```
@@ -56,7 +58,7 @@ $ kubectl exec samplepod ip link
 
 ## Deployment and Usage
 
-You can choose to deploy this plugin on [local virtualized cluster](docs/deployment-on-local-cluster.md) or on your [arbitrary cluster](docs/deployment-on-arbitrary-cluster.md). After that you can follow [demo](docs/demo.md) that will guide you through preparation of Open vSwitch bridges, defining networks on Kubernetes and attaching pods to them. If you want to create bridges only on subset of your nodes, you can follow [scheduling guide](docs/scheduling.md).
+You can choose to deploy this plugin on [local virtualized cluster](docs/deployment-on-local-cluster.md) or on your [arbitrary cluster](docs/deployment-on-arbitrary-cluster.md). After that you can follow [demo](docs/demo.md) that will guide you through preparation of Open vSwitch bridges, defining networks on Kubernetes and attaching pods to them.
 
 ## Development
 
@@ -65,3 +67,4 @@ You can choose to deploy this plugin on [local virtualized cluster](docs/deploym
 ## Components
 
  * [CNI Plugin](docs/cni-plugin.md) - Documentation and usage of standalone Open vSwitch CNI plugin.
+ * [Marker](docs/marker.md) - Documentation and usage of daemon set exposing bridges as node resources.
