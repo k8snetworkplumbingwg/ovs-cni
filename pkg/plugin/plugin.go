@@ -40,8 +40,14 @@ const macSetupRetries = 2
 
 type netConf struct {
 	types.NetConf
-	BrName  string `json:"bridge"`
+	BrName  string `json:"bridge,omitempty"`
 	VlanTag *uint  `json:"vlan"`
+}
+
+type EnvArgs struct {
+	types.CommonArgs
+	MAC     types.UnmarshallableString `json:"mac,omitempty"`
+	OvnPort types.UnmarshallableString `json:"ovnPort,omitempty"`
 }
 
 func init() {
@@ -65,14 +71,22 @@ func assertOvsAvailable() error {
 	return nil
 }
 
+func getEnvArgs(envArgsString string) (*EnvArgs, error) {
+	if envArgsString != "" {
+		e := EnvArgs{}
+		err := types.LoadArgs(envArgsString, &e)
+		if err != nil {
+			return nil, err
+		}
+		return &e, nil
+	}
+	return nil, nil
+}
+
 func loadNetConf(bytes []byte) (*netConf, error) {
 	netconf := &netConf{}
 	if err := json.Unmarshal(bytes, netconf); err != nil {
 		return nil, fmt.Errorf("failed to load netconf: %v", err)
-	}
-
-	if netconf.BrName == "" {
-		return nil, fmt.Errorf("\"bridge\" is a required argument")
 	}
 
 	return netconf, nil
@@ -165,7 +179,17 @@ func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error
 	return nil
 }
 
-func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName string, vlanTag *uint, contNetnsPath string) error {
+func getBridgeName(bridgeName, ovnPort string) (string, error) {
+	if bridgeName != "" {
+		return bridgeName, nil
+	} else if bridgeName == "" && ovnPort != "" {
+		return "br-int", nil
+	}
+
+	return "", fmt.Errorf("failed to get bridge name")
+}
+
+func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName string, vlanTag *uint, contNetnsPath string, ovnPortName string) error {
 	// Set external IDs so we are able to find and remove the port from OVS
 	// database when CNI DEL is called.
 	command := []string{
@@ -175,6 +199,9 @@ func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName stri
 	}
 	if vlanTag != nil {
 		command = append(command, "--", "set", "Port", hostIfaceName, fmt.Sprintf("tag=%d", *vlanTag))
+	}
+	if ovnPortName != "" {
+		command = append(command, "--", "set", "Interface", hostIfaceName, fmt.Sprintf("external-ids:iface-id=%s", ovnPortName))
 	}
 
 	output, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
@@ -203,30 +230,19 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
-type MACEnvArgs struct {
-	types.CommonArgs
-	MAC types.UnmarshallableString `json:"mac,omitempty"`
-}
-
-func getMacFromArgs(envArgs string) (string, error) {
-	// Parse custom MAC from env args
-	if envArgs != "" {
-		e := MACEnvArgs{}
-		err := types.LoadArgs(envArgs, &e)
-		if err != nil {
-			return "", err
-		}
-		return string(e.MAC), nil
-	}
-	return "", nil
-}
-
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
 
-	mac, err := getMacFromArgs(args.Args)
+	envArgs, err := getEnvArgs(args.Args)
 	if err != nil {
 		return err
+	}
+
+	var mac string
+	var ovnPort string
+	if envArgs != nil {
+		mac = string(envArgs.MAC)
+		ovnPort = string(envArgs.OvnPort)
 	}
 
 	if err := assertOvsAvailable(); err != nil {
@@ -238,7 +254,12 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	brIface, err := setupBridge(netconf.BrName)
+	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	if err != nil {
+		return err
+	}
+
+	brIface, err := setupBridge(bridgeName)
 	if err != nil {
 		return err
 	}
@@ -254,7 +275,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if err = attachIfaceToBridge(hostIface.Name, contIface.Name, brIface.Name, netconf.VlanTag, args.Netns); err != nil {
+	if err = attachIfaceToBridge(hostIface.Name, contIface.Name, bridgeName, netconf.VlanTag, args.Netns, ovnPort); err != nil {
 		return err
 	}
 
@@ -317,8 +338,22 @@ func removeOvsPort(bridge string, portName string) error {
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
+	if args.Netns == "" {
+		panic("This should never happen, if it does, it means caller does not pass container network namespace as a parameter and therefore OVS port cleanup will not work")
+	}
+
 	if err := assertOvsAvailable(); err != nil {
 		return err
+	}
+
+	envArgs, err := getEnvArgs(args.Args)
+	if err != nil {
+		return err
+	}
+
+	var ovnPort string
+	if envArgs != nil {
+		ovnPort = string(envArgs.OvnPort)
 	}
 
 	netconf, err := loadNetConf(args.StdinData)
@@ -326,8 +361,9 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if args.Netns == "" {
-		panic("This should never happen, if it does, it means caller does not pass container network namespace as a parameter and therefore OVS port cleanup will not work")
+	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	if err != nil {
+		return err
 	}
 
 	// Unlike veth pair, OVS port will not be automatically removed when
@@ -341,7 +377,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	// Do not return an error if the port was not found, it may have been
 	// already removed by someone.
 	if portFound {
-		if err := removeOvsPort(netconf.BrName, portName); err != nil {
+		if err := removeOvsPort(bridgeName, portName); err != nil {
 			return err
 		}
 	}

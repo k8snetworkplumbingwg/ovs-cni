@@ -231,10 +231,10 @@ var _ = Describe("CNI Plugin", func() {
 				defer targetNsTwo.Close()
 
 				By("Checking that both namespaces have different mac addresses on eth0")
-				resultOne := attach(targetNsOne, conf, IFNAME, "")
+				resultOne := attach(targetNsOne, conf, IFNAME, "", "")
 				contOneIface := resultOne.Interfaces[2]
 
-				resultTwo := attach(targetNsTwo, conf, IFNAME, "")
+				resultTwo := attach(targetNsTwo, conf, IFNAME, "", "")
 				contTwoIface := resultTwo.Interfaces[2]
 
 				Expect(contOneIface.Mac).NotTo(Equal(contTwoIface.Mac))
@@ -259,22 +259,59 @@ var _ = Describe("CNI Plugin", func() {
 
 				By("Checking that the mac address on eth0 equals to the requested one")
 				mac := "0a:00:00:00:00:80"
-				result := attach(targetNs, conf, IFNAME, mac)
+				result := attach(targetNs, conf, IFNAME, mac, "")
 				contIface := result.Interfaces[2]
 
 				Expect(contIface.Mac).To(Equal(mac))
 			})
 		})
+		Context("specified OvnPort", func() {
+			It("should configure and ovs interface with iface-id", func() {
+				const IFNAME = "eth0"
+				const ovsOutput = "external_ids        : {iface-id=test-port}"
+
+				conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"OvnPort": "test-port",
+				"bridge": "%s"}`, BRIDGE_NAME)
+
+				targetNs, err := ns.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				defer targetNs.Close()
+
+				OvnPort := "test-port"
+				result := attach(targetNs, conf, IFNAME, "", OvnPort)
+				hostIface := result.Interfaces[1]
+				output, err := exec.Command("ovs-vsctl", "--colum=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
+			})
+		})
 	})
 })
 
-func attach(namespace ns.NetNS, conf, ifName string, mac string) *current.Result {
+func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Result {
+	extraArgs := ""
+	if mac != "" {
+		extraArgs += fmt.Sprintf("MAC=%s,", mac)
+	}
+
+	if ovnPort != "" {
+		extraArgs += fmt.Sprintf("OvnPort=%s", ovnPort)
+	}
+
+	if strings.HasSuffix(extraArgs, ",") {
+		extraArgs = extraArgs[:len(extraArgs)-1]
+	}
+
 	args := &skel.CmdArgs{
 		ContainerID: "dummy",
 		Netns:       namespace.Path(),
 		IfName:      ifName,
 		StdinData:   []byte(conf),
-		Args:        fmt.Sprintf("MAC=%s", mac),
+		Args:        extraArgs,
 	}
 
 	By("Calling ADD command")
