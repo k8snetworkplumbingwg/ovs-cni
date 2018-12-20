@@ -100,7 +100,7 @@ func generateRandomMac() net.HardwareAddr {
 	return net.HardwareAddr(append(prefix, suffix...))
 }
 
-func setupVeth(contNetns ns.NetNS, contIfaceName string) (*current.Interface, *current.Interface, error) {
+func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
 
@@ -118,13 +118,24 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string) (*current.Interface, *c
 			return fmt.Errorf("failed to lookup %q: %v", containerVeth.Name, err)
 		}
 
-		// In case the MAC address is already assigned to another interface, retry
 		var containerMac net.HardwareAddr
-		for i := 1; i <= macSetupRetries; i++ {
-			containerMac = generateRandomMac()
-			err = netlink.LinkSetHardwareAddr(containerLink, containerMac)
-			if err != nil && i == macSetupRetries {
-				return fmt.Errorf("failed to set container iface %q MAC %q: %v", containerVeth.Name, containerMac.String(), err)
+		if requestedMac != "" {
+			containerMac, err = net.ParseMAC(requestedMac)
+			if err != nil {
+				return fmt.Errorf("failed to parse requested MAC  %q: %v", requestedMac, err)
+			}
+			err = assignMacToLink(containerLink, containerMac, containerVeth.Name)
+			if err != nil {
+				return err
+			}
+		} else {
+			// In case the MAC address is already assigned to another interface, retry
+			for i := 1; i <= macSetupRetries; i++ {
+				containerMac = generateRandomMac()
+				err = assignMacToLink(containerLink, containerMac, containerVeth.Name)
+				if err != nil && i == macSetupRetries {
+					return err
+				}
 			}
 		}
 
@@ -144,6 +155,14 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string) (*current.Interface, *c
 	}
 
 	return hostIface, contIface, nil
+}
+
+func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error {
+	err := netlink.LinkSetHardwareAddr(link, mac)
+	if err != nil {
+		return fmt.Errorf("failed to set container iface %q MAC %q: %v", name, mac.String(), err)
+	}
+	return nil
 }
 
 func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName string, vlanTag *uint, contNetnsPath string) error {
@@ -184,8 +203,31 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
+type MACEnvArgs struct {
+	types.CommonArgs
+	MAC types.UnmarshallableString `json:"mac,omitempty"`
+}
+
+func getMacFromArgs(envArgs string) (string, error) {
+	// Parse custom MAC from env args
+	if envArgs != "" {
+		e := MACEnvArgs{}
+		err := types.LoadArgs(envArgs, &e)
+		if err != nil {
+			return "", err
+		}
+		return string(e.MAC), nil
+	}
+	return "", nil
+}
+
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
+
+	mac, err := getMacFromArgs(args.Args)
+	if err != nil {
+		return err
+	}
 
 	if err := assertOvsAvailable(); err != nil {
 		return err
@@ -207,7 +249,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
-	hostIface, contIface, err := setupVeth(contNetns, args.IfName)
+	hostIface, contIface, err := setupVeth(contNetns, args.IfName, mac)
 	if err != nil {
 		return err
 	}
