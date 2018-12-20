@@ -231,24 +231,50 @@ var _ = Describe("CNI Plugin", func() {
 				defer targetNsTwo.Close()
 
 				By("Checking that both namespaces have different mac addresses on eth0")
-				resultOne := attach(targetNsOne, conf, IFNAME)
+				resultOne := attach(targetNsOne, conf, IFNAME, "")
 				contOneIface := resultOne.Interfaces[2]
 
-				resultTwo := attach(targetNsTwo, conf, IFNAME)
+				resultTwo := attach(targetNsTwo, conf, IFNAME, "")
 				contTwoIface := resultTwo.Interfaces[2]
 
 				Expect(contOneIface.Mac).NotTo(Equal(contTwoIface.Mac))
 			})
 		})
+		Context("specified mac address on container interface", func() {
+			It("should create eth0 with the specified mac address", func() {
+				conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d
+				}`, BRIDGE_NAME, VLAN_ID)
+
+				const IFNAME = "eth0"
+
+				By("Creating temporary target namespace to simulate a container")
+				targetNs, err := ns.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				defer targetNs.Close()
+
+				By("Checking that the mac address on eth0 equals to the requested one")
+				mac := "0a:00:00:00:00:80"
+				result := attach(targetNs, conf, IFNAME, mac)
+				contIface := result.Interfaces[2]
+
+				Expect(contIface.Mac).To(Equal(mac))
+			})
+		})
 	})
 })
 
-func attach(namespace ns.NetNS, conf, ifName string) *current.Result {
+func attach(namespace ns.NetNS, conf, ifName string, mac string) *current.Result {
 	args := &skel.CmdArgs{
 		ContainerID: "dummy",
 		Netns:       namespace.Path(),
 		IfName:      ifName,
 		StdinData:   []byte(conf),
+		Args:        fmt.Sprintf("MAC=%s", mac),
 	}
 
 	By("Calling ADD command")
