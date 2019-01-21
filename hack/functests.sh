@@ -26,4 +26,4 @@ if [[ ${TARGET} == openshift* ]]; then
     oc=${kubectl}
 fi
 export KUBEVIRT_PROVIDER=$KUBEVIRT_PROVIDER
-${TESTS_OUT_DIR}/tests.test -kubeconfig=${kubeconfig}
+${TESTS_OUT_DIR}/tests.test -kubeconfig=${kubeconfig} ${FUNC_TEST_ARGS}
