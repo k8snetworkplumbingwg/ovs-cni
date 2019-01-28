@@ -24,6 +24,8 @@ import (
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+
+	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 )
 
 var kubeconfig *string
@@ -31,7 +33,11 @@ var clientset *kubernetes.Clientset
 
 func TestPlugin(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Plugin Suite")
+	reporters := make([]Reporter, 0)
+	if ginkgo_reporters.JunitOutput != "" {
+		reporters = append(reporters, ginkgo_reporters.NewJunitReporter())
+	}
+	RunSpecsWithDefaultAndCustomReporters(t, "Plugin Suite", reporters)
 }
 
 var _ = BeforeSuite(func() {

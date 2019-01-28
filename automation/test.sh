@@ -50,7 +50,7 @@ wait_for_download_lock() {
   exit 1
 }
 
-release_download_lock() { 
+release_download_lock() {
   if [[ -e "$1" ]]; then
     rm -f "$1"
     echo "Released lock: $1"
@@ -123,5 +123,7 @@ done
 
 kubectl version
 
+mkdir -p "$ARTIFACTS_PATH"
+ginko_params="--ginkgo.noColor --junit-output=$ARTIFACTS_PATH/tests.junit.xml"
 # Run functional tests
 FUNC_TEST_ARGS=$ginko_params make functest
