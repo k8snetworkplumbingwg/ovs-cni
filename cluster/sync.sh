@@ -37,10 +37,20 @@ else
 fi
 
 ./cluster/kubectl.sh delete --ignore-not-found -f $ovs_cni_manifest
+
+# Delete daemon sets that were deprecated/renamed
 ./cluster/kubectl.sh -n kube-system delete --ignore-not-found ds ovs-cni-plugin-amd64
+./cluster/kubectl.sh -n kube-system delete --ignore-not-found ds ovs-vsctl-amd64
+for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
+    ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" -- rm -rf /opt/cni/bin/ovs-cni
+    if [[ $KUBEVIRT_PROVIDER == "os-"* ]]; then
+    ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" -- rm -rf /usr/bin/ovs-vsctl
+    fi
+done
 
 # Wait until all objects are deleted
 until [[ $(./cluster/kubectl.sh get --ignore-not-found -f $ovs_cni_manifest 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-cni-plugin-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
+until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-vsctl-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 
 ./cluster/kubectl.sh create -f $ovs_cni_manifest
