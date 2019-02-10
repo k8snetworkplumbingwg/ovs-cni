@@ -67,8 +67,11 @@ func getAvailableResources(ovsSocket string) (map[string]bool, error) {
 	}
 
 	availableResources := make(map[string]bool)
-	for _, bridgeName := range strings.Split(strings.TrimSpace(string(outputRaw)), "\n") {
-		availableResources[bridgeName] = true
+
+	if len(outputRaw) > 0 {
+		for _, bridgeName := range strings.Split(strings.TrimSpace(string(outputRaw)), "\n") {
+			availableResources[bridgeName] = true
+		}
 	}
 
 	return availableResources, nil
