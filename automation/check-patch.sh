@@ -20,10 +20,10 @@ main() {
     curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
     source /etc/profile.d/gimme.sh
 
-    mkdir -p $GOPATH/src/kubevirt.io
+    mkdir -p $GOPATH/src/github.com/kubevirt
     mkdir -p $GOPATH/pkg
-    ln -s $(pwd)/ovs-cni $GOPATH/src/kubevirt.io/
-    cd $GOPATH/src/kubevirt.io/ovs-cni
+    ln -s $(pwd)/ovs-cni $GOPATH/src/github.com/kubevirt/
+    cd $GOPATH/src/github.com/kubevirt/ovs-cni
 
     echo "Run functional tests"
     exec automation/test.sh
