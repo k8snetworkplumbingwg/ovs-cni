@@ -10,11 +10,7 @@ env:
 - BUILDER_NAME="ovs-cni/${TRAVIS_JOB_ID}builder"
 
 install: true
-script:
-  - cd ../..
-  - mv kubevirt ../kubevirt.io
-  - cd ../kubevirt.io/ovs-cni
-  - make docker-test
+script: make docker-test
 
 deploy:
 - provider: script
