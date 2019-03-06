@@ -22,7 +22,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
-	"kubevirt.io/ovs-cni/tests"
+	"github.com/kubevirt/ovs-cni/tests"
 )
 
 var _ = Describe("ovs-cni-marker", func() {
