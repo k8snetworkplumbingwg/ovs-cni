@@ -28,11 +28,11 @@ spec:
         - /bin/bash
         - -c
         - |
-          cp /usr/bin/ovs-vsctl /host/usr/bin/_ovs-vsctl
+          cp /usr/bin/ovs-vsctl /host/usr/local/bin/_ovs-vsctl
           echo '#!/usr/bin/bash
           _ovs-vsctl --db unix:///run/openvswitch/db.sock $@
-          ' > /host/usr/bin/ovs-vsctl
-          chmod +x /host/usr/bin/ovs-vsctl
+          ' > /host/usr/local/bin/ovs-vsctl
+          chmod +x /host/usr/local/bin/ovs-vsctl
         image: docker.io/openshift/origin-node:v3.10.0-rc.0
         imagePullPolicy: IfNotPresent
         resources:
@@ -45,8 +45,8 @@ spec:
         securityContext:
           privileged: true
         volumeMounts:
-        - name: usrbin
-          mountPath: /host/usr/bin
+        - name: localbin
+          mountPath: /host/usr/local/bin
       containers:
       - name: ovs-cni-plugin
         image: quay.io/kubevirt/ovs-cni-plugin:latest
@@ -82,9 +82,9 @@ spec:
               fieldRef:
                 fieldPath: spec.nodeName
       volumes:
-        - name: usrbin
+        - name: localbin
           hostPath:
-            path: /usr/bin
+            path: /usr/local/bin
         - name: cnibin
           hostPath:
             path: /opt/cni/bin
