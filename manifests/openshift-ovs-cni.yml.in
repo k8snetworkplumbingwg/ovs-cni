@@ -29,7 +29,7 @@ spec:
         - -c
         - |
           cp /usr/bin/ovs-vsctl /host/usr/local/bin/_ovs-vsctl
-          echo '#!/usr/bin/bash
+          echo '#!/bin/sh
           _ovs-vsctl --db unix:///run/openvswitch/db.sock $@
           ' > /host/usr/local/bin/ovs-vsctl
           chmod +x /host/usr/local/bin/ovs-vsctl
