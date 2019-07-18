@@ -1,4 +1,5 @@
-FROM centos:centos7
+FROM fedora:29
+RUN dnf install -y openvswitch && dnf clean all
 COPY plugin /ovs
 COPY .version /.version
 CMD ["sh", "-c", "cp /ovs /host/opt/cni/bin/ovs && sleep infinity"]
