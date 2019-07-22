@@ -1,3 +1,4 @@
+Test Do not merge
 # Open vSwitch CNI plugin
 
 This plugin allows user to define Kubernetes networks on top of Open vSwitch bridges available on nodes. IPAM is currently not supported. There is no scheduling involved, desired bridges must be precreated on all nodes. Also, ovs-cni does not configure bridges, it's up to user to connect them to L2, L3 or an overlay network. Finally please note that Open vSwitch must be installed and running on the host.
