@@ -20,19 +20,22 @@
 package tests
 
 import (
-	"os"
+	"fmt"
 	"os/exec"
 	"strings"
 )
 
 // TODO: Use job with a node affinity instead
 func RunOnNode(node string, command string) (string, error) {
-	provider, ok := os.LookupEnv("KUBEVIRT_PROVIDER")
-	if !ok {
-		panic("KUBEVIRT_PROVIDER environment variable must be specified")
+	out, err := exec.Command("bash","-c", fmt.Sprintf("docker ps | grep %s | awk '{ print $1}'",node)).CombinedOutput()
+	if err != nil {
+		panic(fmt.Sprintf("failed to run docker ps error output: %s",string(out)))
 	}
 
-	out, err := exec.Command("docker", "exec", provider+"-"+node, "ssh.sh", command).CombinedOutput()
+	out, err = exec.Command("docker", "exec", string(out[:12]), "ssh.sh", command).CombinedOutput()
+	if err != nil {
+		panic(fmt.Sprintf("failed to run docker exec command error output: %s",string(out)))
+	}
 	outString := string(out)
 	outLines := strings.Split(outString, "\n")
 	// first two lines of output indicate that connection was successful
