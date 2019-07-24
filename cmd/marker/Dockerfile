@@ -1,5 +1,5 @@
-FROM centos:centos7
-RUN yum install -y openvswitch && yum clean all
+FROM fedora:29
+RUN dnf install -y openvswitch && dnf clean all
 COPY marker /marker
 COPY .version /.version
 ENTRYPOINT [ "./marker", "-v", "3", "-logtostderr"]
