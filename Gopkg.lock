@@ -2,6 +2,25 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:be19aca2607a4fa38609e919bcbe01938dc835cd346cf354b7d18f5136c62371"
+  name = "github.com/cenkalti/hub"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "11382a9960d39b0ecda16fd01c424c11ff765a34"
+
+[[projects]]
+  branch = "master"
+  digest = "1:c3d15fa14e154b9804706d5c92f9b61ec96c5e5d60ebaf491aa2333276a63797"
+  name = "github.com/cenkalti/rpc2"
+  packages = [
+    ".",
+    "jsonrpc",
+  ]
+  pruneopts = "UT"
+  revision = "9642ea02d0aad04b8efb5e1a6bbc63daf8d0903d"
+
+[[projects]]
   digest = "1:fdd07ff1d3b56a4338688dca999e7a09eacab635d450ca9338bfdd81fd817d9e"
   name = "github.com/containernetworking/cni"
   packages = [
@@ -225,6 +244,14 @@
   pruneopts = "UT"
   revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
   version = "v2.0.1"
+
+[[projects]]
+  branch = "master"
+  digest = "1:9c17b5792c17ee189a2e7412c54c67a89b22961bae6a710264cc957ece7bb1be"
+  name = "github.com/socketplane/libovsdb"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4de3618546deba09d8875d719752db32bd4652c0"
 
 [[projects]]
   digest = "1:c1b1102241e7f645bc8e0c22ae352e8f0dc6484b6cb4d132fa9f24174e0119e2"
@@ -532,6 +559,7 @@
     "github.com/golang/glog",
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
+    "github.com/socketplane/libovsdb",
     "github.com/vishvananda/netlink",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/types",
