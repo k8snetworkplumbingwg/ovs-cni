@@ -31,3 +31,14 @@
   version = "0.1.2"
   name = "kubevirt.io/qe-tools"
 
+[[constraint]]
+  name = "github.com/socketplane/libovsdb"
+  branch = "master"
+
+[[override]]
+  name = "github.com/cenkalti/hub"
+  branch = "master"
+
+[[override]]
+  name = "github.com/cenkalti/rpc2"
+  branch = "master"
