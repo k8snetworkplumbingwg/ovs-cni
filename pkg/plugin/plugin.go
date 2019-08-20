@@ -34,6 +34,8 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+
+	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
 )
 
 const macSetupRetries = 2
@@ -189,24 +191,15 @@ func getBridgeName(bridgeName, ovnPort string) (string, error) {
 	return "", fmt.Errorf("failed to get bridge name")
 }
 
-func attachIfaceToBridge(hostIfaceName string, contIfaceName string, brName string, vlanTag *uint, contNetnsPath string, ovnPortName string) error {
-	// Set external IDs so we are able to find and remove the port from OVS
-	// database when CNI DEL is called.
-	command := []string{
-		"--", "add-port", brName, hostIfaceName,
-		"--", "set", "Port", hostIfaceName, fmt.Sprintf("external-ids:contNetns=%s", contNetnsPath),
-		"--", "set", "Port", hostIfaceName, fmt.Sprintf("external-ids:contIface=%s", contIfaceName),
-	}
+func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTag *uint, contNetnsPath string, ovnPortName string) error {
+	var vlanTagNum uint = 0
 	if vlanTag != nil {
-		command = append(command, "--", "set", "Port", hostIfaceName, fmt.Sprintf("tag=%d", *vlanTag))
-	}
-	if ovnPortName != "" {
-		command = append(command, "--", "set", "Interface", hostIfaceName, fmt.Sprintf("external-ids:iface-id=%s", ovnPortName))
+		vlanTagNum = *vlanTag
 	}
 
-	output, err := exec.Command("ovs-vsctl", command...).CombinedOutput()
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTagNum)
 	if err != nil {
-		return fmt.Errorf("failed to attach veth to bridge: %s", string(output[:]))
+		return err
 	}
 
 	hostLink, err := netlink.LinkByName(hostIfaceName)
@@ -245,16 +238,17 @@ func CmdAdd(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	if err := assertOvsAvailable(); err != nil {
-		return err
-	}
-
 	netconf, err := loadNetConf(args.StdinData)
 	if err != nil {
 		return err
 	}
 
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	if err != nil {
+		return err
+	}
+
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName)
 	if err != nil {
 		return err
 	}
@@ -275,7 +269,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if err = attachIfaceToBridge(hostIface.Name, contIface.Name, bridgeName, netconf.VlanTag, args.Netns, ovnPort); err != nil {
+	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, netconf.VlanTag, args.Netns, ovnPort); err != nil {
 		return err
 	}
 
@@ -299,40 +293,14 @@ func CmdAdd(args *skel.CmdArgs) error {
 	return types.PrintResult(result, netconf.CNIVersion)
 }
 
-func getOvsPortForContIface(contIface string, contNetnsPath string) (string, bool, error) {
+func getOvsPortForContIface(ovsDriver *ovsdb.OvsBridgeDriver, contIface string, contNetnsPath string) (string, bool, error) {
 	// External IDs were set on the port during ADD call.
-	portsOutRaw, err := exec.Command(
-		"ovs-vsctl", "--format=json", "--column=name",
-		"find", "Port",
-		fmt.Sprintf("external-ids:contNetns=%s", contNetnsPath),
-		fmt.Sprintf("external-ids:contIface=%s", contIface),
-	).Output()
-	if err != nil {
-		return "", false, err
-	}
-
-	portsOut := struct {
-		Data [][]string
-	}{}
-	if err = json.Unmarshal(portsOutRaw, &portsOut); err != nil {
-		return "", false, err
-	}
-
-	if len(portsOut.Data) == 0 {
-		return "", false, nil
-	}
-
-	portName := portsOut.Data[0][0]
-	return portName, true, nil
+	return ovsDriver.GetOvsPortForContIface(contIface, contNetnsPath)
 }
 
-func removeOvsPort(bridge string, portName string) error {
-	output, err := exec.Command("ovs-vsctl", "del-port", bridge, portName).CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to remove bridge %s port %s: %v", bridge, portName, string(output[:]))
-	}
+func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 
-	return err
+	return ovsDriver.DeletePort(portName)
 }
 
 func CmdDel(args *skel.CmdArgs) error {
@@ -340,10 +308,6 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	if args.Netns == "" {
 		panic("This should never happen, if it does, it means caller does not pass container network namespace as a parameter and therefore OVS port cleanup will not work")
-	}
-
-	if err := assertOvsAvailable(); err != nil {
-		return err
 	}
 
 	envArgs, err := getEnvArgs(args.Args)
@@ -366,10 +330,15 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName)
+	if err != nil {
+		return err
+	}
+
 	// Unlike veth pair, OVS port will not be automatically removed when
 	// container namespace is gone. Find port matching DEL arguments and remove
 	// it explicitly.
-	portName, portFound, err := getOvsPortForContIface(args.IfName, args.Netns)
+	portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
 	if err != nil {
 		return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
 	}
@@ -377,7 +346,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	// Do not return an error if the port was not found, it may have been
 	// already removed by someone.
 	if portFound {
-		if err := removeOvsPort(bridgeName, portName); err != nil {
+		if err := removeOvsPort(ovsDriver, portName); err != nil {
 			return err
 		}
 	}
