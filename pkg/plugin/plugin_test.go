@@ -34,6 +34,7 @@ import (
 
 const BRIDGE_NAME = "test-bridge"
 const VLAN_ID = 100
+const MTU = 1456
 
 var _ = BeforeSuite(func() {
 	output, err := exec.Command("ovs-vsctl", "show").CombinedOutput()
@@ -62,7 +63,7 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to remove testing OVS bridge: %v", string(output[:]))
 	})
 
-	testAddDel := func(conf string, setVlan bool) {
+	testAddDel := func(conf string, setVlan, setMtu bool) {
 		const IFNAME = "eth0"
 
 		By("Creating temporary target namespace to simulate a container")
@@ -126,6 +127,10 @@ var _ = Describe("CNI Plugin", func() {
 			Expect(portVlan).To(Equal("[]"))
 		}
 
+		if setMtu {
+			Expect(hostLink.Attrs().MTU).To(Equal(MTU))
+		}
+
 		By("Checking that port external-id:contIface contains reference to container interface name")
 		externalIdContIface, err := getPortAttribute(hostIface.Name, "external-ids:contIface")
 		Expect(err).NotTo(HaveOccurred())
@@ -151,6 +156,10 @@ var _ = Describe("CNI Plugin", func() {
 
 			By("Checking that container interface is set UP")
 			Expect(contLink.Attrs().OperState).To(Equal(netlink.LinkOperState(netlink.OperUp)))
+
+			if setMtu {
+				Expect(contLink.Attrs().MTU).To(Equal(MTU))
+			}
 
 			return nil
 		})
@@ -196,7 +205,7 @@ var _ = Describe("CNI Plugin", func() {
 				"vlan": %d
 			}`, BRIDGE_NAME, VLAN_ID)
 			It("should successfully complete ADD and DEL commands", func() {
-				testAddDel(conf, true)
+				testAddDel(conf, true, false)
 			})
 		})
 		Context("without a VLAN ID set on port", func() {
@@ -207,7 +216,19 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s"
 			}`, BRIDGE_NAME)
 			It("should successfully complete ADD and DEL commands", func() {
-				testAddDel(conf, false)
+				testAddDel(conf, false, false)
+			})
+		})
+		Context("with MTU set on port", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+                "mtu": %d
+			}`, BRIDGE_NAME, MTU)
+			It("should successfully complete ADD and DEL commands", func() {
+				testAddDel(conf, false, true)
 			})
 		})
 		Context("random mac address on container interface", func() {

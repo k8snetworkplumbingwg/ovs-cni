@@ -44,6 +44,7 @@ type netConf struct {
 	types.NetConf
 	BrName  string `json:"bridge,omitempty"`
 	VlanTag *uint  `json:"vlan"`
+	MTU     int    `json:"mtu"`
 }
 
 type EnvArgs struct {
@@ -116,7 +117,7 @@ func generateRandomMac() net.HardwareAddr {
 	return net.HardwareAddr(append(prefix, suffix...))
 }
 
-func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string) (*current.Interface, *current.Interface, error) {
+func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mtu int) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
 
@@ -124,7 +125,7 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string) (*
 	// this we will make sure that both ends of the veth pair will be removed
 	// when the container is gone.
 	err := contNetns.Do(func(hostNetns ns.NetNS) error {
-		hostVeth, containerVeth, err := ip.SetupVeth(contIfaceName, 1500, hostNetns)
+		hostVeth, containerVeth, err := ip.SetupVeth(contIfaceName, mtu, hostNetns)
 		if err != nil {
 			return err
 		}
@@ -264,7 +265,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
-	hostIface, contIface, err := setupVeth(contNetns, args.IfName, mac)
+	hostIface, contIface, err := setupVeth(contNetns, args.IfName, mac, netconf.MTU)
 	if err != nil {
 		return err
 	}
