@@ -2,7 +2,7 @@ apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
   name: ovs-cni-amd64
-  namespace: ${NAMESPACE}
+  namespace: kube-system
   labels:
     tier: node
     app: ovs-cni
@@ -23,8 +23,8 @@ spec:
         effect: NoSchedule
       containers:
       - name: ovs-cni-plugin
-        image: ${OVS_CNI_PLUGIN_IMAGE_REPO}/${OVS_CNI_PLUGIN_IMAGE_NAME}:${OVS_CNI_PLUGIN_IMAGE_VERSION}
-        imagePullPolicy: ${OVS_CNI_PLUGIN_IMAGE_PULL_POLICY}
+        image: quay.io/kubevirt/ovs-cni-plugin:latest
+        imagePullPolicy: IfNotPresent
         resources:
           requests:
             cpu: "100m"
@@ -38,15 +38,15 @@ spec:
         - name: cnibin
           mountPath: /host/opt/cni/bin
       - name: ovs-cni-marker
-        image: ${OVS_CNI_MARKER_IMAGE_REPO}/${OVS_CNI_MARKER_IMAGE_NAME}:${OVS_CNI_MARKER_IMAGE_VERSION}
-        imagePullPolicy: ${OVS_CNI_MARKER_IMAGE_PULL_POLICY}
+        image: quay.io/kubevirt/ovs-cni-marker:latest
+        imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
         args:
           - -node-name
           - $(NODE_NAME)
           - -ovs-socket
-          - unix:///host/var/run/openvswitch/db.sock
+          - /host/var/run/openvswitch/db.sock
         volumeMounts:
           - name: ovs-var-run
             mountPath: /host/var/run/openvswitch
@@ -89,10 +89,10 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: ovs-cni-marker
-  namespace: ${NAMESPACE}
+  namespace: kube-system
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: ovs-cni-marker
-  namespace: ${NAMESPACE}
+  namespace: kube-system

@@ -1,4 +1,3 @@
----
 apiVersion: extensions/v1beta1
 kind: DaemonSet
 metadata:
@@ -22,31 +21,6 @@ spec:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
-      initContainers:
-      - name: ovs-vsctl
-        command:
-        - /bin/bash
-        - -c
-        - |
-          cp /usr/bin/ovs-vsctl /host/usr/local/bin/_ovs-vsctl
-          echo '#!/bin/sh
-          _ovs-vsctl --db unix:///run/openvswitch/db.sock $@
-          ' > /host/usr/local/bin/ovs-vsctl
-          chmod +x /host/usr/local/bin/ovs-vsctl
-        image: ${OPENSHIFT_NODE_IMAGE_REPO}/${OPENSHIFT_NODE_IMAGE_NAME}:${OPENSHIFT_NODE_IMAGE_VERSION}
-        imagePullPolicy: ${OPENSHIFT_NODE_IMAGE_PULL_POLICY}
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "50Mi"
-          limits:
-            cpu: "100m"
-            memory: "50Mi"
-        securityContext:
-          privileged: true
-        volumeMounts:
-        - name: localbin
-          mountPath: /host/usr/local/bin
       containers:
       - name: ovs-cni-plugin
         image: ${OVS_CNI_PLUGIN_IMAGE_REPO}/${OVS_CNI_PLUGIN_IMAGE_NAME}:${OVS_CNI_PLUGIN_IMAGE_VERSION}
@@ -72,25 +46,22 @@ spec:
           - -node-name
           - $(NODE_NAME)
           - -ovs-socket
-          - unix:///host/run/openvswitch/db.sock
+          - /host/var/run/openvswitch/db.sock
         volumeMounts:
-          - name: ovs-run
-            mountPath: /host/run/openvswitch
+          - name: ovs-var-run
+            mountPath: /host/var/run/openvswitch
         env:
           - name: NODE_NAME
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
       volumes:
-        - name: localbin
-          hostPath:
-            path: /usr/local/bin
         - name: cnibin
           hostPath:
             path: /opt/cni/bin
-        - name: ovs-run
+        - name: ovs-var-run
           hostPath:
-            path: /run/openvswitch
+            path: /var/run/openvswitch
 ---
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1beta1

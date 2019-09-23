@@ -65,7 +65,7 @@ Installation of Multus on OpenShift should be easier. Please note that this is
 not officially supported by OpenShift, it is only a dev preview with no warranties.
 
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/multus.yml
+kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/openshift-multus.yml
 ```
 
 ## Open vSwitch CNI plugin
@@ -74,16 +74,8 @@ Installation of ovs-cni can be done simply by deploying a daemon set that will
 deploy ovs-cni binaries on your nodes. Following command will install the
 latest image from this repository.
 
-### Kubernetes
-
 ```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/kubernetes-ovs-cni.yml
-```
-
-### OpenShift
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/openshift-ovs-cni.yml
+kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/ovs-cni.yml
 ```
 
 You can stop here and play with the cluster on your own or continue to

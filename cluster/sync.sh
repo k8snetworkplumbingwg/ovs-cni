@@ -28,15 +28,9 @@ registry=localhost:$registry_port
 REGISTRY=$registry make docker-build
 REGISTRY=$registry make docker-push
 
-if [[ $KUBEVIRT_PROVIDER == "k8s-"* ]]; then
-    ovs_cni_manifest="./cluster/examples/kubernetes-ovs-cni.yml"
-elif [[ $KUBEVIRT_PROVIDER == "os-"* ]]; then
-    ovs_cni_manifest="./cluster/examples/openshift-ovs-cni.yml"
-else
-    exit 1
-fi
+ovs_cni_manifest="./examples/ovs-cni.yml"
 
-./cluster/kubectl.sh delete --ignore-not-found -f $ovs_cni_manifest
+sed 's/quay.io\/kubevirt/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh delete --ignore-not-found -f -
 
 # Delete daemon sets that were deprecated/renamed
 ./cluster/kubectl.sh -n kube-system delete --ignore-not-found ds ovs-cni-plugin-amd64
@@ -53,4 +47,4 @@ until [[ $(./cluster/kubectl.sh get --ignore-not-found -f $ovs_cni_manifest 2>&1
 until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-cni-plugin-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-vsctl-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 
-./cluster/kubectl.sh create -f $ovs_cni_manifest
+sed 's/quay.io\/kubevirt/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -
