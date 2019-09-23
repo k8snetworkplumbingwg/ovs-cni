@@ -23,15 +23,34 @@ import (
 )
 
 // OVS driver state
-type OvsBridgeDriver struct {
+type OvsDriver struct {
 	// OVS client
 	ovsClient *libovsdb.OvsdbClient
+}
+
+type OvsBridgeDriver struct {
+	OvsDriver
 
 	// Name of the OVS bridge
 	OvsBridgeName string
 }
 
 // Create a new OVS driver with Unix socket
+func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
+	ovsDriver := new(OvsDriver)
+
+	ovsDB, err := libovsdb.ConnectWithUnixSocket(ovsSocket)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to ovsdb error: %v", err)
+	}
+
+	// Setup state
+	ovsDriver.ovsClient = ovsDB
+
+	return ovsDriver, nil
+}
+
+// Create a new OVS driver for a bridge with Unix socket
 func NewOvsBridgeDriver(bridgeName string) (*OvsBridgeDriver, error) {
 	ovsDriver := new(OvsBridgeDriver)
 
@@ -58,7 +77,7 @@ func NewOvsBridgeDriver(bridgeName string) (*OvsBridgeDriver, error) {
 }
 
 // Wrapper for ovsDB transaction
-func (self *OvsBridgeDriver) ovsdbTransact(ops []libovsdb.Operation) ([]libovsdb.OperationResult, error) {
+func (self *OvsDriver) ovsdbTransact(ops []libovsdb.Operation) ([]libovsdb.OperationResult, error) {
 	// Perform OVSDB transaction
 	reply, _ := self.ovsClient.Transact("Open_vSwitch", ops...)
 
@@ -125,8 +144,37 @@ func (self *OvsBridgeDriver) DeletePort(intfName string) error {
 	return err
 }
 
+func (self *OvsDriver) BridgeList() ([]string, error) {
+	selectOp := []libovsdb.Operation{{
+		Op:      "select",
+		Table:   "Bridge",
+		Columns: []string{"name"},
+	}}
+
+	transactionResult, err := self.ovsdbTransact(selectOp)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(transactionResult) != 1 {
+		return nil, fmt.Errorf("unknow error")
+	}
+
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return nil, fmt.Errorf("%s - %s", operationResult.Error, operationResult.Details)
+	}
+
+	bridges := []string{}
+	for _, bridge := range operationResult.Rows {
+		bridges = append(bridges, fmt.Sprintf("%v", bridge["name"]))
+	}
+
+	return bridges, nil
+}
+
 // Check if the bridge entry already exists
-func (self *OvsBridgeDriver) IsBridgePresent(bridgeName string) (bool, error) {
+func (self *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	condition := libovsdb.NewCondition("name", "==", bridgeName)
 	selectOp := []libovsdb.Operation{{
 		Op:      "select",
@@ -157,7 +205,7 @@ func (self *OvsBridgeDriver) IsBridgePresent(bridgeName string) (bool, error) {
 }
 
 // Return ovs port name for an container interface
-func (self *OvsBridgeDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (string, bool, error) {
+func (self *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (string, bool, error) {
 	searchMap := map[string]string{"contNetns": contNetnsPath, "contIface": contIface}
 	ovsmap, err := libovsdb.NewOvsMap(searchMap)
 	if err != nil {
@@ -175,19 +223,19 @@ func (self *OvsBridgeDriver) GetOvsPortForContIface(contIface, contNetnsPath str
 }
 
 // ************************ Notification handler for OVS DB changes ****************
-func (self *OvsBridgeDriver) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
+func (self *OvsDriver) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
 }
-func (self *OvsBridgeDriver) Disconnected(ovsClient *libovsdb.OvsdbClient) {
+func (self *OvsDriver) Disconnected(ovsClient *libovsdb.OvsdbClient) {
 }
-func (self *OvsBridgeDriver) Locked([]interface{}) {
+func (self *OvsDriver) Locked([]interface{}) {
 }
-func (self *OvsBridgeDriver) Stolen([]interface{}) {
+func (self *OvsDriver) Stolen([]interface{}) {
 }
-func (self *OvsBridgeDriver) Echo([]interface{}) {
+func (self *OvsDriver) Echo([]interface{}) {
 }
 
 // ************************ Helper functions ********************
-func (self *OvsBridgeDriver) findByCondition(table string, condition []interface{}, columns []string) (map[string]interface{}, error) {
+func (self *OvsDriver) findByCondition(table string, condition []interface{}, columns []string) (map[string]interface{}, error) {
 	selectOp := libovsdb.Operation{
 		Op:    "select",
 		Table: table,
