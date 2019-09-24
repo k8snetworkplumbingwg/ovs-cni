@@ -37,8 +37,13 @@ func main() {
 		glog.Fatal("ovs-socket must be set")
 	}
 
+	markerApp, err := marker.NewMarker(*nodeName, *ovsSocket)
+	if err != nil {
+		glog.Fatalf("failed to create a new marker object: %v", err)
+	}
+
 	for {
-		err := marker.Update(*nodeName, *ovsSocket)
+		err := markerApp.Update()
 		if err != nil {
 			glog.Errorf("Update failed: %v", err)
 		}

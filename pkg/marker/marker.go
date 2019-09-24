@@ -17,18 +17,14 @@ package marker
 import (
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"strings"
 
-	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	types "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
-)
 
-var (
-	clientset kubernetes.Interface
+	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
 )
 
 const (
@@ -44,45 +40,51 @@ type patchOperation struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
-func init() {
-	config, err := rest.InClusterConfig()
-	if err != nil {
-		glog.Fatalf("Error while obtaining cluster config: %v", err)
-	}
-
-	clientset, err = kubernetes.NewForConfig(config)
-	if err != nil {
-		glog.Fatalf("Error building example clientset: %v", err)
-	}
+type Marker struct {
+	nodeName  string
+	clientset kubernetes.Interface
+	ovsdb     *ovsdb.OvsDriver
 }
 
-func getAvailableResources(ovsSocket string) (map[string]bool, error) {
-	outputRaw, err := exec.Command(
-		"ovs-vsctl",
-		"--db", ovsSocket,
-		"list-br",
-	).CombinedOutput()
+func NewMarker(nodeName string, ovsSocket string) (*Marker, error) {
+	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list OVS bridges: %v", string(outputRaw))
+		return nil, fmt.Errorf("Error while obtaining cluster config: %v", err)
+	}
+
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, fmt.Errorf("Error building example clientset: %v", err)
+	}
+
+	ovsDriver, err := ovsdb.NewOvsDriver(ovsSocket)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating the ovsdb connection: %v", err)
+	}
+
+	return &Marker{clientset: clientset, nodeName: nodeName, ovsdb: ovsDriver}, nil
+}
+
+func (m *Marker) getAvailableResources() (map[string]bool, error) {
+	bridges, err := m.ovsdb.BridgeList()
+	if err != nil {
+		return nil, err
 	}
 
 	availableResources := make(map[string]bool)
-
-	if len(outputRaw) > 0 {
-		for _, bridgeName := range strings.Split(strings.TrimSpace(string(outputRaw)), "\n") {
-			availableResources[bridgeName] = true
-		}
+	for _, bridgeName := range bridges {
+		availableResources[bridgeName] = true
 	}
 
 	return availableResources, nil
 }
 
-func getReportedResources(nodeName string) (map[string]bool, error) {
+func (m *Marker) getReportedResources() (map[string]bool, error) {
 	reportedResources := make(map[string]bool)
-	node, err := clientset.
+	node, err := m.clientset.
 		CoreV1().
 		Nodes().
-		Get(nodeName, metav1.GetOptions{})
+		Get(m.nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node: %v", err)
 	}
@@ -97,13 +99,13 @@ func getReportedResources(nodeName string) (map[string]bool, error) {
 	return reportedResources, nil
 }
 
-func Update(nodeName string, ovsSocket string) error {
-	availableResources, err := getAvailableResources(ovsSocket)
+func (m *Marker) Update() error {
+	availableResources, err := m.getAvailableResources()
 	if err != nil {
 		return fmt.Errorf("failed to list available resources: %v", err)
 	}
 
-	reportedResources, err := getReportedResources(nodeName)
+	reportedResources, err := m.getReportedResources()
 	if err != nil {
 		return fmt.Errorf("failed to list reported resources: %v", err)
 	}
@@ -138,10 +140,10 @@ func Update(nodeName string, ovsSocket string) error {
 		return fmt.Errorf("failed to marshal patch operations %s: %v", patchOperations, err)
 	}
 
-	_, err = clientset.
+	_, err = m.clientset.
 		CoreV1().
 		Nodes().
-		Patch(nodeName, types.JSONPatchType, payloadBytes, "status")
+		Patch(m.nodeName, types.JSONPatchType, payloadBytes, "status")
 	if err != nil {
 		return fmt.Errorf("failed to apply patch %s on node: %v", payloadBytes, err)
 	}
