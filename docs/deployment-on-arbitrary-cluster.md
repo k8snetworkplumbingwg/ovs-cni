@@ -1,21 +1,23 @@
 # Deployment on Arbitrary Cluster
 
-In this guide we will cover installation of Open vSwitch, Multus and ovs-cni on
-your arbitrary cluster.
+In this guide we will cover installation of Open vSwitch (OVS), Multus and
+ovs-cni on your arbitrary cluster.
 
-## Requirements
+# Requirements
+
+## A Cluster
 
 This guide requires you to have your own Kubernetes/OpenShift cluster. If you
-don't have one and just want to try ovs-cni out, please refer to [deployment on
-local cluster](deployment-on-local-cluster.md) guide.
+don't have one and just want to try ovs-cni out, please refer to the [deployment
+on local cluster](deployment-local-cluster.md) guide.
 
 ## Open vSwitch
 
 ### Kubernetes
 
-Open vSwitch must be installed and running on all nodes (unless you do
-[scheduling](scheduling.md)). OVS is available in repositories of all major
-distributions.
+Open vSwitch must be installed and running on all nodes (or on a subset of nodes
+if you do [scheduling](scheduling.md)). OVS is available in repositories of all
+major distributions.
 
 On CentOS:
 
@@ -31,7 +33,8 @@ dnf install openvswitch
 systemctl start openvswitch
 ```
 
-If you use other platform, please check [Open vSwitch documentation](https://github.com/openvswitch/ovs).
+If you use other platform, please check [Open vSwitch
+documentation](https://github.com/openvswitch/ovs).
 
 You can verify that OVS is properly running.
 
@@ -43,41 +46,11 @@ ovs-vsctl del-br test-br
 
 ### OpenShift
 
-For OpenShift, Open vSwitch deployment is a part of OVS CNI.
+For OpenShift, Open vSwitch is already installed on the cluster. Please note
+that this Open vSwitch instance is meant only for OpenShiftSDN and using it
+for ovs-cni may lead to unexpected behavior.
 
-## Multus
+# Open vSwitch CNI plugin
 
-TODO: Webhook support is not yet available, update docs once it is.
-
-### Kubernetes
-
-Installation of Multus is currently a little tricky. If you have not installed
-any network plugin (Calico, Flannel,...) on your cluster, you can follow [quick
-start guide](https://github.com/intel/multus-cni#quickstart-guide) of Multus.
-However, if you already have a network plugin running, you need to do some
-extra work. I would recommend you to study the quickstart guide and modify it
-for your own case. Multus should soon include better documentation of the
-installation process.
-
-### OpenShift
-
-Installation of Multus on OpenShift should be easier. Please note that this is
-not officially supported by OpenShift, it is only a dev preview with no warranties.
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/openshift-multus.yml
-```
-
-## Open vSwitch CNI plugin
-
-Installation of ovs-cni can be done simply by deploying a daemon set that will
-deploy ovs-cni binaries on your nodes. Following command will install the
-latest image from this repository.
-
-```shell
-kubectl apply -f https://raw.githubusercontent.com/kubevirt/ovs-cni/master/examples/ovs-cni.yml
-```
-
-You can stop here and play with the cluster on your own or continue to
-[demo](demo.md) that will guide you through definition of kubernetes networks,
-configuration of Open vSwitch bridges and attachment of pods to them.
+Finally, we can install ovs-cni on our cluster. In order to do that,
+please use [Cluster Network Addons Operator Project](https://github.com/kubevirt/cluster-network-addons-operator#open-vswitch).
