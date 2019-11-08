@@ -96,10 +96,6 @@ deploy local cluster.
 
 Refer to the [kubernetes 1.11.1 with multus document](../cluster/k8s-multus-1.11.1/README.md)
 
-### Dockerized OCP Provider
-
-Refer to the [OCP 3.10 with multus document](../cluster/os-3.10.0-multus/README.md)
-
 
 ### Usage
 

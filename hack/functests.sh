@@ -14,16 +14,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright 2017 Red Hat, Inc.
-#
+# Copyright 2017-2019 Red Hat, Inc.
 
 set -e
 
-source hack/common.sh
-source hack/config.sh
+source ./cluster/kubevirtci.sh
 
-if [[ ${TARGET} == openshift* ]]; then
-    oc=${kubectl}
-fi
-export KUBEVIRT_PROVIDER=$KUBEVIRT_PROVIDER
-${TESTS_OUT_DIR}/tests.test -kubeconfig=${kubeconfig} ${FUNC_TEST_ARGS}
+go test ./tests --kubeconfig $(kubevirtci::kubeconfig) -v

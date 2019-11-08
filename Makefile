@@ -29,7 +29,6 @@ test-%:
 	go test ./$(subst -,/,$*)/... -v --ginkgo.v
 
 functest:
-	hack/dockerized "hack/build-func-tests.sh"
 	hack/functests.sh
 
 docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
