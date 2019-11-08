@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright 2018 Red Hat, Inc.
+# Copyright 2018-2019 Red Hat, Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -39,11 +39,6 @@ function build_func_tests() {
 # Use this environment variable to set a custom pkgdir path
 # Useful for cross-compilation where the default -pkdir for cross-builds may not be writable
 #KUBEVIRT_GO_BASE_PKGDIR="${GOPATH}/crossbuild-cache-root/"
-
-# If on a developer setup, expose ocp on 8443, so that the openshift web console can be used (the port is important because of auth redirects)
-if [ -z "${JOB_NAME}" ]; then
-    KUBEVIRT_PROVIDER_EXTRA_ARGS="${KUBEVIRT_PROVIDER_EXTRA_ARGS} --ocp-port 8443"
-fi
 
 #If run on jenkins, let us create isolated environments based on the job and
 # the executor number

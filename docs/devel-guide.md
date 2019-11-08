@@ -72,30 +72,25 @@ Manifest templates contain following variables. It it possible to adjust them
 my setting environment variables before calling `make manifests`.
 
 ```
-NAMESPACE # default kube-system}
+NAMESPACE # default kube-system
 
 OVS_CNI_IMAGE_REPO # default quay.io/kubevirt
 OVS_CNI_IMAGE_NAME # default ovs-cni-plugin
 OVS_CNI_IMAGE_VERSION # default latest
 
-MULTUS_IMAGE_REPO # default docker.io/nfvpe
-MULTUS_IMAGE_NAME # default multus
-MULTUS_IMAGE_VERSION # default latest
+OVS_CNI_PLUGIN_IMAGE_REPO # default quay.io/kubevirt
+OVS_CNI_PLUGIN_IMAGE_NAME # default ovs-cni-plugin
+OVS_CNI_PLUGIN_IMAGE_VERSION # default latest
 
-OPENSHIFT_NODE_IMAGE_REPO # default docker.io/openshift
-OPENSHIFT_NODE_IMAGE_NAME # default origin-node
-OPENSHIFT_NODE_IMAGE_VERSION # default v3.10.0-rc.0
+OVS_CNI_MARKER_IMAGE_REPO # default quay.io/kubevirt
+OVS_CNI_MARKER_IMAGE_NAME # default ovs-cni-marker
+OVS_CNI_MARKER_IMAGE_VERSION # default latest
 ```
 
 ## Local Cluster
 
 This project uses [kubevirtci](https://github.com/kubevirt/kubevirtci) to
 deploy local cluster.
-
-### Dockerized Kubernetes Provider
-
-Refer to the [kubernetes 1.11.1 with multus document](../cluster/k8s-multus-1.11.1/README.md)
-
 
 ### Usage
 
@@ -106,8 +101,6 @@ with multus cni plugin.
 
 ```shell
 # Deploy local Kubernetes cluster
-export KUBEVIRT_PROVIDER=k8s-multus-1.11.1 # choose this provider
-export KUBEVIRT_NUM_NODES=3 # master + two nodes
 make cluster-up
 
 # SSH to node01 and open interactive shell
