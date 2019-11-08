@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"log"
 	"net"
-	"os/exec"
 	"runtime"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -63,15 +62,6 @@ func init() {
 func logCall(command string, args *skel.CmdArgs) {
 	log.Printf("CNI %s was called for container ID: %s, network namespace %s, interface name %s, configuration: %s",
 		command, args.ContainerID, args.Netns, args.IfName, string(args.StdinData[:]))
-}
-
-func assertOvsAvailable() error {
-	// ovs-vsctl show will fail if OVS is not installed, running or user does
-	// not have rights to use it
-	if err := exec.Command("ovs-vsctl", "show").Run(); err != nil {
-		return fmt.Errorf("Open vSwitch is not available: %v", err)
-	}
-	return nil
 }
 
 func getEnvArgs(envArgsString string) (*EnvArgs, error) {
