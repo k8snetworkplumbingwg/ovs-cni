@@ -1,4 +1,4 @@
-FROM fedora:29
+FROM fedora:31
 RUN dnf install -y openvswitch && dnf clean all
 COPY plugin /ovs
 COPY .version /.version
