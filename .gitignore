@@ -6,14 +6,8 @@ cmd/plugin/plugin
 cmd/marker/.version
 cmd/plugin/.version
 
-# configuration created for local cluster access
-cluster/*/.kubeconfig
-cluster/*/.kubectl
-cluster/*/.oc
-hack/config-provider-*
-cluster/.console.vv
-build-tools/desc/desc
-hack/config-local.sh
+# local cluster
+_kubevirtci/
 
 # testing
 _out

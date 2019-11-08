@@ -14,116 +14,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Copyright 2018 Red Hat, Inc.
-#
-
-# CI considerations: $TARGET is used by the jenkins build, to distinguish what to test
-# Currently considered $TARGET values:
-#     kubernetes-release: Runs all functional tests on a release kubernetes setup
-#     openshift-release: Runs all functional tests on a release openshift setup
+# Copyright 2018-2019 Red Hat, Inc.
 
 set -ex
 
-export WORKSPACE="${WORKSPACE:-$PWD}"
-readonly ARTIFACTS_PATH="$WORKSPACE/exported-artifacts"
-
-if [[ $TARGET =~ openshift-.* ]]; then
-  export KUBEVIRT_PROVIDER="os-3.11.0-multus"
-else
-  export KUBEVIRT_PROVIDER="k8s-multus-1.12.2"
-fi
-
-export KUBEVIRT_NUM_NODES=2
-
-wait_for_download_lock() {
-  local max_lock_attempts=60
-  local lock_wait_interval=60
-
-  for ((i = 0; i < $max_lock_attempts; i++)); do
-      if (set -o noclobber; > $1) 2> /dev/null; then
-          echo "Acquired lock: $1"
-          return
-      fi
-      sleep $lock_wait_interval
-  done
-  echo "Timed out waiting for lock: $1" >&2
-  exit 1
-}
-
-release_download_lock() {
-  if [[ -e "$1" ]]; then
-    rm -f "$1"
-    echo "Released lock: $1"
-  fi
-}
-kubectl() { cluster/kubectl.sh "$@"; }
-
-export NAMESPACE="${NAMESPACE:-kube-system}"
-
-# Make sure that the VM is properly shut down on exit
-trap '{ make cluster-down; }' EXIT SIGINT SIGTERM SIGSTOP
+ARTIFACTS_PATH="${WORKSPACE:-$PWD}/exported-artifacts"
+mkdir -p "$ARTIFACTS_PATH"
 
 make cluster-down
 make cluster-up
-
-# Wait for nodes to become ready
-set +e
-kubectl get nodes --no-headers
-kubectl_rc=$?
-while [ $kubectl_rc -ne 0 ] || [ -n "$(kubectl get nodes --no-headers | grep NotReady)" ]; do
-    echo "Waiting for all nodes to become ready ..."
-    kubectl get nodes --no-headers
-    kubectl_rc=$?
-    sleep 10
-done
-set -e
-
-echo "Nodes are ready:"
-kubectl get nodes
-
-# OpenShift is running important containers under default namespace
-namespaces=(kube-system default)
-if [[ $NAMESPACE != "kube-system" ]]; then
-  namespaces+=($NAMESPACE)
-fi
-
-# Run cluster-sync to deploy ovs-cni on the nodes
+trap '{ make cluster-down; }' EXIT SIGINT SIGTERM SIGSTOP
 make cluster-sync
 
-timeout=300
-sample=30
-
-for i in ${namespaces[@]}; do
-  # Wait until kubevirt pods are running
-  current_time=0
-  while [ -n "$(kubectl get pods -n $i --no-headers | grep -v Running)" ]; do
-    echo "Waiting for kubevirt pods to enter the Running state ..."
-    kubectl get pods -n $i --no-headers | >&2 grep -v Running || true
-    sleep $sample
-
-    current_time=$((current_time + sample))
-    if [ $current_time -gt $timeout ]; then
-      exit 1
-    fi
-  done
-
-  # Make sure all containers are ready
-  current_time=0
-  while [ -n "$(kubectl get pods -n $i -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false)" ]; do
-    echo "Waiting for KubeVirt containers to become ready ..."
-    kubectl get pods -n $i -o'custom-columns=status:status.containerStatuses[*].ready' --no-headers | grep false || true
-    sleep $sample
-     current_time=$((current_time + sample))
-    if [ $current_time -gt $timeout ]; then
-      exit 1
-    fi
-  done
-  kubectl get pods -n $i
-done
-
-kubectl version
-
-mkdir -p "$ARTIFACTS_PATH"
 ginko_params="--ginkgo.noColor --junit-output=$ARTIFACTS_PATH/tests.junit.xml"
-# Run functional tests
 FUNC_TEST_ARGS=$ginko_params make functest

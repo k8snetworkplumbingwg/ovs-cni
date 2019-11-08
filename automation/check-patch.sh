@@ -1,13 +1,6 @@
 #!/bin/bash -xe
 
 main() {
-    TARGET="$0"
-    TARGET="${TARGET#./}"
-    TARGET="${TARGET%.*}"
-    TARGET="${TARGET#*.}"
-    echo "TARGET=$TARGET"
-    export TARGET
-
     cd ..
     export GOROOT=/usr/local/go
     export GOPATH=$(pwd)/go
