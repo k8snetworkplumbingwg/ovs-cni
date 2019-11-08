@@ -1,9 +1,5 @@
-sub-stages:
-  - k8s-multus-1.12.2-release
-
 runtime_requirements:
   support_nesting_level: 2
   isolation_level: container
-
 reporting:
   style: stdci

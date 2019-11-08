@@ -26,5 +26,5 @@ make cluster-up
 trap '{ make cluster-down; }' EXIT SIGINT SIGTERM SIGSTOP
 make cluster-sync
 
-ginko_params="--ginkgo.noColor --junit-output=$ARTIFACTS_PATH/tests.junit.xml"
+ginko_params="-ginkgo.noColor --junit-output=$ARTIFACTS_PATH/tests.junit.xml"
 FUNC_TEST_ARGS=$ginko_params make functest
