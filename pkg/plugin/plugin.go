@@ -1,4 +1,4 @@
-// Copyright 2018 Red Hat, Inc.
+// Copyright 2018-2019 Red Hat, Inc.
 // Copyright 2014 CNI authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -363,4 +363,10 @@ func CmdDel(args *skel.CmdArgs) error {
 	})
 
 	return err
+}
+
+func CmdCheck(args *skel.CmdArgs) error {
+	logCall("CHECK", args)
+	log.Print("CHECK is not yet implemented, pretending everything is fine")
+	return nil
 }

@@ -43,11 +43,8 @@ docker-push-%:
 	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
 
 dep:
-	dep ensure -v
-
-clean-dep:
-	rm -f ./Gopkg.lock
-	rm -rf ./vendor
+	go mod tidy
+	go mod vendor
 
 manifests:
 	./hack/build-manifests.sh

@@ -68,7 +68,7 @@ var _ = Describe("CNI Plugin", func() {
 		const IFNAME = "eth0"
 
 		By("Creating temporary target namespace to simulate a container")
-		targetNs, err := ns.NewNS()
+		targetNs, err := testutils.NewNS()
 		Expect(err).NotTo(HaveOccurred())
 		defer targetNs.Close()
 
@@ -249,10 +249,10 @@ var _ = Describe("CNI Plugin", func() {
 				const IFNAME = "eth0"
 
 				By("Creating two temporary target namespace to simulate two containers")
-				targetNsOne, err := ns.NewNS()
+				targetNsOne, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
 				defer targetNsOne.Close()
-				targetNsTwo, err := ns.NewNS()
+				targetNsTwo, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
 				defer targetNsTwo.Close()
 
@@ -279,7 +279,7 @@ var _ = Describe("CNI Plugin", func() {
 				const IFNAME = "eth0"
 
 				By("Creating temporary target namespace to simulate a container")
-				targetNs, err := ns.NewNS()
+				targetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
 				defer targetNs.Close()
 
@@ -303,7 +303,7 @@ var _ = Describe("CNI Plugin", func() {
 				"OvnPort": "test-port",
 				"bridge": "%s"}`, BRIDGE_NAME)
 
-				targetNs, err := ns.NewNS()
+				targetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
 				defer targetNs.Close()
 
@@ -354,11 +354,11 @@ func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Resu
 }
 
 func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (types.Result, []byte, error) {
-	return testutils.CmdAddWithResult(args.Netns, args.IfName, args.StdinData, f)
+	return testutils.CmdAdd(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
 }
 
 func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {
-	return testutils.CmdDelWithResult(args.Netns, args.IfName, f)
+	return testutils.CmdDel(args.Netns, args.ContainerID, args.IfName, f)
 }
 
 func listBridgePorts(brName string) ([]string, error) {

@@ -1,4 +1,4 @@
-// Copyright 2018 Red Hat, Inc.
+// Copyright 2018-2019 Red Hat, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,10 +17,11 @@ package main
 import (
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
+	"github.com/containernetworking/plugins/pkg/utils/buildversion"
 
 	"github.com/kubevirt/ovs-cni/pkg/plugin"
 )
 
 func main() {
-	skel.PluginMain(plugin.CmdAdd, plugin.CmdDel, version.All)
+	skel.PluginMain(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.All, buildversion.BuildString("OVS bridge"))
 }
