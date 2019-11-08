@@ -1,0 +1,50 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: ovs-cni-marker-cr
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+      - nodes/status
+    verbs:
+      - get
+      - update
+      - patch
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1beta1
+metadata:
+  name: ovs-cni-marker-crb
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: ovs-cni-marker-cr
+subjects:
+  - kind: ServiceAccount
+    name: ovs-cni-marker
+    namespace: {{ .Namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ovs-cni-marker
+  namespace: {{ .Namespace }}
+{{ if .EnableSCC }}
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: ovs-cni-marker
+allowHostNetwork: true
+allowPrivilegedContainer: true
+allowHostDirVolumePlugin: true
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: RunAsAny
+users:
+  - system:serviceaccount:{{ .Namespace }}:ovs-cni-marker
+{{ end }}

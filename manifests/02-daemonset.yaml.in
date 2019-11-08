@@ -1,0 +1,75 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ovs-cni-amd64
+  namespace: {{ .Namespace }}
+  labels:
+    tier: node
+    app: ovs-cni
+spec:
+  selector:
+    matchLabels:
+      app: ovs-cni
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: ovs-cni
+    spec:
+      serviceAccountName: ovs-cni-marker
+      hostNetwork: true
+      nodeSelector:
+        beta.kubernetes.io/arch: amd64
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: ovs-cni-plugin
+          image: {{ .OvsCNIImage }}
+          imagePullPolicy: {{ .ImagePullPolicy }}
+          resources:
+            limits:
+              cpu: "1m"
+              memory: "4Mi"
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: cnibin
+              mountPath: /host/opt/cni/bin
+        - name: ovs-cni-marker
+          image: {{ .OvsMarkerImage }}
+          imagePullPolicy: {{ .ImagePullPolicy }}
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "20Mi"
+            limits:
+              cpu: "200m"
+              memory: "40Mi"
+          securityContext:
+            privileged: true
+          args:
+            - -node-name
+            - $(NODE_NAME)
+            - -ovs-socket
+            - unix:///host/run/openvswitch/db.sock
+          volumeMounts:
+            - name: ovs-run
+              mountPath: /host/run/openvswitch
+          env:
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+      volumes:
+        - name: localbin
+          hostPath:
+            path: /usr/local/bin
+        - name: cnibin
+          hostPath:
+            path: {{ .CNIBinDir }}
+        - name: ovs-run
+          hostPath:
+            path: /run/openvswitch

@@ -47,4 +47,5 @@ until [[ $(./cluster/kubectl.sh get --ignore-not-found -f $ovs_cni_manifest 2>&1
 until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-cni-plugin-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-vsctl-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
 
+# TODO: build local manifests and apply them
 sed 's/quay.io\/kubevirt/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -
