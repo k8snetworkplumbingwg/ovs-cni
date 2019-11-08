@@ -13,7 +13,7 @@ build: format $(patsubst %, build-%, $(COMPONENTS))
 
 build-%:
 	hack/version.sh > ./cmd/$(subst -,/,$*)/.version
-	cd cmd/$(subst -,/,$*) && go fmt && go vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -tags no_openssl
+	cd cmd/$(subst -,/,$*) && go fmt && go vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -tags no_openssl -mod vendor
 
 format:
 	go fmt ./pkg/... ./cmd/...
