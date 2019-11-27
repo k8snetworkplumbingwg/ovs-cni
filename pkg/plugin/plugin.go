@@ -94,13 +94,6 @@ func loadNetConf(bytes []byte) (*netConf, error) {
 	return netconf, nil
 }
 
-func setupBridge(brName string) *current.Interface {
-	return &current.Interface{
-		Name: brName,
-		Mac:  getHardwareAddr(brName),
-	}
-}
-
 func generateRandomMac() net.HardwareAddr {
 	prefix := []byte{0x02, 0x00, 0x00} // local unicast prefix
 	suffix := make([]byte, 3)
@@ -244,8 +237,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	brIface := setupBridge(bridgeName)
-
 	contNetns, err := ns.GetNS(args.Netns)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
@@ -261,17 +252,8 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	// Refetch the bridge since its MAC address may change when the first
-	// veth is added.
-	if err = refetchIface(brIface); err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", brIface.Name, err)
-	}
-
-	// Refetch the bridge MAC since it may change when the first veth is added.
-	brIface.Mac = getHardwareAddr(brIface.Name)
-
 	result := &current.Result{
-		Interfaces: []*current.Interface{brIface, hostIface, contIface},
+		Interfaces: []*current.Interface{hostIface, contIface},
 	}
 
 	return types.PrintResult(result, netconf.CNIVersion)

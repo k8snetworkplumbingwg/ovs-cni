@@ -90,22 +90,11 @@ var _ = Describe("CNI Plugin", func() {
 		By("Checking that result of ADD command in in expected format")
 		result, err = current.GetResult(r)
 		Expect(err).NotTo(HaveOccurred())
-		Expect(len(result.Interfaces)).To(Equal(3))
+		Expect(len(result.Interfaces)).To(Equal(2))
 		Expect(len(result.IPs)).To(Equal(0))
 
-		brIface := result.Interfaces[0]
-		hostIface := result.Interfaces[1]
-		contIface := result.Interfaces[2]
-
-		By("Checking that bridge interface name in the result matches requested")
-		Expect(brIface.Name).To(Equal(BRIDGE_NAME))
-
-		By("Checking that bridge interface MAC in the result matches reality")
-		brLink, err := netlink.LinkByName(BRIDGE_NAME)
-		Expect(err).NotTo(HaveOccurred())
-		brHwaddr, err := net.ParseMAC(brIface.Mac)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(brLink.Attrs().HardwareAddr).To(Equal(brHwaddr))
+		hostIface := result.Interfaces[0]
+		contIface := result.Interfaces[1]
 
 		By("Checking that host interface MAC in the result matches reality")
 		hostLink, err := netlink.LinkByName(hostIface.Name)
@@ -258,10 +247,10 @@ var _ = Describe("CNI Plugin", func() {
 
 				By("Checking that both namespaces have different mac addresses on eth0")
 				resultOne := attach(targetNsOne, conf, IFNAME, "", "")
-				contOneIface := resultOne.Interfaces[2]
+				contOneIface := resultOne.Interfaces[0]
 
 				resultTwo := attach(targetNsTwo, conf, IFNAME, "", "")
-				contTwoIface := resultTwo.Interfaces[2]
+				contTwoIface := resultTwo.Interfaces[1]
 
 				Expect(contOneIface.Mac).NotTo(Equal(contTwoIface.Mac))
 			})
@@ -286,7 +275,7 @@ var _ = Describe("CNI Plugin", func() {
 				By("Checking that the mac address on eth0 equals to the requested one")
 				mac := "0a:00:00:00:00:80"
 				result := attach(targetNs, conf, IFNAME, mac, "")
-				contIface := result.Interfaces[2]
+				contIface := result.Interfaces[1]
 
 				Expect(contIface.Mac).To(Equal(mac))
 			})
@@ -309,7 +298,7 @@ var _ = Describe("CNI Plugin", func() {
 
 				OvnPort := "test-port"
 				result := attach(targetNs, conf, IFNAME, "", OvnPort)
-				hostIface := result.Interfaces[1]
+				hostIface := result.Interfaces[0]
 				output, err := exec.Command("ovs-vsctl", "--colum=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
