@@ -76,6 +76,15 @@ func getEnvArgs(envArgsString string) (*EnvArgs, error) {
 	return nil, nil
 }
 
+func getHardwareAddr(ifName string) string {
+	ifLink, err := netlink.LinkByName(ifName)
+	if err != nil {
+		return ""
+	}
+	return ifLink.Attrs().HardwareAddr.String()
+
+}
+
 func loadNetConf(bytes []byte) (*netConf, error) {
 	netconf := &netConf{}
 	if err := json.Unmarshal(bytes, netconf); err != nil {
@@ -85,16 +94,11 @@ func loadNetConf(bytes []byte) (*netConf, error) {
 	return netconf, nil
 }
 
-func setupBridge(brName string) (*current.Interface, error) {
-	brLink, err := netlink.LinkByName(brName)
-	if err != nil {
-		return nil, err
-	}
-
+func setupBridge(brName string) *current.Interface {
 	return &current.Interface{
 		Name: brName,
-		Mac:  brLink.Attrs().HardwareAddr.String(),
-	}, nil
+		Mac:  getHardwareAddr(brName),
+	}
 }
 
 func generateRandomMac() net.HardwareAddr {
@@ -206,11 +210,7 @@ func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string,
 }
 
 func refetchIface(iface *current.Interface) error {
-	link, err := netlink.LinkByName(iface.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", iface.Name, err)
-	}
-	iface.Mac = link.Attrs().HardwareAddr.String()
+	iface.Mac = getHardwareAddr(iface.Name)
 	return nil
 }
 
@@ -244,10 +244,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	brIface, err := setupBridge(bridgeName)
-	if err != nil {
-		return err
-	}
+	brIface := setupBridge(bridgeName)
 
 	contNetns, err := ns.GetNS(args.Netns)
 	if err != nil {
@@ -271,11 +268,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// Refetch the bridge MAC since it may change when the first veth is added.
-	brLink, err := netlink.LinkByName(brIface.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", brIface.Name, err)
-	}
-	brIface.Mac = brLink.Attrs().HardwareAddr.String()
+	brIface.Mac = getHardwareAddr(brIface.Name)
 
 	result := &current.Result{
 		Interfaces: []*current.Interface{brIface, hostIface, contIface},
