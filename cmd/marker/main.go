@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"os"
 	"time"
 
 	"github.com/golang/glog"
@@ -37,15 +38,28 @@ func main() {
 		glog.Fatal("ovs-socket must be set")
 	}
 
+	for {
+		_, err := os.Stat(*ovsSocket)
+		if err == nil {
+			glog.Info("Found the OVS socket")
+			break
+		} else if os.IsNotExist(err) {
+			glog.Infof("Given ovs-socket %q was not found, waiting for the socket to appear", *ovsSocket)
+			time.Sleep(time.Minute)
+		} else {
+			glog.Fatalf("Failed opening the OVS socket with: %v", err)
+		}
+	}
+
 	markerApp, err := marker.NewMarker(*nodeName, *ovsSocket)
 	if err != nil {
-		glog.Fatalf("failed to create a new marker object: %v", err)
+		glog.Fatalf("Failed to create a new marker object: %v", err)
 	}
 
 	for {
 		err := markerApp.Update()
 		if err != nil {
-			glog.Errorf("Update failed: %v", err)
+			glog.Fatalf("Update failed: %v", err)
 		}
 		time.Sleep(time.Duration(*pollInterval) * time.Second)
 	}
