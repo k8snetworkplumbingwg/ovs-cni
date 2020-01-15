@@ -1,4 +1,4 @@
-apiVersion: extensions/v1beta1
+apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: ovs-cni-amd64
@@ -7,6 +7,9 @@ metadata:
     tier: node
     app: ovs-cni
 spec:
+  selector:
+    matchLabels:
+      app: ovs-cni
   template:
     metadata:
       labels:
