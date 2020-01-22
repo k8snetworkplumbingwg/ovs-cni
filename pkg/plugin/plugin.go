@@ -22,6 +22,7 @@ package plugin
 import (
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -41,9 +42,16 @@ const macSetupRetries = 2
 
 type netConf struct {
 	types.NetConf
-	BrName  string `json:"bridge,omitempty"`
-	VlanTag *uint  `json:"vlan"`
-	MTU     int    `json:"mtu"`
+	BrName  string   `json:"bridge,omitempty"`
+	VlanTag *uint    `json:"vlan"`
+	MTU     int      `json:"mtu"`
+	Trunk   []*trunk `json:"trunk,omitempty"`
+}
+
+type trunk struct {
+	MinID *uint `json:"minID,omitempty"`
+	MaxID *uint `json:"maxID,omitempty"`
+	ID    *uint `json:"id,omitempty"`
 }
 
 type EnvArgs struct {
@@ -179,13 +187,8 @@ func getBridgeName(bridgeName, ovnPort string) (string, error) {
 	return "", fmt.Errorf("failed to get bridge name")
 }
 
-func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTag *uint, contNetnsPath string, ovnPortName string) error {
-	var vlanTagNum uint = 0
-	if vlanTag != nil {
-		vlanTagNum = *vlanTag
-	}
-
-	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTagNum)
+func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTags []uint, portType string, contNetnsPath string, ovnPortName string) error {
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTags, portType)
 	if err != nil {
 		return err
 	}
@@ -207,6 +210,36 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
+func splitVlanIds(trunks []*trunk) ([]uint, error) {
+	vlans := make([]uint, 0)
+	for _, item := range trunks {
+		var minID uint = 0
+		var maxID uint = 0
+		var id uint = 0
+		if item.MinID != nil {
+			minID = *item.MinID
+		}
+		if item.MaxID != nil {
+			maxID = *item.MaxID
+		}
+		if item.ID != nil {
+			id = *item.ID
+		}
+		if minID > 0 && maxID > 0 && maxID >= minID {
+			for v := minID; v <= maxID; v++ {
+				vlans = append(vlans, v)
+			}
+		}
+		if id > 0 {
+			vlans = append(vlans, id)
+		}
+	}
+	if len(vlans) == 0 {
+		return nil, errors.New("misconfiguration in the trunk parameter")
+	}
+	return vlans, nil
+}
+
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
 
@@ -225,6 +258,21 @@ func CmdAdd(args *skel.CmdArgs) error {
 	netconf, err := loadNetConf(args.StdinData)
 	if err != nil {
 		return err
+	}
+
+	vlanTags := make([]uint, 0)
+	portType := "access"
+	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
+		portType = "trunk"
+		if len(netconf.Trunk) > 0 {
+			trunkVlanIds, err := splitVlanIds(netconf.Trunk)
+			if err != nil {
+				return err
+			}
+			vlanTags = append(vlanTags, trunkVlanIds...)
+		}
+	} else if netconf.VlanTag != nil {
+		vlanTags = append(vlanTags, *netconf.VlanTag)
 	}
 
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
@@ -248,7 +296,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, netconf.VlanTag, args.Netns, ovnPort); err != nil {
+	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTags, portType, args.Netns, ovnPort); err != nil {
 		return err
 	}
 
