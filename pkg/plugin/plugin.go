@@ -27,6 +27,7 @@ import (
 	"log"
 	"net"
 	"runtime"
+	"sort"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -187,8 +188,8 @@ func getBridgeName(bridgeName, ovnPort string) (string, error) {
 	return "", fmt.Errorf("failed to get bridge name")
 }
 
-func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTags []uint, portType string, contNetnsPath string, ovnPortName string) error {
-	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTags, portType)
+func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTag uint, trunks []uint, portType string, contNetnsPath string, ovnPortName string) error {
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTag, trunks, portType)
 	if err != nil {
 		return err
 	}
@@ -211,33 +212,48 @@ func refetchIface(iface *current.Interface) error {
 }
 
 func splitVlanIds(trunks []*trunk) ([]uint, error) {
-	vlans := make([]uint, 0)
+	vlans := make(map[uint]bool)
 	for _, item := range trunks {
 		var minID uint = 0
 		var maxID uint = 0
-		var id uint = 0
 		if item.MinID != nil {
 			minID = *item.MinID
+			if minID < 0 || minID > 4096 {
+				return nil, errors.New("incorrect trunk minID parameter")
+			}
 		}
 		if item.MaxID != nil {
 			maxID = *item.MaxID
-		}
-		if item.ID != nil {
-			id = *item.ID
-		}
-		if minID > 0 && maxID > 0 && maxID >= minID {
-			for v := minID; v <= maxID; v++ {
-				vlans = append(vlans, v)
+			if maxID < 0 || maxID > 4096 {
+				return nil, errors.New("incorrect trunk maxID parameter")
+			}
+			if maxID < minID {
+				return nil, errors.New("minID is greater than maxID in trunk parameter")
 			}
 		}
-		if id > 0 {
-			vlans = append(vlans, id)
+		if minID > 0 && maxID > 0 {
+			for v := minID; v <= maxID; v++ {
+				vlans[v] = true
+			}
+		}
+		var id uint = 0
+		if item.ID != nil {
+			id = *item.ID
+			if id < 0 || minID > 4096 {
+				return nil, errors.New("incorrect trunk id parameter")
+			}
+			vlans[id] = true
 		}
 	}
 	if len(vlans) == 0 {
-		return nil, errors.New("misconfiguration in the trunk parameter")
+		return nil, errors.New("trunk parameter is misconfigured")
 	}
-	return vlans, nil
+	vlanIds := make([]uint, 0, len(vlans))
+	for k := range vlans {
+		vlanIds = append(vlanIds, k)
+	}
+	sort.Slice(vlanIds, func(i, j int) bool { return vlanIds[i] < vlanIds[j] })
+	return vlanIds, nil
 }
 
 func CmdAdd(args *skel.CmdArgs) error {
@@ -260,7 +276,8 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	vlanTags := make([]uint, 0)
+	var vlanTagNum uint = 0
+	trunks := make([]uint, 0)
 	portType := "access"
 	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
 		portType = "trunk"
@@ -269,10 +286,10 @@ func CmdAdd(args *skel.CmdArgs) error {
 			if err != nil {
 				return err
 			}
-			vlanTags = append(vlanTags, trunkVlanIds...)
+			trunks = append(trunks, trunkVlanIds...)
 		}
 	} else if netconf.VlanTag != nil {
-		vlanTags = append(vlanTags, *netconf.VlanTag)
+		vlanTagNum = *netconf.VlanTag
 	}
 
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
@@ -296,7 +313,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTags, portType, args.Netns, ovnPort); err != nil {
+	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTagNum, trunks, portType, args.Netns, ovnPort); err != nil {
 		return err
 	}
 
