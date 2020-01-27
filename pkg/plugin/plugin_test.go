@@ -15,6 +15,8 @@
 package plugin
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
@@ -64,7 +66,27 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(err).NotTo(HaveOccurred(), "Failed to remove testing OVS bridge: %v", string(output[:]))
 	})
 
-	testAddDel := func(conf string, setVlan, setMtu bool) {
+	testSplitVlanIds := func(conf string, expTrunks []uint, expErr error, setUnmarshalErr bool) {
+		var trunks []*trunk
+		err := json.Unmarshal([]byte(conf), &trunks)
+		if setUnmarshalErr {
+			Expect(err).To(HaveOccurred())
+			return
+		} else {
+			Expect(err).NotTo(HaveOccurred())
+		}
+		By("Calling splitVlanIds method")
+		vlanIds, err := splitVlanIds(trunks)
+		if expErr != nil {
+			By("Checking expected error is occurred")
+			Expect(err).To(Equal(expErr))
+		} else {
+			By("Checking vlanIds are same as trunk vlans")
+			Expect(vlanIds).To(Equal(expTrunks))
+		}
+	}
+
+	testAddDel := func(conf string, setVlan, setMtu bool, Trunk string) {
 		const IFNAME = "eth0"
 
 		By("Creating temporary target namespace to simulate a container")
@@ -121,6 +143,13 @@ var _ = Describe("CNI Plugin", func() {
 			Expect(hostLink.Attrs().MTU).To(Equal(MTU))
 		} else {
 			Expect(hostLink.Attrs().MTU).To(Equal(DEFAULT_MTU))
+		}
+
+		By("Checking that Trunk VLAN range matches expected state")
+		if len(Trunk) > 0 {
+			portVlans, err := getPortAttribute(hostIface.Name, "trunks")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(portVlans).To(Equal(Trunk))
 		}
 
 		By("Checking that port external-id:contIface contains reference to container interface name")
@@ -199,7 +228,7 @@ var _ = Describe("CNI Plugin", func() {
 				"vlan": %d
 			}`, BRIDGE_NAME, VLAN_ID)
 			It("should successfully complete ADD and DEL commands", func() {
-				testAddDel(conf, true, false)
+				testAddDel(conf, true, false, "")
 			})
 		})
 		Context("without a VLAN ID set on port", func() {
@@ -210,7 +239,19 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s"
 			}`, BRIDGE_NAME)
 			It("should successfully complete ADD and DEL commands", func() {
-				testAddDel(conf, false, false)
+				testAddDel(conf, false, false, "")
+			})
+		})
+		Context("with specific VLAN ID ranges set (via both range and id) for the port", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"trunk": [ {"minID": 10, "maxID": 12}, {"id": 15}, {"minID": 17, "maxID": 18}  ]
+			}`, BRIDGE_NAME)
+			It("should successfully complete ADD and DEL commands", func() {
+				testAddDel(conf, false, false, "[10, 11, 12, 15, 17, 18]")
 			})
 		})
 		Context("with MTU set on port", func() {
@@ -222,7 +263,7 @@ var _ = Describe("CNI Plugin", func() {
 				"mtu": %d
 			}`, BRIDGE_NAME, MTU)
 			It("should successfully complete ADD and DEL commands", func() {
-				testAddDel(conf, false, true)
+				testAddDel(conf, false, true, "")
 			})
 		})
 		Context("random mac address on container interface", func() {
@@ -302,6 +343,42 @@ var _ = Describe("CNI Plugin", func() {
 				output, err := exec.Command("ovs-vsctl", "--colum=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
+			})
+		})
+		Context("specify trunk with multiple ranges", func() {
+			trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 19, "maxID": 20} ]`
+			It("testSplitVlanIds method should return with specifed values in the range", func() {
+				testSplitVlanIds(trunks, []uint{10, 11, 12, 19, 20}, nil, false)
+			})
+		})
+		Context("specify trunk with multiple ids", func() {
+			trunks := `[ {"id": 15}, {"id": 19}, {"id": 40} ]`
+			It("testSplitVlanIds method should return with specifed id values", func() {
+				testSplitVlanIds(trunks, []uint{15, 19, 40}, nil, false)
+			})
+		})
+		Context("specify trunk with minID/maxID same value and duplicate values", func() {
+			trunks := `[ {"minID": 10, "maxID": 14}, {"id": 11}, {"minID": 13, "maxID": 13} ]`
+			It("testSplitVlanIds method should return without duplicate trunk values", func() {
+				testSplitVlanIds(trunks, []uint{10, 11, 12, 13, 14}, nil, false)
+			})
+		})
+		Context("specify trunk with negative value", func() {
+			trunks := `[ {"id": 15}, {"id": 15}, {"id": -20} ]`
+			It("testSplitVlanIds method should throw appropriate error", func() {
+				testSplitVlanIds(trunks, nil, errors.New("incorrect trunk id parameter"), true)
+			})
+		})
+		Context("specify trunk with minID greater than maxID", func() {
+			trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 11, "maxID": 5} ]`
+			It("testSplitVlanIds method should throw appropriate error", func() {
+				testSplitVlanIds(trunks, nil, errors.New("minID is greater than maxID in trunk parameter"), false)
+			})
+		})
+		Context("specify trunk with maxID greater than 4096", func() {
+			trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 1, "maxID": 5000} ]`
+			It("testSplitVlanIds method should throw appropriate error", func() {
+				testSplitVlanIds(trunks, nil, errors.New("incorrect trunk maxID parameter"), false)
 			})
 		})
 	})
