@@ -97,13 +97,13 @@ func (self *OvsDriver) ovsdbTransact(ops []libovsdb.Operation) ([]libovsdb.Opera
 
 // **************** OVS driver API ********************
 // Create an internal port in OVS
-func (self *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, vlanTag uint) error {
+func (self *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, vlanTag uint, trunks []uint, portType string) error {
 	intfUuid, intfOp, err := createInterfaceOperation(intfName, ovnPortName)
 	if err != nil {
 		return err
 	}
 
-	portUuid, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, intfUuid)
+	portUuid, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, trunks, portType, intfUuid)
 	if err != nil {
 		return err
 	}
@@ -295,20 +295,24 @@ func createInterfaceOperation(intfName, ovnPortName string) ([]libovsdb.UUID, *l
 	return intfUuid, &intfOp, nil
 }
 
-func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, intfUuid []libovsdb.UUID) ([]libovsdb.UUID, *libovsdb.Operation, error) {
+func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUuid []libovsdb.UUID) ([]libovsdb.UUID, *libovsdb.Operation, error) {
 	portUuidStr := intfName
 	portUuid := []libovsdb.UUID{{GoUUID: portUuidStr}}
 
 	port := make(map[string]interface{})
 	port["name"] = intfName
-	if vlanTag != 0 {
-		port["vlan_mode"] = "access"
+
+	port["vlan_mode"] = portType
+	var err error
+	if portType == "access" {
 		port["tag"] = vlanTag
-	} else {
-		port["vlan_mode"] = "trunk"
+	} else if len(trunks) > 0 {
+		port["trunks"], err = libovsdb.NewOvsSet(trunks)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
-	var err error
 	port["interfaces"], err = libovsdb.NewOvsSet(intfUuid)
 	if err != nil {
 		return nil, nil, err
