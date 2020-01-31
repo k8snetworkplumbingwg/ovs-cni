@@ -11,6 +11,17 @@ ENV GOPATH="/go" GOBIN="/usr/bin"
 
 ADD rsyncd.conf /etc/rsyncd.conf
 
+RUN mkdir -p /opt/cni/bin
+
+ENV PATH="/opt/cni/bin:$PATH"
+
+ADD https://github.com/containernetworking/plugins/releases/download/v0.8.5/cni-plugins-linux-amd64-v0.8.5.tgz /opt/cni/bin
+
+RUN \
+    cd  /opt/cni/bin && \
+    tar -xzf cni-plugins-linux-amd64-v0.8.5.tgz && \
+    rm -f cni-plugins-linux-amd64-v0.8.5.tgz
+
 RUN \
     mkdir -p /go && \
     source /etc/profile.d/gimme.sh && \

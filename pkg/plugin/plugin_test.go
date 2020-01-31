@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -84,6 +85,56 @@ var _ = Describe("CNI Plugin", func() {
 			By("Checking vlanIds are same as trunk vlans")
 			Expect(vlanIds).To(Equal(expTrunks))
 		}
+	}
+
+	testIPAM := func(conf, ipPrefix string) {
+		const IFNAME = "eth0"
+
+		By("Creating temporary target namespace to simulate a container")
+		targetNs, err := testutils.NewNS()
+		Expect(err).NotTo(HaveOccurred())
+		defer targetNs.Close()
+
+		args := &skel.CmdArgs{
+			ContainerID: "dummy",
+			Netns:       targetNs.Path(),
+			IfName:      IFNAME,
+			StdinData:   []byte(conf),
+		}
+
+		var result *current.Result
+
+		By("Calling ADD command")
+		r, _, err := cmdAddWithArgs(args, func() error {
+			return CmdAdd(args)
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Checking that result of ADD command in in expected format")
+		result, err = current.GetResult(r)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(len(result.Interfaces)).To(Equal(2))
+
+		Expect(len(result.IPs)).To(Equal(1))
+
+		err = targetNs.Do(func(ns.NetNS) error {
+			defer GinkgoRecover()
+
+			link, err := netlink.LinkByName(IFNAME)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(link.Attrs().Name).To(Equal(IFNAME))
+
+			hwaddr, err := net.ParseMAC(result.Interfaces[1].Mac)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(link.Attrs().HardwareAddr).To(Equal(hwaddr))
+
+			addrs, err := netlink.AddrList(link, syscall.AF_INET)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(addrs)).To(Equal(1))
+			Expect(addrs[0].String()).To(HavePrefix(ipPrefix))
+			return nil
+		})
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	testAddDel := func(conf string, setVlan, setMtu bool, Trunk string) {
@@ -252,6 +303,21 @@ var _ = Describe("CNI Plugin", func() {
 			}`, BRIDGE_NAME)
 			It("should successfully complete ADD and DEL commands", func() {
 				testAddDel(conf, false, false, "[10, 11, 12, 15, 17, 18]")
+			})
+		})
+		Context("with specific IPAM set for container interface", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"ipam": {
+					"type": "host-local",
+					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ]]
+				}
+			}`, BRIDGE_NAME)
+			It("should successfully complete ADD and DEL commands", func() {
+				testIPAM(conf, "10.1.2")
 			})
 		})
 		Context("with MTU set on port", func() {
