@@ -33,6 +33,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 
@@ -321,6 +322,47 @@ func CmdAdd(args *skel.CmdArgs) error {
 		Interfaces: []*current.Interface{hostIface, contIface},
 	}
 
+	// run the IPAM plugin
+	if netconf.IPAM.Type != "" {
+		r, err := ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return fmt.Errorf("failed to set up IPAM plugin type %q: %v", netconf.IPAM.Type, err)
+		}
+
+		defer func() {
+			if err != nil {
+				ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
+			}
+		}()
+
+		// Convert the IPAM result into the current Result type
+		newResult, err := current.NewResultFromResult(r)
+		if err != nil {
+			return err
+		}
+
+		if len(newResult.IPs) == 0 {
+			return errors.New("IPAM plugin returned missing IP config")
+		}
+
+		newResult.Interfaces = []*current.Interface{contIface}
+		newResult.Interfaces[0].Mac = contIface.Mac
+
+		for _, ipc := range newResult.IPs {
+			// All addresses apply to the container interface
+			ipc.Interface = current.Int(0)
+		}
+
+		err = contNetns.Do(func(_ ns.NetNS) error {
+			return ipam.ConfigureIface(args.IfName, newResult)
+		})
+		if err != nil {
+			return err
+		}
+		result = newResult
+		result.Interfaces = []*current.Interface{hostIface, result.Interfaces[0]}
+	}
+
 	return types.PrintResult(result, netconf.CNIVersion)
 }
 
@@ -364,6 +406,13 @@ func CmdDel(args *skel.CmdArgs) error {
 	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName)
 	if err != nil {
 		return err
+	}
+
+	if netconf.IPAM.Type != "" {
+		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Unlike veth pair, OVS port will not be automatically removed when
