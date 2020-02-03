@@ -29,6 +29,7 @@ import (
 	"runtime"
 	"sort"
 
+	"github.com/Mellanox/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
@@ -44,10 +45,11 @@ const macSetupRetries = 2
 
 type netConf struct {
 	types.NetConf
-	BrName  string   `json:"bridge,omitempty"`
-	VlanTag *uint    `json:"vlan"`
-	MTU     int      `json:"mtu"`
-	Trunk   []*trunk `json:"trunk,omitempty"`
+	BrName   string   `json:"bridge,omitempty"`
+	VlanTag  *uint    `json:"vlan"`
+	MTU      int      `json:"mtu"`
+	Trunk    []*trunk `json:"trunk,omitempty"`
+	DeviceID string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
 }
 
 type trunk struct {
@@ -112,6 +114,125 @@ func generateRandomMac() net.HardwareAddr {
 		panic(err)
 	}
 	return net.HardwareAddr(append(prefix, suffix...))
+}
+
+func setupSriovInterface(contNetns ns.NetNS, ifName string, mtu int, pciAddrs string) (*current.Interface, *current.Interface, error) {
+	hostIface := &current.Interface{}
+	contIface := &current.Interface{}
+
+	// 1. get VF netdevice from PCI
+	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(pciAddrs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Make sure we have 1 netdevice per pci address
+	if len(vfNetdevices) != 1 {
+		return nil, nil, fmt.Errorf("failed to get one netdevice interface per %s", pciAddrs)
+	}
+	vfNetdevice := vfNetdevices[0]
+
+	// 2. get Uplink netdevice
+	uplink, err := sriovnet.GetUplinkRepresentor(pciAddrs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 3. get VF index from PCI
+	vfIndex, err := sriovnet.GetVfIndexByPciAddress(pciAddrs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// 4. lookup representor
+	rep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	hostIface.Name = rep
+
+	link, err := netlink.LinkByName(hostIface.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+	hostIface.Mac = link.Attrs().HardwareAddr.String()
+
+	// 5. set MTU on VF representor
+	if mtu != 0 {
+		if err = netlink.LinkSetMTU(link, mtu); err != nil {
+			return nil, nil, fmt.Errorf("failed to set MTU on %s: %v", hostIface.Name, err)
+		}
+	}
+
+	// 6. Move VF to Container namespace
+	err = moveIfToNetns(vfNetdevice, contNetns)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = contNetns.Do(func(hostNS ns.NetNS) error {
+		contIface.Name = ifName
+		err = renameLink(vfNetdevice, contIface.Name)
+		if err != nil {
+			return err
+		}
+		link, err = netlink.LinkByName(contIface.Name)
+		if err != nil {
+			return err
+		}
+		if mtu != 0 {
+			if err = netlink.LinkSetMTU(link, mtu); err != nil {
+				return err
+			}
+		}
+		err = netlink.LinkSetUp(link)
+		if err != nil {
+			return err
+		}
+		contIface.Sandbox = contNetns.Path()
+		contIface.Mac = link.Attrs().HardwareAddr.String()
+
+		return nil
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return hostIface, contIface, nil
+}
+
+func moveIfToNetns(ifname string, netns ns.NetNS) error {
+	vfDev, err := netlink.LinkByName(ifname)
+	if err != nil {
+		return fmt.Errorf("failed to lookup vf device %v: %q", ifname, err)
+	}
+
+	// move VF device to ns
+	if err = netlink.LinkSetNsFd(vfDev, int(netns.Fd())); err != nil {
+		return fmt.Errorf("failed to move device %+v to netns: %q", ifname, err)
+	}
+
+	return nil
+}
+
+func renameLink(curName, newName string) error {
+	link, err := netlink.LinkByName(curName)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetDown(link); err != nil {
+		return err
+	}
+	if err := netlink.LinkSetName(link, newName); err != nil {
+		return err
+	}
+	if err := netlink.LinkSetUp(link); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mtu int) (*current.Interface, *current.Interface, error) {
@@ -309,7 +430,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
-	hostIface, contIface, err := setupVeth(contNetns, args.IfName, mac, netconf.MTU)
+	var hostIface, contIface *current.Interface
+	if netconf.DeviceID != "" {
+		// SR-IOV Case
+		hostIface, contIface, err = setupSriovInterface(contNetns, args.IfName, netconf.MTU, netconf.DeviceID)
+	} else {
+		//General Case
+		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
+	}
+
 	if err != nil {
 		return err
 	}
