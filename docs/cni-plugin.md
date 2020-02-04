@@ -12,12 +12,26 @@ Please note that Open vSwitch must be installed and running on the host.
 
 ## Example Configuration
 
+A simple example with VLAN 1000:
+
 ```json
 {
     "name": "mynet",
     "type": "ovs",
     "bridge": "mynet0",
     "vlan": 100
+}
+```
+
+Another example with a trunk port and jumbo frames:
+
+```json
+{
+    "name": "mytrunknet",
+    "type": "ovs",
+    "bridge": "mynet1",
+    "mtu": 9000,
+    "trunk": [ { "id" : 42 }, { "minID" : 1000, "maxID" : 1010 } ]
 }
 ```
 
@@ -28,6 +42,9 @@ Please note that Open vSwitch must be installed and running on the host.
 * `bridge` (string, required): name of the bridge to use.
 * `vlan` (integer, optional): VLAN ID of attached port. Trunk port if not
    specified.
+* `mtu` (integer, optional): MTU.
+* `trunk` (optional): List of VLAN ID's and/or ranges of accepted VLAN
+  ID's.
 
 ## Manual Testing
 
