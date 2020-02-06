@@ -39,6 +39,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
+	"github.com/kubevirt/ovs-cni/pkg/utils"
 )
 
 const macSetupRetries = 2
@@ -177,7 +178,7 @@ func setupSriovInterface(contNetns ns.NetNS, ifName string, mtu int, deviceID st
 
 	err = contNetns.Do(func(hostNS ns.NetNS) error {
 		contIface.Name = ifName
-		err = renameLink(vfNetdevice, contIface.Name)
+		_, err = renameLink(vfNetdevice, contIface.Name)
 		if err != nil {
 			return err
 		}
@@ -220,23 +221,23 @@ func moveIfToNetns(ifname string, netns ns.NetNS) error {
 	return nil
 }
 
-func renameLink(curName, newName string) error {
+func renameLink(curName, newName string) (netlink.Link, error) {
 	link, err := netlink.LinkByName(curName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if err := netlink.LinkSetDown(link); err != nil {
-		return err
+		return nil, err
 	}
 	if err := netlink.LinkSetName(link, newName); err != nil {
-		return err
+		return nil, err
 	}
 	if err := netlink.LinkSetUp(link); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return link, nil
 }
 
 func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mtu int) (*current.Interface, *current.Interface, error) {
@@ -437,6 +438,14 @@ func CmdAdd(args *skel.CmdArgs) error {
 	var hostIface, contIface *current.Interface
 	if netconf.DeviceID != "" {
 		// SR-IOV Case
+		hostIFName, err := utils.GetVFLinkName(netconf.DeviceID)
+		if err != nil {
+			return err
+		}
+		// Cache hostIFName for CmdDel
+		if err = utils.SaveConf(args.ContainerID, utils.DefaultCNIDir, args.IfName, hostIFName); err != nil {
+			return fmt.Errorf("error saving hostIFName %q", err)
+		}
 		hostIface, contIface, err = setupSriovInterface(contNetns, args.IfName, netconf.MTU, netconf.DeviceID)
 	} else {
 		// General Case
@@ -560,17 +569,58 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}
 
-	// Delete can be called multiple times, so don't return an error if the
-	// device is already removed.
-	err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
-		err = ip.DelLinkByName(args.IfName)
-		if err != nil && err == ip.ErrLinkNotFound {
-			return nil
-		}
-		return err
-	})
+	if netconf.DeviceID != "" {
+		//  SR-IOV Case
+		err = releaseVF(args)
+	} else {
+		// General Case
+		// Delete can be called multiple times, so don't return an error if the
+		// device is already removed.
+		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
+			err = ip.DelLinkByName(args.IfName)
+			if err != nil && err == ip.ErrLinkNotFound {
+				return nil
+			}
+			return err
+		})
+	}
 
 	return err
+}
+
+func releaseVF(args *skel.CmdArgs) error {
+	hostIFName, cRefPath, err := utils.LoadHostIFNameFromCache(args)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == nil && cRefPath != "" {
+			utils.CleanCachedConf(cRefPath)
+		}
+	}()
+
+	hostNs, err := ns.GetCurrentNS()
+	if err != nil {
+		return fmt.Errorf("failed to get host netns: %v", err)
+	}
+	contNetns, err := ns.GetNS(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to open container netns %q: %v", args.Netns, err)
+	}
+
+	return contNetns.Do(func(_ ns.NetNS) error {
+		// rename VF device back to its original name
+		linkObj, err := renameLink(args.IfName, hostIFName)
+		if err != nil {
+			return err
+		}
+		// move VF device to host netns
+		if err = netlink.LinkSetNsFd(linkObj, int(hostNs.Fd())); err != nil {
+			return fmt.Errorf("failed to move interface %s to host netns: %v", hostIFName, err)
+		}
+		return nil
+	})
+
 }
 
 func CmdCheck(args *skel.CmdArgs) error {
