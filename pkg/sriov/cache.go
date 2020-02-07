@@ -14,7 +14,7 @@
 // long running processes in go did not work in a reliable way.
 // +build go1.10
 
-package utils
+package sriov
 
 import (
 	"encoding/json"
@@ -30,38 +30,11 @@ import (
 var (
 	// DefaultCNIDir used for caching hostIFName
 	DefaultCNIDir = "/var/lib/cni/ovs"
-	// SysBusPci is sysfs pci device directory
-	SysBusPci = "/sys/bus/pci/devices"
 )
-
-// GetVFLinkName returns VF's network interface name given it's PCI addr
-func GetVFLinkName(pciAddr string) (string, error) {
-	var names []string
-	vfDir := filepath.Join(SysBusPci, pciAddr, "net")
-	if _, err := os.Lstat(vfDir); err != nil {
-		return "", err
-	}
-
-	fInfos, err := ioutil.ReadDir(vfDir)
-	if err != nil {
-		return "", fmt.Errorf("failed to read net dir of the device %s: %v", pciAddr, err)
-	}
-
-	if len(fInfos) == 0 {
-		return "", fmt.Errorf("VF device %s sysfs path (%s) has no entries", pciAddr, vfDir)
-	}
-
-	names = make([]string, 0)
-	for _, f := range fInfos {
-		names = append(names, f.Name())
-	}
-
-	return names[0], nil
-}
 
 // SaveConf takes in container ID, data dir and Pod interface name as string and a json encoded struct Conf
 // and save this Conf in data dir
-func SaveConf(cid, dataDir, podIfName string, conf interface{}) error {
+func SaveConf(cid, podIfName string, conf interface{}) error {
 	confBytes, err := json.Marshal(conf)
 	if err != nil {
 		return fmt.Errorf("error serializing delegate conf: %v", err)
@@ -71,7 +44,7 @@ func SaveConf(cid, dataDir, podIfName string, conf interface{}) error {
 	cRef := strings.Join(s, "-")
 
 	// save the rendered conf for cmdDel
-	if err = saveScratchConf(cRef, dataDir, confBytes); err != nil {
+	if err = saveScratchConf(cRef, DefaultCNIDir, confBytes); err != nil {
 		return err
 	}
 
@@ -93,8 +66,7 @@ func saveScratchConf(containerID, dataDir string, conf []byte) error {
 	return err
 }
 
-// ReadScratchConf takes in container ID, Pod interface name and data dir as string and returns a pointer to Conf
-func ReadScratchConf(cRefPath string) ([]byte, error) {
+func readScratchConf(cRefPath string) ([]byte, error) {
 	data, err := ioutil.ReadFile(cRefPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read container data in the path(%q): %v", cRefPath, err)
@@ -107,7 +79,7 @@ func LoadHostIFNameFromCache(args *skel.CmdArgs) (string, string, error) {
 	s := []string{args.ContainerID, args.IfName}
 	cRef := strings.Join(s, "-")
 	cRefPath := filepath.Join(DefaultCNIDir, cRef)
-	confBytes, err := ReadScratchConf(cRefPath)
+	confBytes, err := readScratchConf(cRefPath)
 	if err != nil {
 		return "", "", fmt.Errorf("error reading cached Conf in %s with name %s", DefaultCNIDir, cRef)
 	}

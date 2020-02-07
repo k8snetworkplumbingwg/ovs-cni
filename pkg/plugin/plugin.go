@@ -29,7 +29,6 @@ import (
 	"runtime"
 	"sort"
 
-	"github.com/Mellanox/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
@@ -39,7 +38,7 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
-	"github.com/kubevirt/ovs-cni/pkg/utils"
+	"github.com/kubevirt/ovs-cni/pkg/sriov"
 )
 
 const macSetupRetries = 2
@@ -115,129 +114,6 @@ func generateRandomMac() net.HardwareAddr {
 		panic(err)
 	}
 	return net.HardwareAddr(append(prefix, suffix...))
-}
-
-func setupSriovInterface(contNetns ns.NetNS, ifName string, mtu int, deviceID string) (*current.Interface, *current.Interface, error) {
-	hostIface := &current.Interface{}
-	contIface := &current.Interface{}
-
-	// get smart VF netdevice from PCI
-	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Make sure we have 1 netdevice per pci address
-	if len(vfNetdevices) != 1 {
-		return nil, nil, fmt.Errorf("failed to get one netdevice interface per %s", deviceID)
-	}
-	vfNetdevice := vfNetdevices[0]
-
-	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).
-	// The uplink is later used to retrieve the representor for the smart VF.
-	uplink, err := sriovnet.GetUplinkRepresentor(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// get smart VF index from PCI
-	vfIndex, err := sriovnet.GetVfIndexByPciAddress(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// get smart VF representor interface. This is a host net device which represents
-	// smart VF attached inside the container by device plugin. It can be considered
-	// as one end of veth pair whereas other end is smartVF. The VF representor would
-	// get added into ovs bridge for the control plane configuration.
-	rep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	hostIface.Name = rep
-
-	link, err := netlink.LinkByName(hostIface.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	hostIface.Mac = link.Attrs().HardwareAddr.String()
-
-	// set MTU on smart VF representor
-	if mtu != 0 {
-		if err = netlink.LinkSetMTU(link, mtu); err != nil {
-			return nil, nil, fmt.Errorf("failed to set MTU on %s: %v", hostIface.Name, err)
-		}
-	}
-
-	// Move smart VF to Container namespace
-	err = moveIfToNetns(vfNetdevice, contNetns)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	err = contNetns.Do(func(hostNS ns.NetNS) error {
-		contIface.Name = ifName
-		_, err = renameLink(vfNetdevice, contIface.Name)
-		if err != nil {
-			return err
-		}
-		link, err = netlink.LinkByName(contIface.Name)
-		if err != nil {
-			return err
-		}
-		if mtu != 0 {
-			if err = netlink.LinkSetMTU(link, mtu); err != nil {
-				return err
-			}
-		}
-		err = netlink.LinkSetUp(link)
-		if err != nil {
-			return err
-		}
-		contIface.Sandbox = contNetns.Path()
-		contIface.Mac = link.Attrs().HardwareAddr.String()
-
-		return nil
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return hostIface, contIface, nil
-}
-
-func moveIfToNetns(ifname string, netns ns.NetNS) error {
-	vfDev, err := netlink.LinkByName(ifname)
-	if err != nil {
-		return fmt.Errorf("failed to lookup vf device %v: %q", ifname, err)
-	}
-
-	// move VF device to ns
-	if err = netlink.LinkSetNsFd(vfDev, int(netns.Fd())); err != nil {
-		return fmt.Errorf("failed to move device %+v to netns: %q", ifname, err)
-	}
-
-	return nil
-}
-
-func renameLink(curName, newName string) (netlink.Link, error) {
-	link, err := netlink.LinkByName(curName)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := netlink.LinkSetDown(link); err != nil {
-		return nil, err
-	}
-	if err := netlink.LinkSetName(link, newName); err != nil {
-		return nil, err
-	}
-	if err := netlink.LinkSetUp(link); err != nil {
-		return nil, err
-	}
-
-	return link, nil
 }
 
 func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mtu int) (*current.Interface, *current.Interface, error) {
@@ -438,15 +314,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	var hostIface, contIface *current.Interface
 	if netconf.DeviceID != "" {
 		// SR-IOV Case
-		hostIFName, err := utils.GetVFLinkName(netconf.DeviceID)
-		if err != nil {
-			return err
-		}
-		// Cache hostIFName for CmdDel
-		if err = utils.SaveConf(args.ContainerID, utils.DefaultCNIDir, args.IfName, hostIFName); err != nil {
-			return fmt.Errorf("error saving hostIFName %q", err)
-		}
-		hostIface, contIface, err = setupSriovInterface(contNetns, args.IfName, netconf.MTU, netconf.DeviceID)
+		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, netconf.MTU, netconf.DeviceID)
 	} else {
 		// General Case
 		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
@@ -569,13 +437,16 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}
 
+	// Delete can be called multiple times, so don't return an error if the
+	// device is already removed.
 	if netconf.DeviceID != "" {
 		//  SR-IOV Case
-		err = releaseVF(args)
+		err = sriov.ReleaseVF(args)
+		if err != nil && err == ip.ErrLinkNotFound {
+			return nil
+		}
 	} else {
 		// General Case
-		// Delete can be called multiple times, so don't return an error if the
-		// device is already removed.
 		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
 			err = ip.DelLinkByName(args.IfName)
 			if err != nil && err == ip.ErrLinkNotFound {
@@ -586,41 +457,6 @@ func CmdDel(args *skel.CmdArgs) error {
 	}
 
 	return err
-}
-
-func releaseVF(args *skel.CmdArgs) error {
-	hostIFName, cRefPath, err := utils.LoadHostIFNameFromCache(args)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err == nil && cRefPath != "" {
-			utils.CleanCachedConf(cRefPath)
-		}
-	}()
-
-	hostNs, err := ns.GetCurrentNS()
-	if err != nil {
-		return fmt.Errorf("failed to get host netns: %v", err)
-	}
-	contNetns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open container netns %q: %v", args.Netns, err)
-	}
-
-	return contNetns.Do(func(_ ns.NetNS) error {
-		// rename VF device back to its original name
-		linkObj, err := renameLink(args.IfName, hostIFName)
-		if err != nil {
-			return err
-		}
-		// move VF device to host netns
-		if err = netlink.LinkSetNsFd(linkObj, int(hostNs.Fd())); err != nil {
-			return fmt.Errorf("failed to move interface %s to host netns: %v", hostIFName, err)
-		}
-		return nil
-	})
-
 }
 
 func CmdCheck(args *skel.CmdArgs) error {
