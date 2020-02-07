@@ -3,6 +3,7 @@ module github.com/kubevirt/ovs-cni
 go 1.12
 
 require (
+	github.com/Mellanox/sriovnet v0.0.0-20190516174650-73402dc8fcaa
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
@@ -15,6 +16,7 @@ require (
 	github.com/json-iterator/go v1.1.8 // indirect
 	github.com/onsi/ginkgo v1.10.1
 	github.com/onsi/gomega v1.7.0
+	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vishvananda/netlink v0.0.0-20181108222139-023a6dafdcdf

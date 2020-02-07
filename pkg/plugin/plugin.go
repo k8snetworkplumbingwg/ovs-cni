@@ -38,16 +38,18 @@ import (
 	"github.com/vishvananda/netlink"
 
 	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
+	"github.com/kubevirt/ovs-cni/pkg/sriov"
 )
 
 const macSetupRetries = 2
 
 type netConf struct {
 	types.NetConf
-	BrName  string   `json:"bridge,omitempty"`
-	VlanTag *uint    `json:"vlan"`
-	MTU     int      `json:"mtu"`
-	Trunk   []*trunk `json:"trunk,omitempty"`
+	BrName   string   `json:"bridge,omitempty"`
+	VlanTag  *uint    `json:"vlan"`
+	MTU      int      `json:"mtu"`
+	Trunk    []*trunk `json:"trunk,omitempty"`
+	DeviceID string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
 }
 
 type trunk struct {
@@ -309,9 +311,13 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
-	hostIface, contIface, err := setupVeth(contNetns, args.IfName, mac, netconf.MTU)
-	if err != nil {
-		return err
+	var hostIface, contIface *current.Interface
+	if netconf.DeviceID != "" {
+		// SR-IOV Case
+		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, netconf.MTU, netconf.DeviceID)
+	} else {
+		// General Case
+		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
 	}
 
 	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTagNum, trunks, portType, args.Netns, ovnPort); err != nil {
@@ -433,13 +439,22 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	// Delete can be called multiple times, so don't return an error if the
 	// device is already removed.
-	err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
-		err = ip.DelLinkByName(args.IfName)
+	if netconf.DeviceID != "" {
+		//  SR-IOV Case
+		err = sriov.ReleaseVF(args)
 		if err != nil && err == ip.ErrLinkNotFound {
 			return nil
 		}
-		return err
-	})
+	} else {
+		// General Case
+		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
+			err = ip.DelLinkByName(args.IfName)
+			if err != nil && err == ip.ErrLinkNotFound {
+				return nil
+			}
+			return err
+		})
+	}
 
 	return err
 }
