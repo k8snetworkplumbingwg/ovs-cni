@@ -18,9 +18,12 @@ package ovsdb
 import (
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/socketplane/libovsdb"
 )
+
+const ovsPortOwner = "ovs-cni.network.kubevirt.io"
 
 // OVS driver state
 type OvsDriver struct {
@@ -125,6 +128,14 @@ func (self *OvsBridgeDriver) DeletePort(intfName string) error {
 		return err
 	}
 
+	externalIDs, err := getExternalIDs(row)
+	if err != nil {
+		return fmt.Errorf("get external ids: %v", err)
+	}
+	if externalIDs["owner"] != ovsPortOwner {
+		return fmt.Errorf("port not created by ovs-cni")
+	}
+
 	// We make a select transaction using the interface name
 	// Then get the Port UUID from it
 	portUuidStr := row["_uuid"].([]interface{})
@@ -141,6 +152,33 @@ func (self *OvsBridgeDriver) DeletePort(intfName string) error {
 
 	_, err = self.ovsdbTransact(operations)
 	return err
+}
+
+func getExternalIDs(row map[string]interface{}) (map[string]string, error) {
+	rowVal, ok := row["external_ids"]
+	if !ok {
+		return nil, fmt.Errorf("row does not contain external_ids")
+	}
+
+	rowValSlice, ok := rowVal.([]interface{})
+	if !ok || len(rowValSlice) != 2 || rowValSlice[0] != "map" {
+		return nil, fmt.Errorf("not a OvsMap: %T: %v", rowVal, rowVal)
+	}
+	mapVals, ok := rowValSlice[1].([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("cannot get map values: %v", rowValSlice[1])
+	}
+	extIDs := make(map[string]string, len(rowValSlice))
+	for _, mapEntry := range mapVals {
+		me, ok := mapEntry.([]interface{})
+		if !ok || len(me) != 2 {
+			return nil, fmt.Errorf("invalid map entry: %v", mapEntry)
+		}
+		ks := fmt.Sprintf("%v", me[0])
+		vs := fmt.Sprintf("%v", me[1])
+		extIDs[ks] = vs
+	}
+	return extIDs, nil
 }
 
 func (self *OvsDriver) BridgeList() ([]string, error) {
@@ -205,7 +243,11 @@ func (self *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 
 // Return ovs port name for an container interface
 func (self *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (string, bool, error) {
-	searchMap := map[string]string{"contNetns": contNetnsPath, "contIface": contIface}
+	searchMap := map[string]string{
+		"contNetns": contNetnsPath,
+		"contIface": contIface,
+		"owner":     ovsPortOwner,
+	}
 	ovsmap, err := libovsdb.NewOvsMap(searchMap)
 	if err != nil {
 		return "", false, err
@@ -219,6 +261,47 @@ func (self *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (
 	}
 
 	return fmt.Sprintf("%v", port["name"]), true, nil
+}
+
+func (self *OvsDriver) FindInterfacesWithError() ([]string, error) {
+	selectOp := libovsdb.Operation{
+		Op:      "select",
+		Columns: []string{"name", "error"},
+		Table:   "Interface",
+	}
+	transactionResult, err := self.ovsdbTransact([]libovsdb.Operation{selectOp})
+	if err != nil {
+		return nil, err
+	}
+	if len(transactionResult) != 1 {
+		return nil, fmt.Errorf("no transaction result")
+	}
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return nil, fmt.Errorf(operationResult.Error)
+	}
+
+	var names []string
+	for _, row := range operationResult.Rows {
+		if !hasError(row) {
+			continue
+		}
+		names = append(names, fmt.Sprintf("%v", row["name"]))
+	}
+	if len(names) > 0 {
+		log.Printf("found %d interfaces with error", len(names))
+	}
+	return names, nil
+}
+
+func hasError(row map[string]interface{}) bool {
+	v := row["error"]
+	switch x := v.(type) {
+	case string:
+		return x != ""
+	default:
+		return false
+	}
 }
 
 // ************************ Notification handler for OVS DB changes ****************
@@ -318,7 +401,11 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 		return nil, nil, err
 	}
 
-	oMap, err := libovsdb.NewOvsMap(map[string]string{"contNetns": contNetnsPath, "contIface": contIfaceName})
+	oMap, err := libovsdb.NewOvsMap(map[string]string{
+		"contNetns": contNetnsPath,
+		"contIface": contIfaceName,
+		"owner":     ovsPortOwner,
+	})
 	if err != nil {
 		return nil, nil, err
 	}
