@@ -1,6 +1,6 @@
 # Open vSwitch CNI plugin
 
-This plugin allows user to define Kubernetes networks on top of Open vSwitch bridges available on nodes. IPAM is currently not supported. There is no scheduling involved, desired bridges must be precreated on all nodes. Also, ovs-cni does not configure bridges, it's up to user to connect them to L2, L3 or an overlay network. Finally please note that Open vSwitch must be installed and running on the host.
+This plugin allows user to define Kubernetes networks on top of Open vSwitch bridges available on nodes. Note that ovs-cni does not configure bridges, it's up to a user to create them and connect them to L2, L3 or an overlay network. This project also delivers OVS marker, which exposes available bridges as Node resources, that can be used to schedule pods on the right node via [intel/network-resources-injector](https://github.com/intel/network-resources-injector/). Finally please note that Open vSwitch must be installed and running on the host.
 
 In order to use this plugin, Multus must be installed on all hosts and `NetworkAttachmentDefinition` CRD created.
 
@@ -41,6 +41,9 @@ spec:
   - name: samplepod
     command: ["/bin/sh", "-c", "sleep 99999"]
     image: alpine
+    resources:  # this may be omitted if intel/network-resources-injector is present on the cluster
+      limits:
+        ovs-cni.network.kubevirt.io/br1: 1
 EOF
 ```
 
