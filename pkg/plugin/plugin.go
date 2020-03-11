@@ -377,6 +377,23 @@ func getOvsPortForContIface(ovsDriver *ovsdb.OvsBridgeDriver, contIface string, 
 	return ovsDriver.GetOvsPortForContIface(contIface, contNetnsPath)
 }
 
+// cleanPorts removes all ports whose interfaces have an error.
+func cleanPorts(ovsDriver *ovsdb.OvsBridgeDriver) error {
+	ifaces, err := ovsDriver.FindInterfacesWithError()
+	if err != nil {
+		return fmt.Errorf("clean ports: %v", err)
+	}
+	for _, iface := range ifaces {
+		log.Printf("Info: interface %s has error: removing corresponding port", iface)
+		if err := ovsDriver.DeletePort(iface); err != nil {
+			// Don't return an error here, just log its occurrence.
+			// Something else may have removed the port already.
+			log.Printf("Error: %v\n", err)
+		}
+	}
+	return nil
+}
+
 func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 
 	return ovsDriver.DeletePort(portName)
@@ -384,10 +401,6 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
-
-	if args.Netns == "" {
-		panic("This should never happen, if it does, it means caller does not pass container network namespace as a parameter and therefore OVS port cleanup will not work")
-	}
 
 	envArgs, err := getEnvArgs(args.Args)
 	if err != nil {
@@ -421,19 +434,29 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}
 
-	// Unlike veth pair, OVS port will not be automatically removed when
-	// container namespace is gone. Find port matching DEL arguments and remove
-	// it explicitly.
-	portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
-	if err != nil {
-		return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
-	}
-
-	// Do not return an error if the port was not found, it may have been
-	// already removed by someone.
-	if portFound {
-		if err := removeOvsPort(ovsDriver, portName); err != nil {
+	if args.Netns == "" {
+		// The CNI_NETNS parameter may be empty according to version 0.4.0
+		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
+		// In accordance with the spec we clean up as many resources as possible.
+		if err := cleanPorts(ovsDriver); err != nil {
 			return err
+		}
+		return nil
+	} else {
+		// Unlike veth pair, OVS port will not be automatically removed when
+		// container namespace is gone. Find port matching DEL arguments and remove
+		// it explicitly.
+		portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
+		if err != nil {
+			return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
+		}
+
+		// Do not return an error if the port was not found, it may have been
+		// already removed by someone.
+		if portFound {
+			if err := removeOvsPort(ovsDriver, portName); err != nil {
+				return err
+			}
 		}
 	}
 

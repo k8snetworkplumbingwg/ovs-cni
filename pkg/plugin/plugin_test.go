@@ -23,10 +23,12 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/testutils"
 	"github.com/vishvananda/netlink"
@@ -406,7 +408,7 @@ var _ = Describe("CNI Plugin", func() {
 				OvnPort := "test-port"
 				result := attach(targetNs, conf, IFNAME, "", OvnPort)
 				hostIface := result.Interfaces[0]
-				output, err := exec.Command("ovs-vsctl", "--colum=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
+				output, err := exec.Command("ovs-vsctl", "--column=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
 			})
@@ -445,6 +447,73 @@ var _ = Describe("CNI Plugin", func() {
 			trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 1, "maxID": 5000} ]`
 			It("testSplitVlanIds method should throw appropriate error", func() {
 				testSplitVlanIds(trunks, nil, errors.New("incorrect trunk maxID parameter"), false)
+			})
+		})
+
+		Context("purge ports with failed interfaces", func() {
+			const IFNAME = "eth0"
+
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"OvnPort": "test-port",
+				"bridge": "%s"}`, BRIDGE_NAME)
+
+			It("DEL removes ports without network namespace", func() {
+				firstTargetNs, err := testutils.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				defer firstTargetNs.Close()
+
+				secondTargetNs, err := testutils.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				defer secondTargetNs.Close()
+
+				// Create two ports for two separate target namespaces.
+				firstResult := attach(firstTargetNs, conf, IFNAME, "", "test-port-1")
+				secondResult := attach(secondTargetNs, conf, IFNAME, "", "test-port-2")
+
+				// Remove the host interface of the first port. This makes the
+				// port faulty. Our test should remove the interfaces of this
+				// port, but not the interfaces of the second.
+				firstHostIface := firstResult.Interfaces[0]
+				err = ip.DelLinkByName(firstHostIface.Name)
+				Expect(err).NotTo(HaveOccurred())
+
+				// It takes a short while for OVS to notice that we removed the
+				// interface. Sometimes the test is faster. We therefore wait
+				// up to 1 second for the interface to fail.
+				waitForIfaceError(firstHostIface.Name, 10, 100*time.Millisecond)
+
+				secondHostIface := secondResult.Interfaces[0]
+
+				args := &skel.CmdArgs{
+					ContainerID: "dummy",
+					IfName:      IFNAME,
+					StdinData:   []byte(conf),
+				}
+				err = cmdDelWithArgs(args, func() error {
+					return CmdDel(args)
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				output, err := exec.Command("ovs-vsctl", "--column=name", "find", "Interface", fmt.Sprintf("name=%s", firstHostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output)).To(Equal(""), "Faulty OVS interface should have been removed")
+
+				output, err = exec.Command("ovs-vsctl", "--column=name", "find", "Port", fmt.Sprintf("name=%s", firstHostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output)).To(Equal(""), "Port with faulty OVS interface should have been removed")
+
+				output, err = exec.Command("ovs-vsctl", "--column=name", "find", "Interface", fmt.Sprintf("name=%s", secondHostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output)).To(
+					ContainSubstring(fmt.Sprintf("\"%s\"", secondHostIface.Name)), "Healthy OVS interface should have been kept")
+
+				output, err = exec.Command("ovs-vsctl", "--column=name", "find", "Port", fmt.Sprintf("name=%s", secondHostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output)).To(
+					ContainSubstring(fmt.Sprintf("\"%s\"", secondHostIface.Name)), "OVS port with healthy interface should have been kept")
 			})
 		})
 	})
@@ -511,4 +580,16 @@ func getPortAttribute(portName string, attributeName string) (string, error) {
 	}
 
 	return strings.TrimSpace(string(output[:])), nil
+}
+
+func waitForIfaceError(iface string, tries int, delay time.Duration) {
+	for i := 0; i < tries; i++ {
+		output, err := exec.Command("ovs-vsctl", "--column=error", "find", "Interface", fmt.Sprintf("name=%s", iface)).CombinedOutput()
+		Expect(err).NotTo(HaveOccurred())
+		if strings.Contains(string(output), fmt.Sprintf("could not open network device %s", iface)) {
+			return
+		}
+		time.Sleep(delay)
+	}
+	Fail(fmt.Sprintf("%s failed to reach error status after %d tries", iface, tries))
 }
