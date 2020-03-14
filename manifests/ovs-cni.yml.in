@@ -30,11 +30,8 @@ spec:
         imagePullPolicy: ${OVS_CNI_PLUGIN_IMAGE_PULL_POLICY}
         resources:
           requests:
-            cpu: "100m"
-            memory: "50Mi"
-          limits:
-            cpu: "100m"
-            memory: "50Mi"
+            cpu: "600m"
+            memory: "30Mi"
         securityContext:
           privileged: true
         volumeMounts:
@@ -43,6 +40,10 @@ spec:
       - name: ovs-cni-marker
         image: ${OVS_CNI_MARKER_IMAGE_REPO}/${OVS_CNI_MARKER_IMAGE_NAME}:${OVS_CNI_MARKER_IMAGE_VERSION}
         imagePullPolicy: ${OVS_CNI_MARKER_IMAGE_PULL_POLICY}
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "40Mi"
         securityContext:
           privileged: true
         args:
