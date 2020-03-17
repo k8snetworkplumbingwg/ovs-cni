@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -70,7 +71,7 @@ var _ = Describe("CNI Plugin", func() {
 	})
 
 	testSplitVlanIds := func(conf string, expTrunks []uint, expErr error, setUnmarshalErr bool) {
-		var trunks []*trunk
+		var trunks []*vlanID
 		err := json.Unmarshal([]byte(conf), &trunks)
 		if setUnmarshalErr {
 			Expect(err).To(HaveOccurred())
@@ -139,6 +140,126 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(err).NotTo(HaveOccurred())
 	}
 
+	testQINQ := func(conf string, cvlans string) {
+		const IFNAME = "eth0"
+
+		_setupNetnsVlanLink := func(netns ns.NetNS, ipAddr string, cvlanID uint) error {
+			link, err := setupVlanLink(netns, IFNAME, cvlanID, ipAddr)
+
+			err = netns.Do(func(ns.NetNS) error {
+				defer GinkgoRecover()
+
+				vlan, ok := link.(*netlink.Vlan)
+				if !ok {
+					return fmt.Errorf("%s is not vlan interface", link.Attrs().Name)
+				}
+
+				By(fmt.Sprintf("Checking that interface %s is set UP", vlan.Attrs().Name))
+				Eventually(func() netlink.LinkOperState {
+					link, _ := netlink.LinkByName(vlan.Attrs().Name)
+					return link.Attrs().OperState
+				}, "2s").Should(Equal(netlink.LinkOperState(netlink.OperUp)))
+
+				By(fmt.Sprintf("Checking that interface %s has correct cvlan tag configured", vlan.Attrs().Name))
+				Expect(uint(vlan.VlanId)).To(Equal(cvlanID))
+
+				return nil
+			})
+			Expect(err).NotTo(HaveOccurred())
+			return nil
+		}
+
+		By("Enabling QinQ on OVS Switch")
+		output, err := exec.Command("ovs-vsctl", "set", "Open_vSwitch", ".", "other_config:vlan-limit=2").CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), string(output))
+
+		By("Creating temporary target namespaces")
+		netns1, err := testutils.NewNS()
+		Expect(err).NotTo(HaveOccurred())
+		defer netns1.Close()
+		netns2, err := testutils.NewNS()
+		Expect(err).NotTo(HaveOccurred())
+		defer netns2.Close()
+
+		netns1Args := &skel.CmdArgs{
+			ContainerID: "dummy",
+			Netns:       netns1.Path(),
+			IfName:      IFNAME,
+			StdinData:   []byte(conf),
+		}
+
+		netns2Args := &skel.CmdArgs{
+			ContainerID: "dummy2",
+			Netns:       netns2.Path(),
+			IfName:      IFNAME,
+			StdinData:   []byte(conf),
+		}
+
+		netconf, err := loadNetConf(netns1Args.StdinData)
+		Expect(err).NotTo(HaveOccurred())
+
+		var cvlanIDs = []uint{}
+		if len(netconf.Cvlan) > 0 {
+			cvlanIDs, err = splitVlanIds(netconf.Cvlan)
+			Expect(err).NotTo(HaveOccurred())
+		}
+		var result *current.Result
+
+		By("Calling ADD command")
+		r, _, err := cmdAddWithArgs(netns1Args, func() error {
+			return CmdAdd(netns1Args)
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Calling ADD command")
+		_, _, err = cmdAddWithArgs(netns2Args, func() error {
+			return CmdAdd(netns2Args)
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		result, err = current.GetResult(r)
+		Expect(len(result.Interfaces)).To(Equal(2))
+		Expect(len(result.IPs)).To(Equal(0))
+
+		hostIface := result.Interfaces[0]
+
+		By("Checking that port service VLAN ID matches expected state")
+		portVlan, err := getPortAttribute(hostIface.Name, "tag")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(portVlan).To(Equal(strconv.Itoa(VLAN_ID)))
+
+		By("Checking that port vlan_mode matches expected state")
+		vlanMode, err := getPortAttribute(hostIface.Name, "vlan_mode")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vlanMode).To(Equal(`"dot1q-tunnel"`))
+
+		By("Checking that port cvlan matches expected state")
+		portCvlans, err := getPortAttribute(hostIface.Name, "cvlans")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(portCvlans).To(Equal(cvlans))
+
+		netns1Subnet := "10.10.10.1/24"
+		netns2Subnet := "10.10.10.2/24"
+		var cvlan uint
+		if len(cvlanIDs) > 0 {
+			cvlan = cvlanIDs[0]
+		} else {
+			cvlan = 420 // Any customer VLANs should be accepted
+		}
+
+		By("Setting up vlan subinterfaces in net namespaces")
+		err = _setupNetnsVlanLink(netns1, netns1Subnet, cvlan)
+		Expect(err).NotTo(HaveOccurred())
+		err = _setupNetnsVlanLink(netns2, netns2Subnet, cvlan)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Verifying inter netns connectivity")
+		output, err = exec.Command("ip", "netns", "exec", filepath.Base(netns1.Path()), "ping", "-c", "1", "-W", "2", strings.TrimSuffix(netns2Subnet, "/24")).CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), string(output))
+		output, err = exec.Command("ip", "netns", "exec", filepath.Base(netns2.Path()), "ping", "-c", "1", "-W", "2", strings.TrimSuffix(netns1Subnet, "/24")).CombinedOutput()
+		Expect(err).NotTo(HaveOccurred(), string(output))
+	}
+
 	testAddDel := func(conf string, setVlan, setMtu bool, Trunk string) {
 		const IFNAME = "eth0"
 
@@ -162,7 +283,7 @@ var _ = Describe("CNI Plugin", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Checking that result of ADD command in in expected format")
+		By("Checking that result of ADD command is in expected format")
 		result, err = current.GetResult(r)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(result.Interfaces)).To(Equal(2))
@@ -334,6 +455,80 @@ var _ = Describe("CNI Plugin", func() {
 				testAddDel(conf, false, true, "")
 			})
 		})
+		Context("with service VLAN and CVLAN", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d,
+				"vlanMode": "dot1q-tunnel",
+				"cvlan": [ {"id": 42} ]
+			}`, BRIDGE_NAME, VLAN_ID)
+			It("should successfully complete ADD and DEL commands", func() {
+				testQINQ(conf, "[42]")
+			})
+		})
+		Context("with service VLAN and range of CVLANs", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d,
+				"vlanMode": "dot1q-tunnel",
+				"cvlan": [ {"id": 24}, { "minID" : 42, "maxID" : 44 } ]
+			}`, BRIDGE_NAME, VLAN_ID)
+			It("should successfully complete ADD and DEL commands", func() {
+				testQINQ(conf, "[24, 42, 43, 44]")
+			})
+		})
+		Context("with service VLAN and no explicit CVLAN", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d,
+				"vlanMode": "dot1q-tunnel"
+			}`, BRIDGE_NAME, VLAN_ID)
+			It("should successfully complete ADD and DEL commands", func() {
+				testQINQ(conf, "[]")
+			})
+		})
+		Context("with customer VLAN set and incorrect vlanMode", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d,
+				"cvlan": [ { "minID" : 42, "maxID" : 44 } ],
+				"vlanMode": "trunk"
+			}`, BRIDGE_NAME, VLAN_ID)
+			It("should fail to complete ADD command", func() {
+				const IFNAME = "eth0"
+
+				By("Creating temporary target namespace to simulate a container")
+				targetNs, err := testutils.NewNS()
+				Expect(err).NotTo(HaveOccurred())
+				defer targetNs.Close()
+
+				args := &skel.CmdArgs{
+					ContainerID: "dummy",
+					Netns:       targetNs.Path(),
+					IfName:      IFNAME,
+					StdinData:   []byte(conf),
+				}
+
+				By("Calling ADD command")
+				_, _, err = cmdAddWithArgs(args, func() error {
+					return CmdAdd(args)
+				})
+				Expect(err).To(HaveOccurred())
+			})
+		})
+		// TODO: Test QinQ with vlan-limit not configured on OVS Switch
 		Context("random mac address on container interface", func() {
 			It("should create eth0 on two different namespace with different mac addresses", func() {
 				conf := fmt.Sprintf(`{

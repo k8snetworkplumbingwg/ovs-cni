@@ -1,6 +1,6 @@
 FROM fedora:31
 
-RUN dnf -y install make git sudo gcc rsync-daemon rsync openvswitch hostname && \
+RUN dnf -y install make git sudo gcc rsync-daemon rsync openvswitch hostname iputils && \
     dnf -y clean all
 
 ENV GIMME_GO_VERSION=1.12

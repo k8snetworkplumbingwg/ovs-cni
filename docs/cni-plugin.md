@@ -35,16 +35,41 @@ Another example with a trunk port and jumbo frames:
 }
 ```
 
+Another example with QinQ configured.
+Note that the Open vSwitch needs to have configured vlan-limit=2 or
+vlan-limit=0. This can be done by issuing the following command:
+
+```shell
+ovs-vsctl set Open_vSwitch . other_config:vlan-limit=2
+```
+
+```json
+{
+    "name": "myqinqnet",
+    "type": "ovs",
+    "bridge": "mynet2",
+    "vlan": 1000,
+    "vlanMode": "dot1q-tunnel",
+    "cvlan": [ { "id" : 24 }, { "minID" : 100, "maxID" : 102 } ]
+}
+```
+
 ## Network Configuration Reference
 
 * `name` (string, required): the name of the network.
 * `type` (string, required): "ovs".
 * `bridge` (string, required): name of the bridge to use.
-* `vlan` (integer, optional): VLAN ID of attached port. Trunk port if not
-   specified.
+* `vlan` (integer, optional): VLAN ID of attached port. If not specified, trunk
+  port is used by default. If QinQ is enabled (vlanMode set to dot1q-tunnel), vlan
+  represents service VLAN.
+* `vlanMode` (string, optional): Vlan mode of atached port. One of access, dot1q-tunnel, or trunk.
+  If not specified, access is used by default.
 * `mtu` (integer, optional): MTU.
 * `trunk` (optional): List of VLAN ID's and/or ranges of accepted VLAN
   ID's.
+* `cvlan` (optional): List of customer VLAN ID's for 802.1Q tunneling (QinQ).
+  Note that the Open vSwitch needs to have configured vlan-limit=2 or
+  vlan-limit=0.
 
 ## Manual Testing
 

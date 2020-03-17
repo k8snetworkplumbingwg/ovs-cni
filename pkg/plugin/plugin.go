@@ -28,6 +28,7 @@ import (
 	"net"
 	"runtime"
 	"sort"
+	"strconv"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -45,14 +46,16 @@ const macSetupRetries = 2
 
 type netConf struct {
 	types.NetConf
-	BrName   string   `json:"bridge,omitempty"`
-	VlanTag  *uint    `json:"vlan"`
-	MTU      int      `json:"mtu"`
-	Trunk    []*trunk `json:"trunk,omitempty"`
-	DeviceID string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
+	BrName   string    `json:"bridge,omitempty"`
+	VlanTag  *uint     `json:"vlan"`
+	MTU      int       `json:"mtu"`
+	VlanMode *string   `json:"vlanMode,omitempty"`
+	Trunk    []*vlanID `json:"trunk,omitempty"`
+	Cvlan    []*vlanID `json:"cvlan,omitempty"`
+	DeviceID string    `json:"deviceID"` // PCI address of a VF in valid sysfs format
 }
 
-type trunk struct {
+type vlanID struct {
 	MinID *uint `json:"minID,omitempty"`
 	MaxID *uint `json:"maxID,omitempty"`
 	ID    *uint `json:"id,omitempty"`
@@ -173,6 +176,53 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mt
 	return hostIface, contIface, nil
 }
 
+func setupVlanLink(contNetns ns.NetNS, contIfaceName string, vlanID uint, address string) (netlink.Link, error) {
+	var contVlanLink netlink.Link
+
+	err := contNetns.Do(func(hostNetns ns.NetNS) error {
+		parrentLink, err := netlink.LinkByName(contIfaceName)
+		if err != nil {
+			return err
+		}
+		vlanLink := &netlink.Vlan{
+			LinkAttrs: netlink.LinkAttrs{
+				Name:        fmt.Sprintf("%s.%s", contIfaceName, strconv.FormatUint(uint64(vlanID), 10)),
+				ParentIndex: parrentLink.Attrs().Index,
+			},
+			VlanId: int(vlanID),
+		}
+		if err := netlink.LinkAdd(vlanLink); err != nil {
+			return err
+		}
+		contVlanLink, err = netlink.LinkByName(vlanLink.LinkAttrs.Name)
+		if err != nil {
+			return err
+		}
+		err = netlink.LinkSetUp(contVlanLink)
+		if err != nil {
+			return err
+		}
+
+		if len(address) > 0 {
+			linkAddr, err := netlink.ParseAddr(address)
+			if err != nil {
+				return err
+			}
+			err = netlink.AddrAdd(vlanLink, linkAddr)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return contVlanLink, nil
+}
+
 func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error {
 	err := netlink.LinkSetHardwareAddr(link, mac)
 	if err != nil {
@@ -191,8 +241,8 @@ func getBridgeName(bridgeName, ovnPort string) (string, error) {
 	return "", fmt.Errorf("failed to get bridge name")
 }
 
-func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTag uint, trunks []uint, portType string, contNetnsPath string, ovnPortName string) error {
-	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTag, trunks, portType)
+func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, vlanTag uint, trunks []uint, cvlans []uint, portType string, contNetnsPath string, ovnPortName string) error {
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, vlanTag, trunks, cvlans, portType)
 	if err != nil {
 		return err
 	}
@@ -214,7 +264,7 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
-func splitVlanIds(trunks []*trunk) ([]uint, error) {
+func splitVlanIds(trunks []*vlanID) ([]uint, error) {
 	vlans := make(map[uint]bool)
 	for _, item := range trunks {
 		var minID uint = 0
@@ -281,9 +331,32 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var vlanTagNum uint = 0
 	trunks := make([]uint, 0)
-	portType := "access"
-	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
-		portType = "trunk"
+	cvlans := make([]uint, 0)
+	var vlanMode = "access"
+	if netconf.VlanMode != nil {
+		vlanMode = *netconf.VlanMode
+	}
+
+	if netconf.VlanTag != nil {
+		vlanTagNum = *netconf.VlanTag
+		if len(netconf.Cvlan) > 0 {
+			if vlanMode != "dot1q-tunnel" {
+				return errors.New("dot1q-tunnel vlanMode must be specified when cvlans are provided")
+			}
+
+			cvlanIds, err := splitVlanIds(netconf.Cvlan)
+			if err != nil {
+				return err
+			}
+			cvlans = append(cvlans, cvlanIds...)
+		}
+
+		if vlanMode == "dot1q-tunnel" {
+			// TODO: return error if missing vlan-limit=2 or vlan-limit=0 configuration on OVS Switch
+		}
+	} else if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
+		vlanMode = "trunk" // use trunk to keep backwards compatibility
+
 		if len(netconf.Trunk) > 0 {
 			trunkVlanIds, err := splitVlanIds(netconf.Trunk)
 			if err != nil {
@@ -291,8 +364,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 			}
 			trunks = append(trunks, trunkVlanIds...)
 		}
-	} else if netconf.VlanTag != nil {
-		vlanTagNum = *netconf.VlanTag
 	}
 
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
@@ -320,7 +391,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
 	}
 
-	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTagNum, trunks, portType, args.Netns, ovnPort); err != nil {
+	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTagNum, trunks, cvlans, vlanMode, args.Netns, ovnPort); err != nil {
 		return err
 	}
 
