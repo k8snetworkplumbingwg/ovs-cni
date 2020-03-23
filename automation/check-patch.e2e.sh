@@ -17,6 +17,10 @@ main() {
     source automation/setup.sh
     cd ${TMP_PROJECT_PATH}
 
+    echo 'Run functional tests'
+    make docker-test
+
+    echo 'Run e2e tests'
     make cluster-down
     make cluster-up
     trap teardown EXIT SIGINT SIGTERM SIGSTOP
