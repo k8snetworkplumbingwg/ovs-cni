@@ -20,7 +20,6 @@ require (
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vishvananda/netlink v0.0.0-20181108222139-023a6dafdcdf
-	github.com/vishvananda/netns v0.0.0-20200520041808-52d707b772fe // indirect
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
