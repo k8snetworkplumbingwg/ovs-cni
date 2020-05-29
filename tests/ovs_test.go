@@ -16,16 +16,18 @@
 package tests_test
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("ovs-cni", func() {
 	Describe("pod availability tests", func() {
 		Context("pod availability tests", func() {
 			It("assert pods exists", func() {
-				pods, _ := clientset.CoreV1().Pods("").List(v1.ListOptions{})
+				pods, _ := clientset.CoreV1().Pods("").List(context.TODO(), v1.ListOptions{})
 				Expect(len(pods.Items)).Should(BeNumerically(">", 0))
 			})
 		})

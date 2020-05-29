@@ -15,14 +15,15 @@
 package tests_test
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"github.com/kubevirt/ovs-cni/tests"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("ovs-cni-marker", func() {
@@ -35,7 +36,7 @@ var _ = Describe("ovs-cni-marker", func() {
 			defer tests.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
 
 			Eventually(func() bool {
-				node, err := clientset.CoreV1().Nodes().Get("node01", v1.GetOptions{})
+				node, err := clientset.CoreV1().Nodes().Get(context.TODO(), "node01", v1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				capacity, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				if !reported {
@@ -54,7 +55,7 @@ var _ = Describe("ovs-cni-marker", func() {
 			}
 
 			Eventually(func() bool {
-				node, err := clientset.CoreV1().Nodes().Get("node01", v1.GetOptions{})
+				node, err := clientset.CoreV1().Nodes().Get(context.TODO(), "node01", v1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				_, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				return reported
