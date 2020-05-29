@@ -24,22 +24,17 @@ spec:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
-      containers:
+      initContainers:
       - name: ovs-cni-plugin
         image: ${OVS_CNI_PLUGIN_IMAGE_REPO}/${OVS_CNI_PLUGIN_IMAGE_NAME}:${OVS_CNI_PLUGIN_IMAGE_VERSION}
+        command: ['cp', '/ovs', '/host${CNI_MOUNT_PATH}/ovs']
         imagePullPolicy: ${OVS_CNI_PLUGIN_IMAGE_PULL_POLICY}
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "50Mi"
-          limits:
-            cpu: "100m"
-            memory: "50Mi"
         securityContext:
           privileged: true
         volumeMounts:
         - name: cnibin
-          mountPath: /host/opt/cni/bin
+          mountPath: /host${CNI_MOUNT_PATH}
+      containers:
       - name: ovs-cni-marker
         image: ${OVS_CNI_MARKER_IMAGE_REPO}/${OVS_CNI_MARKER_IMAGE_NAME}:${OVS_CNI_MARKER_IMAGE_VERSION}
         imagePullPolicy: ${OVS_CNI_MARKER_IMAGE_PULL_POLICY}
@@ -61,7 +56,7 @@ spec:
       volumes:
         - name: cnibin
           hostPath:
-            path: /opt/cni/bin
+            path: ${CNI_MOUNT_PATH}
         - name: ovs-var-run
           hostPath:
             path: /var/run/openvswitch

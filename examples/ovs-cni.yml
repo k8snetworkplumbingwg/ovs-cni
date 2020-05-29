@@ -24,22 +24,17 @@ spec:
       - key: node-role.kubernetes.io/master
         operator: Exists
         effect: NoSchedule
-      containers:
+      initContainers:
       - name: ovs-cni-plugin
         image: quay.io/kubevirt/ovs-cni-plugin:latest
+        command: ['cp', '/ovs', '/host/opt/cni/bin/ovs']
         imagePullPolicy: IfNotPresent
-        resources:
-          requests:
-            cpu: "100m"
-            memory: "50Mi"
-          limits:
-            cpu: "100m"
-            memory: "50Mi"
         securityContext:
           privileged: true
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin
+      containers:
       - name: ovs-cni-marker
         image: quay.io/kubevirt/ovs-cni-marker:latest
         imagePullPolicy: IfNotPresent
