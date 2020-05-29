@@ -15,6 +15,7 @@
 package marker
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -84,7 +85,7 @@ func (m *Marker) getReportedResources() (map[string]bool, error) {
 	node, err := m.clientset.
 		CoreV1().
 		Nodes().
-		Get(m.nodeName, metav1.GetOptions{})
+		Get(context.TODO(), m.nodeName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get node: %v", err)
 	}
@@ -143,7 +144,7 @@ func (m *Marker) Update() error {
 	_, err = m.clientset.
 		CoreV1().
 		Nodes().
-		Patch(m.nodeName, types.JSONPatchType, payloadBytes, "status")
+		Patch(context.TODO(), m.nodeName, types.JSONPatchType, payloadBytes, metav1.PatchOptions{}, "status")
 	if err != nil {
 		return fmt.Errorf("failed to apply patch %s on node: %v", payloadBytes, err)
 	}
