@@ -8,7 +8,7 @@ require (
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
 	github.com/containernetworking/cni v0.7.1
-	github.com/containernetworking/plugins v0.8.2
+	github.com/containernetworking/plugins v0.8.6
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/googleapis/gnostic v0.3.1 // indirect
@@ -20,6 +20,8 @@ require (
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/vishvananda/netlink v0.0.0-20181108222139-023a6dafdcdf
+	github.com/vishvananda/netns v0.0.0-20200520041808-52d707b772fe // indirect
+	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37 // indirect
 	golang.org/x/oauth2 v0.0.0-20190604053449-0f29369cfe45 // indirect
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
