@@ -1,7 +1,5 @@
 module github.com/kubevirt/ovs-cni
 
-go 1.12
-
 require (
 	github.com/Mellanox/sriovnet v0.0.0-20190516174650-73402dc8fcaa
 	github.com/cenk/hub v1.0.1 // indirect
@@ -48,3 +46,5 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.18.3
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.18.3
 )
+
+go 1.13
