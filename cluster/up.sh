@@ -27,3 +27,7 @@ for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); d
     ./cluster/cli.sh ssh ${node} -- sudo systemctl daemon-reload
     ./cluster/cli.sh ssh ${node} -- sudo systemctl restart openvswitch
 done
+
+echo 'Deploying multus'
+./cluster/kubectl.sh create -f https://raw.githubusercontent.com/intel/multus-cni/master/images/multus-daemonset.yml
+./cluster/kubectl.sh  -n kube-system wait --for=condition=ready -l name=multus pod --timeout=300s
