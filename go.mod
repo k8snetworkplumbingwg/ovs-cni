@@ -19,7 +19,7 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	k8s.io/apimachinery v0.18.3
 	k8s.io/client-go v0.0.0-00010101000000-000000000000
-	kubevirt.io/qe-tools v0.1.3
+	kubevirt.io/qe-tools v0.1.6
 )
 
 // Pinned to kubernetes-1.18.3
