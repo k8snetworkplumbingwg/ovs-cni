@@ -20,4 +20,4 @@ set -e
 
 source ./cluster/kubevirtci.sh
 
-go test ./tests --kubeconfig $(kubevirtci::kubeconfig) -ginkgo.v
+go test ./tests/... $E2E_TEST_ARGS --kubeconfig $(kubevirtci::kubeconfig)
