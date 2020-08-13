@@ -27,14 +27,14 @@ import (
 
 // TODO: Use job with a node affinity instead
 func RunOnNode(node string, command string) (string, error) {
-	out, err := exec.Command("bash","-c", fmt.Sprintf("docker ps | grep %s | awk '{ print $1}'",node)).CombinedOutput()
+	out, err := exec.Command("bash", "-c", fmt.Sprintf("docker ps | grep %s | awk '{ print $1}'", node)).CombinedOutput()
 	if err != nil {
-		panic(fmt.Sprintf("failed to run docker ps error output: %s",string(out)))
+		panic(fmt.Sprintf("failed to run docker ps error output: %s", string(out)))
 	}
 
 	out, err = exec.Command("docker", "exec", string(out[:12]), "ssh.sh", command).CombinedOutput()
 	if err != nil {
-		panic(fmt.Sprintf("failed to run docker exec command error output: %s",string(out)))
+		panic(fmt.Sprintf("failed to run docker exec command error output: %s", string(out)))
 	}
 	outString := string(out)
 	outLines := strings.Split(outString, "\n")

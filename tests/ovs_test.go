@@ -20,15 +20,15 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 var _ = Describe("ovs-cni", func() {
 	Describe("pod availability tests", func() {
-		Context("pod availability tests", func() {
-			It("assert pods exists", func() {
-				pods, _ := clientset.CoreV1().Pods("").List(context.TODO(), v1.ListOptions{})
-				Expect(len(pods.Items)).Should(BeNumerically(">", 0))
+		Context("When ovs-cni is deployed on the cluster", func() {
+			Specify("ovs-cni pod should be up and running", func() {
+				pods, _ := clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
 			})
 		})
 	})
