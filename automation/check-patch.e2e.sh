@@ -25,8 +25,7 @@ main() {
     make cluster-up
     trap teardown EXIT SIGINT SIGTERM SIGSTOP
     make cluster-sync
-    ginko_params="-ginkgo.noColor --junit-output=$ARTIFACTS_PATH/tests.junit.xml"
-    FUNC_TEST_ARGS=$ginko_params make functest
+    make E2E_TEST_ARGS="-ginkgo.v -test.v -ginkgo.noColor --junit-output=$ARTIFACTS/junit.functest.xml" functest
 }
 
 [[ "${BASH_SOURCE[0]}" == "$0" ]] && main "$@"
