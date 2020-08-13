@@ -9,13 +9,16 @@ require (
 	github.com/containernetworking/plugins v0.8.7
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/imdario/mergo v0.3.8 // indirect
+	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
+	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 	github.com/vishvananda/netlink v1.1.0
+	k8s.io/api v0.19.1
 	k8s.io/apimachinery v0.19.1
-	k8s.io/client-go v0.0.0-00010101000000-000000000000
+	k8s.io/client-go v0.18.3
 	kubevirt.io/qe-tools v0.1.6
 )
 
