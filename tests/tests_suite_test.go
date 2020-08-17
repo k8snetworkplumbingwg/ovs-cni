@@ -21,15 +21,13 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-
 	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
+
+	clusterapi "github.com/kubevirt/ovs-cni/tests/cluster"
 )
 
 var kubeconfig *string
-var clientset *kubernetes.Clientset
+var clusterApi *clusterapi.ClusterApi
 
 func TestPlugin(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -43,10 +41,13 @@ func TestPlugin(t *testing.T) {
 var _ = BeforeSuite(func() {
 	flag.Parse()
 
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
-	Expect(err).ToNot(HaveOccurred())
-	clientset, err = kubernetes.NewForConfig(config)
-	Expect(err).ToNot(HaveOccurred())
+	clusterApi = clusterapi.NewClusterApi(*kubeconfig)
+	clusterApi.RemoveTestNamespace()
+	clusterApi.CreateTestNamespace()
+})
+
+var _ = AfterSuite(func() {
+	clusterApi.RemoveTestNamespace()
 })
 
 func init() {

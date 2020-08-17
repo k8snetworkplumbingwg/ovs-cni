@@ -17,12 +17,15 @@
  *
  */
 
-package tests
+package node
 
 import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 // TODO: Use job with a node affinity instead
@@ -43,4 +46,16 @@ func RunOnNode(node string, command string) (string, error) {
 	outStrippedString := strings.Join(outStripped, "\n")
 
 	return outStrippedString, err
+}
+
+func RemoveOvsBridgeOnNode(bridgeName string) {
+	By("Removing ovs-bridge on the node")
+	out, err := RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br "+bridgeName)
+	Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("Failed to run command on node. stdout: %s", out))
+}
+
+func AddOvsBridgeOnNode(bridgeName string) {
+	By("Adding ovs-bridge on the node")
+	out, err := RunOnNode("node01", "sudo ovs-vsctl add-br "+bridgeName)
+	Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("Failed to run command on node. stdout: %s", out))
 }
