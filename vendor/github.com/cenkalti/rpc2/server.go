@@ -142,7 +142,8 @@ func (s *Server) Accept(lis net.Listener) {
 	for {
 		conn, err := lis.Accept()
 		if err != nil {
-			log.Fatal("rpc.Serve: accept:", err.Error())
+			log.Print("rpc.Serve: accept:", err.Error())
+			return
 		}
 		go s.ServeConn(conn)
 	}

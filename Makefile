@@ -42,6 +42,7 @@ docker-push-%:
 	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
 
 dep:
+	go get -t -u ./...
 	go mod tidy
 	go mod vendor
 
