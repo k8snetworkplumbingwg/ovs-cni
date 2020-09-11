@@ -96,10 +96,10 @@ github.com/satori/go.uuid
 github.com/socketplane/libovsdb
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
-# github.com/vishvananda/netlink v0.0.0-20181108222139-023a6dafdcdf
+# github.com/vishvananda/netlink v1.1.0
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl
-# github.com/vishvananda/netns v0.0.0-20180720170159-13995c7128cc
+# github.com/vishvananda/netns v0.0.0-20191106174202-0a2b9b5464df
 github.com/vishvananda/netns
 # golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37
 golang.org/x/crypto/ssh/terminal
