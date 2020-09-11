@@ -5,8 +5,8 @@ require (
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
-	github.com/containernetworking/cni v0.7.1
-	github.com/containernetworking/plugins v0.8.6
+	github.com/containernetworking/cni v0.8.0
+	github.com/containernetworking/plugins v0.8.7
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
