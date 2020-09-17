@@ -9,7 +9,7 @@ ovs-cni on your arbitrary cluster.
 
 This guide requires you to have your own Kubernetes/OpenShift cluster. If you
 don't have one and just want to try ovs-cni out, please refer to the [deployment
-on local cluster](deployment-local-cluster.md) guide.
+on local cluster](deployment-on-local-cluster.md) guide.
 
 ## Open vSwitch
 
