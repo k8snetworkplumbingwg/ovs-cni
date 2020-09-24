@@ -208,7 +208,7 @@ var _ = Describe("CNI Plugin", func() {
 		By("Checking that port external-id:contIface contains reference to container interface name")
 		externalIdContIface, err := getPortAttribute(hostIface.Name, "external-ids:contIface")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(externalIdContIface).To(Equal("\"" + contIface.Name + "\""))
+		Expect(externalIdContIface).To(Equal(contIface.Name))
 
 		By("Checking that port external-id:contNetns contains reference to container namespace path")
 		externalIdContNetns, err := getPortAttribute(hostIface.Name, "external-ids:contNetns")
@@ -508,12 +508,12 @@ var _ = Describe("CNI Plugin", func() {
 				output, err = exec.Command("ovs-vsctl", "--column=name", "find", "Interface", fmt.Sprintf("name=%s", secondHostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output)).To(
-					ContainSubstring(fmt.Sprintf("\"%s\"", secondHostIface.Name)), "Healthy OVS interface should have been kept")
+					ContainSubstring(secondHostIface.Name), "Healthy OVS interface should have been kept")
 
 				output, err = exec.Command("ovs-vsctl", "--column=name", "find", "Port", fmt.Sprintf("name=%s", secondHostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output)).To(
-					ContainSubstring(fmt.Sprintf("\"%s\"", secondHostIface.Name)), "OVS port with healthy interface should have been kept")
+					ContainSubstring(secondHostIface.Name), "OVS port with healthy interface should have been kept")
 			})
 		})
 	})
