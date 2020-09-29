@@ -437,9 +437,26 @@ func CmdDel(args *skel.CmdArgs) error {
 	if args.Netns == "" {
 		// The CNI_NETNS parameter may be empty according to version 0.4.0
 		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
-		// In accordance with the spec we clean up as many resources as possible.
-		if err := cleanPorts(ovsDriver); err != nil {
-			return err
+		if netconf.DeviceID != "" {
+			// SR-IOV Case - The sriov device is moved into host network namespace when args.Netns is empty.
+			// This happens container is killed due to an error (example: CrashLoopBackOff, OOMKilled)
+			var rep string
+			if rep, err = sriov.GetNetRepresentor(netconf.DeviceID); err != nil {
+				return err
+			}
+			if err = removeOvsPort(ovsDriver, rep); err != nil {
+				// Don't throw err as delete can be called multiple times because of error in ResetVF and ovs
+				// port is already deleted in a previous invocation.
+				log.Printf("Error: %v\n", err)
+			}
+			if err = sriov.ResetVF(args, netconf.DeviceID); err != nil {
+				return err
+			}
+		} else {
+			// In accordance with the spec we clean up as many resources as possible.
+			if err := cleanPorts(ovsDriver); err != nil {
+				return err
+			}
 		}
 		return nil
 	} else {

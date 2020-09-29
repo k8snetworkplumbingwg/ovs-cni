@@ -25,6 +25,7 @@ import (
 	"github.com/Mellanox/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types/current"
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
 )
@@ -58,6 +59,33 @@ func getVFLinkName(pciAddr string) (string, error) {
 	return names[0], nil
 }
 
+// GetNetRepresentor retrieves network representor device for smartvf
+func GetNetRepresentor(deviceID string) (string, error) {
+	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).
+	// The uplink is later used to retrieve the representor for the smart VF.
+	uplink, err := sriovnet.GetUplinkRepresentor(deviceID)
+	if err != nil {
+		return "", err
+	}
+
+	// get smart VF index from PCI
+	vfIndex, err := sriovnet.GetVfIndexByPciAddress(deviceID)
+	if err != nil {
+		return "", err
+	}
+
+	// get smart VF representor interface. This is a host net device which represents
+	// smart VF attached inside the container by device plugin. It can be considered
+	// as one end of veth pair whereas other end is smartVF. The VF representor would
+	// get added into ovs bridge for the control plane configuration.
+	rep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
+	if err != nil {
+		return "", err
+	}
+
+	return rep, nil
+}
+
 // SetupSriovInterface moves smartVF into container namespace, rename it with ifName and also returns host interface with VF's representor device
 func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int, deviceID string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
@@ -84,24 +112,8 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int
 	}
 	vfNetdevice := vfNetdevices[0]
 
-	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).
-	// The uplink is later used to retrieve the representor for the smart VF.
-	uplink, err := sriovnet.GetUplinkRepresentor(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// get smart VF index from PCI
-	vfIndex, err := sriovnet.GetVfIndexByPciAddress(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// get smart VF representor interface. This is a host net device which represents
-	// smart VF attached inside the container by device plugin. It can be considered
-	// as one end of veth pair whereas other end is smartVF. The VF representor would
-	// get added into ovs bridge for the control plane configuration.
-	rep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
+	// network representor device for smartvf
+	rep, err := GetNetRepresentor(deviceID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -225,4 +237,33 @@ func ReleaseVF(args *skel.CmdArgs) error {
 		return nil
 	})
 
+}
+
+// ResetVF reset the VF which accidently moved into default network namespace by a container failure
+func ResetVF(args *skel.CmdArgs, deviceID string) error {
+	hostIFName, cRefPath, err := LoadHostIFNameFromCache(args)
+	if err != nil {
+		return err
+	}
+	// get smart VF netdevice from PCI
+	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
+	if err != nil {
+		return err
+	}
+	// Make sure we have 1 netdevice per pci address
+	if len(vfNetdevices) != 1 {
+		// This would happen if netdevice is not yet visible in default network namespace.
+		// so return ErrLinkNotFound error so that meta plugin can attempt multiple times
+		// until link is available.
+		return ip.ErrLinkNotFound
+	}
+	_, err = renameLink(vfNetdevices[0], hostIFName)
+	if err != nil {
+		return err
+	}
+	// remove the cache entry if everything cleaned up for the device.
+	if cRefPath != "" {
+		CleanCachedConf(cRefPath)
+	}
+	return nil
 }
