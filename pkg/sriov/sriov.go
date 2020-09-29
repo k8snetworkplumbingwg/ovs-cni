@@ -84,7 +84,6 @@ func GetNetRepresentor(deviceID string) (string, error) {
 	}
 
 	return rep, nil
-
 }
 
 // SetupSriovInterface moves smartVF into container namespace, rename it with ifName and also returns host interface with VF's representor device
@@ -254,7 +253,7 @@ func ResetVF(args *skel.CmdArgs, deviceID string) error {
 	// Make sure we have 1 netdevice per pci address
 	if len(vfNetdevices) != 1 {
 		// This would happen if netdevice is not yet visible in default network namespace.
-		// so return ErrLinkNotFound error so that multus can attempt multiple times
+		// so return ErrLinkNotFound error so that meta plugin can attempt multiple times
 		// until link is available.
 		return ip.ErrLinkNotFound
 	}

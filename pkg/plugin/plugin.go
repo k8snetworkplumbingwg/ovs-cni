@@ -447,8 +447,7 @@ func CmdDel(args *skel.CmdArgs) error {
 			if err = removeOvsPort(ovsDriver, rep); err != nil {
 				// Don't throw err as delete can be called multiple times because of error in ResetVF and ovs
 				// port is already deleted in a previous invocation. so log it and proceed further.
-				log.Printf("removal of ovs port %s is failed for device %s , it may be removed already"+
-					" by previous delete call, err %v", rep, netconf.DeviceID, err)
+				log.Printf("Error: %v\n", err)
 			}
 			if err = sriov.ResetVF(args, netconf.DeviceID); err != nil {
 				return err
