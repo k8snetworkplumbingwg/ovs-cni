@@ -185,6 +185,10 @@ spec:
 EOF
 ```
 
+The `ovs-ipam-net` nework uses `host-local` IPAM plugin which works only on single
+worker node and should be replaced by some cluster-level IPAM across worker nodes
+in a K8s cluster.
+
 Now create a pod and connect it with `ovs-ipam-net` network. Now the pod container
 is also created with `net1` interface configured with ip address from
 `192.168.1.0/24` subnet.
