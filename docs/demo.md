@@ -172,26 +172,16 @@ spec:
       "bridge": "br1",
       "vlan": 100,
       "ipam": {
-        "type": "host-local",
-        "subnet": "192.168.1.0/24",
-        "rangeStart": "192.168.1.200",
-        "rangeEnd": "192.168.1.216",
-        "routes": [
-          { "dst": "0.0.0.0/0" }
-        ],
-        "gateway": "192.168.1.1"
+        "type": "static"
       }
     }'
 EOF
 ```
 
-The `ovs-ipam-net` nework uses `host-local` IPAM plugin which works only on single
-worker node and should be replaced by some cluster-level IPAM across worker nodes
-in a K8s cluster.
+The `ovs-ipam-net` nework uses `static` IPAM plugin but without any configured IP addresses.
+Hence pod spec have to specify a static IP address through `runtimeConfig` parameter.
 
-Now create a pod and connect it with `ovs-ipam-net` network. Now the pod container
-is also created with `net1` interface configured with ip address from
-`192.168.1.0/24` subnet.
+Now create a pod and connect to `ovs-ipam-net` network with `10.10.10.1` ip address.
 
 ```shell
 cat <<EOF | kubectl create -f -
@@ -200,7 +190,12 @@ kind: Pod
 metadata:
   name: samplepod-2
   annotations:
-    k8s.v1.cni.cncf.io/networks: ovs-ipam-net
+    k8s.v1.cni.cncf.io/networks: '[
+        {
+          "name": "ovs-ipam-net",
+          "ips": ["10.10.10.1/24"]
+        }
+]'
 spec:
   containers:
   - name: samplepod
@@ -209,7 +204,8 @@ spec:
 EOF
 ```
 
-Create another Pod connected with same `ovs-ipam-net` network so we have something to ping.
+Create another Pod connected to same `ovs-ipam-net` network with `10.10.10.2` ip address,
+so we have something to ping.
 
 ```shell
 cat <<EOF | kubectl create -f -
@@ -217,8 +213,12 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: samplepod-3
-  annotations:
-    k8s.v1.cni.cncf.io/networks: ovs-ipam-net
+    k8s.v1.cni.cncf.io/networks: '[
+        {
+          "name": "ovs-ipam-net",
+          "ips": ["10.10.10.2/24"]
+        }
+]'
 spec:
   containers:
   - name: samplepod
@@ -230,5 +230,5 @@ EOF
 Once both Pods are up and running, we can try to ping from one to another.
 
 ```shell
-kubectl exec -it samplepod-2 -- ping 192.168.1.3
+kubectl exec -it samplepod-2 -- ping 10.10.10.2
 ```
