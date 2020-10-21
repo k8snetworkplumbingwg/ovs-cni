@@ -153,11 +153,35 @@ kubectl exec samplepod-1 -- ip link show
 
 ## Configure IP Address
 
-Open vSwitch CNI does not support IPAM yet. In order to test IP connectivity
-between Pods, we need to configure IP manually.
+Open vSwitch CNI has support for IPAM. In order to test IP connectivity
+between Pods, we first need to create `NetworkAttachmentDefinition` object
+with required IPAM configuration.
 
-Create second Pod, this time it will configure its own IP address. Note that in
-order to configure IP address, this Pod must be in privileged mode.
+```shell
+cat <<EOF | kubectl create -f -
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ovs-ipam-net
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
+spec:
+  config: '{
+      "cniVersion": "0.3.1",
+      "type": "ovs",
+      "bridge": "br1",
+      "vlan": 100,
+      "ipam": {
+        "type": "static"
+      }
+    }'
+EOF
+```
+
+The `ovs-ipam-net` nework uses `static` IPAM plugin but without any configured IP addresses.
+Hence pod spec have to specify a static IP address through `runtimeConfig` parameter.
+
+Now create a pod and connect to `ovs-ipam-net` network with `10.10.10.1` ip address.
 
 ```shell
 cat <<EOF | kubectl create -f -
@@ -166,18 +190,22 @@ kind: Pod
 metadata:
   name: samplepod-2
   annotations:
-    k8s.v1.cni.cncf.io/networks: ovs-net-2-vlan
+    k8s.v1.cni.cncf.io/networks: '[
+        {
+          "name": "ovs-ipam-net",
+          "ips": ["10.10.10.1/24"]
+        }
+]'
 spec:
   containers:
   - name: samplepod
-    command: ["sh", "-c", "ip address add 11.0.0.2/24 dev net1; sleep 99999"]
+    command: ["sleep", "99999"]
     image: alpine
-    securityContext:
-      privileged: true
 EOF
 ```
 
-Create another Pod so we have something to ping.
+Create another Pod connected to same `ovs-ipam-net` network with `10.10.10.2` ip address,
+so we have something to ping.
 
 ```shell
 cat <<EOF | kubectl create -f -
@@ -185,20 +213,22 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: samplepod-3
-  annotations:
-    k8s.v1.cni.cncf.io/networks: ovs-net-2-vlan
+    k8s.v1.cni.cncf.io/networks: '[
+        {
+          "name": "ovs-ipam-net",
+          "ips": ["10.10.10.2/24"]
+        }
+]'
 spec:
   containers:
   - name: samplepod
-    command: ["sh", "-c", "ip address add 11.0.0.3/24 dev net1; sleep 99999"]
+    command: ["sleep", "99999"]
     image: alpine
-    securityContext:
-      privileged: true
 EOF
 ```
 
 Once both Pods are up and running, we can try to ping from one to another.
 
 ```shell
-kubectl exec -it samplepod-2 -- ping 11.0.0.3
+kubectl exec -it samplepod-2 -- ping 10.10.10.2
 ```
