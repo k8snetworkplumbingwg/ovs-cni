@@ -367,6 +367,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 		result = newResult
 		result.Interfaces = []*current.Interface{hostIface, result.Interfaces[0]}
+
+		for ifIndex, ifCfg := range result.Interfaces {
+			// Adjust interface index with new container interface index in result.Interfaces
+			if ifCfg.Name == args.IfName {
+				for ipIndex, _ := range result.IPs {
+					result.IPs[ipIndex].Interface = current.Int(ifIndex)
+				}
+			}
+		}
 	}
 
 	return types.PrintResult(result, netconf.CNIVersion)
