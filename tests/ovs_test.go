@@ -17,18 +17,72 @@ package tests_test
 
 import (
 	"context"
+	"fmt"
+	"net"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/kubevirt/ovs-cni/tests/node"
 )
 
 var _ = Describe("ovs-cni", func() {
 	Describe("pod availability tests", func() {
-		Context("pod availability tests", func() {
-			It("assert pods exists", func() {
-				pods, _ := clientset.CoreV1().Pods("").List(context.TODO(), v1.ListOptions{})
-				Expect(len(pods.Items)).Should(BeNumerically(">", 0))
+		Context("When ovs-cni is deployed on the cluster", func() {
+			Specify("ovs-cni pod should be up and running", func() {
+				pods, _ := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
+			})
+		})
+	})
+
+	Describe("pod ovs-bridge connectivity tests", func() {
+		Context("when an OVS bridge is configured on a node", func() {
+			const bridgeName = "br-test"
+			BeforeEach(func() {
+				node.AddOvsBridgeOnNode(bridgeName)
+			})
+			AfterEach(func() {
+				node.RemoveOvsBridgeOnNode(bridgeName)
+			})
+
+			Context("and a network attachment definition is defined", func() {
+				const nadName = "ovs-net"
+				BeforeEach(func() {
+					clusterApi.CreateNetworkAttachmentDefinition(nadName, bridgeName, `{ "cniVersion": "0.3.1", "type": "ovs", "bridge": "`+bridgeName+`", "vlan": 100 }`)
+				})
+				AfterEach(func() {
+					clusterApi.RemoveNetworkAttachmentDefinition(nadName)
+				})
+
+				Context("and two pods are connected through it", func() {
+					const (
+						pod1Name = "pod-test-1"
+						pod2Name = "pod-test-2"
+						cidrPod1 = "10.0.0.1/24"
+						cidrPod2 = "10.0.0.2/24"
+					)
+					BeforeEach(func() {
+						clusterApi.CreatePrivilegedPodWithIp(pod1Name, nadName, bridgeName, cidrPod1)
+						clusterApi.CreatePrivilegedPodWithIp(pod2Name, nadName, bridgeName, cidrPod2)
+					})
+					AfterEach(func() {
+						clusterApi.DeletePodsInTestNamespace()
+					})
+
+					Specify("they should be able to communicate over the network", func() {
+						By("Checking pods connectivity by pinging from one to the other")
+						ipPod1, _, err := net.ParseCIDR(cidrPod1)
+						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing pod's cidr: %s", cidrPod1))
+						ipPod2, _, err := net.ParseCIDR(cidrPod2)
+						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing pod's cidr: %s", cidrPod2))
+
+						err = clusterApi.PingFromPod(pod1Name, "test", ipPod2.String())
+						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", pod1Name, ipPod2.String(), pod2Name, ipPod1.String()))
+					})
+				})
 			})
 		})
 	})

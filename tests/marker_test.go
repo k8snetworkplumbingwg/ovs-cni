@@ -22,21 +22,22 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/kubevirt/ovs-cni/tests"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/kubevirt/ovs-cni/tests/node"
 )
 
 var _ = Describe("ovs-cni-marker", func() {
 	Describe("bridge resource reporting", func() {
 		It("should be reported only when available on node", func() {
-			out, err := tests.RunOnNode("node01", "sudo ovs-vsctl add-br br-test")
+			out, err := node.RunOnNode("node01", "sudo ovs-vsctl add-br br-test")
 			if err != nil {
 				panic(fmt.Errorf("%v: %s", err, out))
 			}
-			defer tests.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			defer node.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
 
 			Eventually(func() bool {
-				node, err := clientset.CoreV1().Nodes().Get(context.TODO(), "node01", v1.GetOptions{})
+				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				capacity, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				if !reported {
@@ -49,13 +50,13 @@ var _ = Describe("ovs-cni-marker", func() {
 				return true
 			}, 20*time.Second, 5*time.Second).Should(Equal(true))
 
-			out, err = tests.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			out, err = node.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
 			if err != nil {
 				panic(fmt.Errorf("%v: %s", err, out))
 			}
 
 			Eventually(func() bool {
-				node, err := clientset.CoreV1().Nodes().Get(context.TODO(), "node01", v1.GetOptions{})
+				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				_, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				return reported
