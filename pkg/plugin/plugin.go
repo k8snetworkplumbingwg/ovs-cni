@@ -28,6 +28,7 @@ import (
 	"net"
 	"runtime"
 	"sort"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -35,6 +36,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
 	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
@@ -359,8 +361,44 @@ func CmdAdd(args *skel.CmdArgs) error {
 			ipc.Interface = current.Int(0)
 		}
 
+		// wait until OF port link state becomes up. This is needed to make
+		// gratuitous arp for args.IfName to be sent over ovs bridge
+		for i := 0; i < 5; i++ {
+			portState, err := ovsDriver.GetOFPortOpState(hostIface.Name)
+			if err != nil {
+				log.Printf("error in retrieving port %s state: %v", hostIface.Name, err)
+			} else {
+				if portState == "up" {
+					break
+				}
+			}
+			if i == 4 {
+				log.Printf("The OF port %s state is not up until this time", hostIface.Name)
+			} else {
+				time.Sleep(500 * time.Millisecond)
+			}
+		}
+
 		err = contNetns.Do(func(_ ns.NetNS) error {
-			return ipam.ConfigureIface(args.IfName, newResult)
+			err := ipam.ConfigureIface(args.IfName, newResult)
+			if err != nil {
+				return err
+			}
+			contVeth, err := net.InterfaceByName(args.IfName)
+			if err != nil {
+				return fmt.Errorf("failed to look up %q: %v", args.IfName, err)
+			}
+			for _, ipc := range newResult.IPs {
+				if ipc.Version == "4" {
+					// send gratuitous arp for other ends to refresh its arp cache
+					err = arping.GratuitousArpOverIface(ipc.Address.IP, *contVeth)
+					if err != nil {
+						// ok to ignore returning this error
+						log.Printf("error sending garp for ip %s: %v", ipc.Address.IP.String(), err)
+					}
+				}
+			}
+			return nil
 		})
 		if err != nil {
 			return err

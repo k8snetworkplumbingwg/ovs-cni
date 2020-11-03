@@ -210,6 +210,37 @@ func (self *OvsDriver) BridgeList() ([]string, error) {
 	return bridges, nil
 }
 
+// GetOFPortOpState retrieves link state of the OF port
+func (self *OvsDriver) GetOFPortOpState(portName string) (string, error) {
+	condition := libovsdb.NewCondition("name", "==", portName)
+	selectOp := []libovsdb.Operation{{
+		Op:      "select",
+		Table:   "Interface",
+		Columns: []string{"link_state"},
+		Where:   []interface{}{condition},
+	}}
+
+	transactionResult, err := self.ovsdbTransact(selectOp)
+	if err != nil {
+		return "", err
+	}
+
+	if len(transactionResult) != 1 {
+		return "", fmt.Errorf("unknown error")
+	}
+
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return "", fmt.Errorf("%s - %s", operationResult.Error, operationResult.Details)
+	}
+
+	if len(operationResult.Rows) != 1 {
+		return "", nil
+	}
+
+	return fmt.Sprintf("%v", operationResult.Rows[0]["link_state"]), nil
+}
+
 // Check if the bridge entry already exists
 func (self *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	condition := libovsdb.NewCondition("name", "==", bridgeName)
