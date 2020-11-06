@@ -43,7 +43,11 @@ import (
 	"github.com/kubevirt/ovs-cni/pkg/sriov"
 )
 
-const macSetupRetries = 2
+const (
+	macSetupRetries        = 2
+	linkstateCheckRetries  = 5
+	linkStateCheckInterval = 500 // in milliseconds
+)
 
 type netConf struct {
 	types.NetConf
@@ -363,20 +367,9 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 		// wait until OF port link state becomes up. This is needed to make
 		// gratuitous arp for args.IfName to be sent over ovs bridge
-		for i := 0; i < 5; i++ {
-			portState, err := ovsDriver.GetOFPortOpState(hostIface.Name)
-			if err != nil {
-				log.Printf("error in retrieving port %s state: %v", hostIface.Name, err)
-			} else {
-				if portState == "up" {
-					break
-				}
-			}
-			if i == 4 {
-				log.Printf("The OF port %s state is not up until this time", hostIface.Name)
-			} else {
-				time.Sleep(500 * time.Millisecond)
-			}
+		err = waitLinkUp(ovsDriver, hostIface.Name)
+		if err != nil {
+			return err
 		}
 
 		err = contNetns.Do(func(_ ns.NetNS) error {
@@ -408,6 +401,24 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	return types.PrintResult(result, netconf.CNIVersion)
+}
+
+func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string) error {
+	for i := 1; i <= linkstateCheckRetries; i++ {
+		portState, err := ovsDriver.GetOFPortOpState(ofPortName)
+		if err != nil {
+			log.Printf("error in retrieving port %s state: %v", ofPortName, err)
+		} else {
+			if portState == "up" {
+				break
+			}
+		}
+		if i == linkstateCheckRetries {
+			return fmt.Errorf("The OF port %s state is not up", ofPortName)
+		}
+		time.Sleep(linkStateCheckInterval * time.Millisecond)
+	}
+	return nil
 }
 
 func getOvsPortForContIface(ovsDriver *ovsdb.OvsBridgeDriver, contIface string, contNetnsPath string) (string, bool, error) {
