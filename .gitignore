@@ -2,6 +2,9 @@
 cmd/marker/marker
 cmd/plugin/plugin
 
+# Temporary build files
+build/_output
+
 # used in build
 cmd/marker/.version
 cmd/plugin/.version
