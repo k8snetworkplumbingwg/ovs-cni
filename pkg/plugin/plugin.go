@@ -46,7 +46,7 @@ import (
 const (
 	macSetupRetries        = 2
 	linkstateCheckRetries  = 5
-	linkStateCheckInterval = 500 // in milliseconds
+	linkStateCheckInterval = 500 * time.Millisecond
 )
 
 type netConf struct {
@@ -416,7 +416,7 @@ func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string) error {
 		if i == linkstateCheckRetries {
 			return fmt.Errorf("The OF port %s state is not up", ofPortName)
 		}
-		time.Sleep(linkStateCheckInterval * time.Millisecond)
+		time.Sleep(linkStateCheckInterval)
 	}
 	return nil
 }
