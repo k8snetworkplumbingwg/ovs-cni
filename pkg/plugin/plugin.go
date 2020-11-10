@@ -28,6 +28,7 @@ import (
 	"net"
 	"runtime"
 	"sort"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -35,13 +36,18 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
 	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
 	"github.com/kubevirt/ovs-cni/pkg/sriov"
 )
 
-const macSetupRetries = 2
+const (
+	macSetupRetries        = 2
+	linkstateCheckRetries  = 5
+	linkStateCheckInterval = 500 * time.Millisecond
+)
 
 type netConf struct {
 	types.NetConf
@@ -359,8 +365,33 @@ func CmdAdd(args *skel.CmdArgs) error {
 			ipc.Interface = current.Int(0)
 		}
 
+		// wait until OF port link state becomes up. This is needed to make
+		// gratuitous arp for args.IfName to be sent over ovs bridge
+		err = waitLinkUp(ovsDriver, hostIface.Name)
+		if err != nil {
+			return err
+		}
+
 		err = contNetns.Do(func(_ ns.NetNS) error {
-			return ipam.ConfigureIface(args.IfName, newResult)
+			err := ipam.ConfigureIface(args.IfName, newResult)
+			if err != nil {
+				return err
+			}
+			contVeth, err := net.InterfaceByName(args.IfName)
+			if err != nil {
+				return fmt.Errorf("failed to look up %q: %v", args.IfName, err)
+			}
+			for _, ipc := range newResult.IPs {
+				if ipc.Version == "4" {
+					// send gratuitous arp for other ends to refresh its arp cache
+					err = arping.GratuitousArpOverIface(ipc.Address.IP, *contVeth)
+					if err != nil {
+						// ok to ignore returning this error
+						log.Printf("error sending garp for ip %s: %v", ipc.Address.IP.String(), err)
+					}
+				}
+			}
+			return nil
 		})
 		if err != nil {
 			return err
@@ -370,6 +401,24 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	return types.PrintResult(result, netconf.CNIVersion)
+}
+
+func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string) error {
+	for i := 1; i <= linkstateCheckRetries; i++ {
+		portState, err := ovsDriver.GetOFPortOpState(ofPortName)
+		if err != nil {
+			log.Printf("error in retrieving port %s state: %v", ofPortName, err)
+		} else {
+			if portState == "up" {
+				break
+			}
+		}
+		if i == linkstateCheckRetries {
+			return fmt.Errorf("The OF port %s state is not up", ofPortName)
+		}
+		time.Sleep(linkStateCheckInterval)
+	}
+	return nil
 }
 
 func getOvsPortForContIface(ovsDriver *ovsdb.OvsBridgeDriver, contIface string, contNetnsPath string) (string, bool, error) {

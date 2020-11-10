@@ -9,6 +9,7 @@ require (
 	github.com/containernetworking/plugins v0.8.7
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/imdario/mergo v0.3.8 // indirect
+	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
 	github.com/onsi/ginkgo v1.11.0
 	github.com/onsi/gomega v1.7.0
