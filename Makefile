@@ -7,26 +7,36 @@ COMPONENTS = $(sort \
 			 $(dir \
 			 $(shell find cmd/ -type f -name '*.go')))))
 
+BIN_DIR = $(CURDIR)/build/_output/bin/
+export GOROOT=$(BIN_DIR)/go/
+export GOBIN = $(GOROOT)/bin/
+export PATH := $(GOBIN):$(PATH)
+
 all: build
+
+GO := $(GOBIN)/go
+
+$(GO):
+	hack/install-go.sh $(BIN_DIR)
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
-build-%:
+build-%: $(GO)
 	hack/version.sh > ./cmd/$(subst -,/,$*)/.version
-	cd cmd/$(subst -,/,$*) && go fmt && go vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on go build -tags no_openssl -mod vendor
+	cd cmd/$(subst -,/,$*) && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
 
-format:
-	go fmt ./pkg/... ./cmd/...
-	go vet ./pkg/... ./cmd/...
+format: $(GO)
+	$(GO) fmt ./pkg/... ./cmd/...
+	$(GO) vet ./pkg/... ./cmd/...
 
-test:
-	go test ./cmd/... ./pkg/... -v --ginkgo.v
+test: $(GO)
+	$(GO) test ./cmd/... ./pkg/... -v --ginkgo.v
 
 docker-test:
 	hack/test-dockerized.sh
 
-test-%:
-	go test ./$(subst -,/,$*)/... -v --ginkgo.v
+test-%: $(GO)
+	$(GO) test ./$(subst -,/,$*)/... -v --ginkgo.v
 
 functest:
 	hack/functests.sh
@@ -41,9 +51,9 @@ docker-push: $(patsubst %, docker-push-%, $(COMPONENTS))
 docker-push-%:
 	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
 
-dep:
-	go mod tidy
-	go mod vendor
+dep: $(GO)
+	$(GO) mod tidy
+	$(GO) mod vendor
 
 manifests:
 	./hack/build-manifests.sh
