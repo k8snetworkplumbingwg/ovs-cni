@@ -37,10 +37,10 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-const BRIDGE_NAME = "test-bridge"
-const VLAN_ID = 100
-const MTU = 1456
-const DEFAULT_MTU = 1500
+const bridgeName = "test-bridge"
+const vlanID = 100
+const mtu = 1456
+const defaultMTU = 1500
 
 var _ = BeforeSuite(func() {
 	output, err := exec.Command("ovs-vsctl", "show").CombinedOutput()
@@ -48,16 +48,16 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	exec.Command("ovs-vsctl", "del-br", "--if-exists", BRIDGE_NAME).Run()
+	exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).Run()
 })
 
 var _ = Describe("CNI Plugin", func() {
 
 	BeforeEach(func() {
-		output, err := exec.Command("ovs-vsctl", "add-br", BRIDGE_NAME).CombinedOutput()
+		output, err := exec.Command("ovs-vsctl", "add-br", bridgeName).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
 
-		bridgeLink, err := netlink.LinkByName(BRIDGE_NAME)
+		bridgeLink, err := netlink.LinkByName(bridgeName)
 		Expect(err).NotTo(HaveOccurred(), "Interface of testing OVS bridge was not found in the system")
 
 		err = netlink.LinkSetUp(bridgeLink)
@@ -65,7 +65,7 @@ var _ = Describe("CNI Plugin", func() {
 	})
 
 	AfterEach(func() {
-		output, err := exec.Command("ovs-vsctl", "del-br", BRIDGE_NAME).CombinedOutput()
+		output, err := exec.Command("ovs-vsctl", "del-br", bridgeName).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to remove testing OVS bridge: %v", string(output[:]))
 	})
 
@@ -75,10 +75,9 @@ var _ = Describe("CNI Plugin", func() {
 		if setUnmarshalErr {
 			Expect(err).To(HaveOccurred())
 			return
-		} else {
-			Expect(err).NotTo(HaveOccurred())
 		}
-		By("Calling splitVlanIds method")
+		Expect(err).NotTo(HaveOccurred())
+		By("Calling testSplitVlanIds method")
 		vlanIds, err := splitVlanIds(trunks)
 		if expErr != nil {
 			By("Checking expected error is occurred")
@@ -118,9 +117,6 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(len(result.Interfaces)).To(Equal(2))
 
 		Expect(len(result.IPs)).To(Equal(1))
-
-		By("Checking that IP config in result of ADD command is referencing the container interface index")
-		Expect(result.IPs[0].Interface).To(Equal(current.Int(1)))
 
 		err = targetNs.Do(func(ns.NetNS) error {
 			defer GinkgoRecover()
@@ -182,7 +178,7 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(hostLink.Attrs().HardwareAddr).To(Equal(hostHwaddr))
 
 		By("Checking that the host iface is connected as a port to the bridge")
-		brPorts, err := listBridgePorts(BRIDGE_NAME)
+		brPorts, err := listBridgePorts(bridgeName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(brPorts).To(Equal([]string{hostIface.Name}))
 
@@ -190,15 +186,15 @@ var _ = Describe("CNI Plugin", func() {
 		portVlan, err := getPortAttribute(hostIface.Name, "tag")
 		Expect(err).NotTo(HaveOccurred())
 		if setVlan {
-			Expect(portVlan).To(Equal(strconv.Itoa(VLAN_ID)))
+			Expect(portVlan).To(Equal(strconv.Itoa(vlanID)))
 		} else {
 			Expect(portVlan).To(Equal("[]"))
 		}
 
 		if setMtu {
-			Expect(hostLink.Attrs().MTU).To(Equal(MTU))
+			Expect(hostLink.Attrs().MTU).To(Equal(mtu))
 		} else {
-			Expect(hostLink.Attrs().MTU).To(Equal(DEFAULT_MTU))
+			Expect(hostLink.Attrs().MTU).To(Equal(defaultMTU))
 		}
 
 		By("Checking that Trunk VLAN range matches expected state")
@@ -209,14 +205,14 @@ var _ = Describe("CNI Plugin", func() {
 		}
 
 		By("Checking that port external-id:contIface contains reference to container interface name")
-		externalIdContIface, err := getPortAttribute(hostIface.Name, "external-ids:contIface")
+		externalIDContIface, err := getPortAttribute(hostIface.Name, "external-ids:contIface")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(externalIdContIface).To(Equal(contIface.Name))
+		Expect(externalIDContIface).To(Equal(contIface.Name))
 
 		By("Checking that port external-id:contNetns contains reference to container namespace path")
-		externalIdContNetns, err := getPortAttribute(hostIface.Name, "external-ids:contNetns")
+		externalIDContNetns, err := getPortAttribute(hostIface.Name, "external-ids:contNetns")
 		Expect(err).NotTo(HaveOccurred())
-		Expect(externalIdContNetns).To(Equal("\"" + targetNs.Path() + "\""))
+		Expect(externalIDContNetns).To(Equal("\"" + targetNs.Path() + "\""))
 
 		By("Verifying situation inside the container")
 		err = targetNs.Do(func(ns.NetNS) error {
@@ -235,9 +231,9 @@ var _ = Describe("CNI Plugin", func() {
 			Expect(contLink.Attrs().OperState).To(Equal(netlink.LinkOperState(netlink.OperUp)))
 
 			if setMtu {
-				Expect(contLink.Attrs().MTU).To(Equal(MTU))
+				Expect(contLink.Attrs().MTU).To(Equal(mtu))
 			} else {
-				Expect(contLink.Attrs().MTU).To(Equal(DEFAULT_MTU))
+				Expect(contLink.Attrs().MTU).To(Equal(defaultMTU))
 			}
 
 			return nil
@@ -269,7 +265,7 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(hostLink).To(BeNil())
 
 		By("Checking that the port on OVS bridge was deleted")
-		brPorts, err = listBridgePorts(BRIDGE_NAME)
+		brPorts, err = listBridgePorts(bridgeName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(brPorts)).To(Equal(0))
 	}
@@ -282,7 +278,7 @@ var _ = Describe("CNI Plugin", func() {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-			}`, BRIDGE_NAME, VLAN_ID)
+			}`, bridgeName, vlanID)
 			It("should successfully complete ADD and DEL commands", func() {
 				testAddDel(conf, true, false, "")
 			})
@@ -293,7 +289,7 @@ var _ = Describe("CNI Plugin", func() {
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, BRIDGE_NAME)
+			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
 				testAddDel(conf, false, false, "")
 			})
@@ -305,7 +301,7 @@ var _ = Describe("CNI Plugin", func() {
 				"type": "ovs",
 				"bridge": "%s",
 				"trunk": [ {"minID": 10, "maxID": 12}, {"id": 15}, {"minID": 17, "maxID": 18}  ]
-			}`, BRIDGE_NAME)
+			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
 				testAddDel(conf, false, false, "[10, 11, 12, 15, 17, 18]")
 			})
@@ -320,7 +316,7 @@ var _ = Describe("CNI Plugin", func() {
 					"type": "host-local",
 					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ]]
 				}
-			}`, BRIDGE_NAME)
+			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
 				testIPAM(conf, "10.1.2")
 			})
@@ -332,7 +328,7 @@ var _ = Describe("CNI Plugin", func() {
 				"type": "ovs",
 				"bridge": "%s",
 				"mtu": %d
-			}`, BRIDGE_NAME, MTU)
+			}`, bridgeName, mtu)
 			It("should successfully complete ADD and DEL commands", func() {
 				testAddDel(conf, false, true, "")
 			})
@@ -345,7 +341,7 @@ var _ = Describe("CNI Plugin", func() {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-				}`, BRIDGE_NAME, VLAN_ID)
+				}`, bridgeName, vlanID)
 
 				const IFNAME = "eth0"
 
@@ -375,7 +371,7 @@ var _ = Describe("CNI Plugin", func() {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-				}`, BRIDGE_NAME, VLAN_ID)
+				}`, bridgeName, vlanID)
 
 				const IFNAME = "eth0"
 
@@ -402,7 +398,7 @@ var _ = Describe("CNI Plugin", func() {
 				"name": "mynet",
 				"type": "ovs",
 				"OvnPort": "test-port",
-				"bridge": "%s"}`, BRIDGE_NAME)
+				"bridge": "%s"}`, bridgeName)
 
 				targetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
@@ -461,7 +457,7 @@ var _ = Describe("CNI Plugin", func() {
 				"name": "mynet",
 				"type": "ovs",
 				"OvnPort": "test-port",
-				"bridge": "%s"}`, BRIDGE_NAME)
+				"bridge": "%s"}`, bridgeName)
 
 			It("DEL removes ports without network namespace", func() {
 				firstTargetNs, err := testutils.NewNS()
