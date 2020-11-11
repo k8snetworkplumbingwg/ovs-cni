@@ -38,8 +38,8 @@ docker-test:
 test-%: $(GO)
 	$(GO) test ./$(subst -,/,$*)/... -v --ginkgo.v
 
-functest:
-	hack/functests.sh
+functest: $(GO)
+	GO=$(GO) hack/functests.sh
 
 docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
 
