@@ -119,6 +119,9 @@ var _ = Describe("CNI Plugin", func() {
 
 		Expect(len(result.IPs)).To(Equal(1))
 
+		By("Checking that IP config in result of ADD command is referencing the container interface index")
+		Expect(result.IPs[0].Interface).To(Equal(current.Int(1)))
+
 		err = targetNs.Do(func(ns.NetNS) error {
 			defer GinkgoRecover()
 
