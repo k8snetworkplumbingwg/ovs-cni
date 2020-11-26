@@ -64,7 +64,7 @@ You may specify the `configuration_path` to point to another location should it 
 
 Any options added to the `ovs.conf` are overridden by configuration options that are in the
 CNI configuration (e.g. in a custom resource `NetworkAttachmentDefinition` used by Multus CNI
-or in the first file "ASCII-betically" in the CNI configuration directory -- which is
+or in the first file ASCII-betically in the CNI configuration directory -- which is
 `/etc/cni/net.d/` by default).
 
 The sample content of ovs.conf (in JSON format) is as follows:

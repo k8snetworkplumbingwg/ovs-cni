@@ -118,30 +118,30 @@ func loadNetConf(bytes []byte) (*netConf, error) {
 }
 
 func loadFlatNetConf(configPath string) (*netConf, error) {
-	confDirs := getOvsConfDir()
+	confFiles := getOvsConfFiles()
 	if configPath != "" {
-		confDirs = append([]string{configPath}, confDirs...)
+		confFiles = append([]string{configPath}, confFiles...)
 	}
 
 	// loop through the path and parse the JSON config
 	flatNetConf := &netConf{}
-	for _, confPath := range confDirs {
-		confExists, err := pathExists(confPath)
+	for _, confFile := range confFiles {
+		confExists, err := pathExists(confFile)
 		if err != nil {
 			return nil, fmt.Errorf("error checking ovs config file: error: %v", err)
 		}
 		if confExists {
-			jsonFile, err := os.Open(confPath)
+			jsonFile, err := os.Open(confFile)
 			if err != nil {
-				return nil, fmt.Errorf("open ovs config file %s error: %v", confPath, err)
+				return nil, fmt.Errorf("open ovs config file %s error: %v", confFile, err)
 			}
 			defer jsonFile.Close()
 			jsonBytes, err := ioutil.ReadAll(jsonFile)
 			if err != nil {
-				return nil, fmt.Errorf("load ovs config file %s: error: %v", confPath, err)
+				return nil, fmt.Errorf("load ovs config file %s: error: %v", confFile, err)
 			}
 			if err := json.Unmarshal(jsonBytes, flatNetConf); err != nil {
-				return nil, fmt.Errorf("parse ovs config file %s: error: %v", confPath, err)
+				return nil, fmt.Errorf("parse ovs config file %s: error: %v", confFile, err)
 			}
 			break
 		}
@@ -168,7 +168,7 @@ func pathExists(path string) (bool, error) {
 	return false, err
 }
 
-func getOvsConfDir() []string {
+func getOvsConfFiles() []string {
 	return []string{"/etc/kubernetes/cni/net.d/ovs.d/ovs.conf", "/etc/cni/net.d/ovs.d/ovs.conf"}
 }
 
