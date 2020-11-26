@@ -64,7 +64,7 @@ spec:
             path: /var/run/openvswitch
 ---
 kind: ClusterRole
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ovs-cni-marker-cr
 rules:
@@ -79,7 +79,7 @@ rules:
   - patch
 ---
 kind: ClusterRoleBinding
-apiVersion: rbac.authorization.k8s.io/v1beta1
+apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   name: ovs-cni-marker-crb
 roleRef:
