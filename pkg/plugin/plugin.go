@@ -114,48 +114,62 @@ func loadNetConf(bytes []byte) (*netConf, error) {
 		return nil, fmt.Errorf("failed to load netconf: %v", err)
 	}
 
-	// default config file dir paths
-	confdirs := []string{"/etc/kubernetes/cni/net.d/ovs.d/ovs.conf", "/etc/cni/net.d/ovs.d/ovs.conf"}
-	// if netconf contains config path already, use that as first
-	if netconf.ConfigurationPath != "" {
-		confdirs = append([]string{netconf.ConfigurationPath}, confdirs...)
+	return netconf, nil
+}
+
+func loadFlatNetConf(configPath string) (*netConf, error) {
+	confDirs := getOvsConfDir()
+	if configPath != "" {
+		confDirs = append([]string{configPath}, confDirs...)
 	}
+
 	// loop through the path and parse the JSON config
-	flatnetConf := &netConf{}
-	for _, confpath := range confdirs {
-		if pathExists(confpath) {
-			jsonFile, err := os.Open(confpath)
+	flatNetConf := &netConf{}
+	for _, confPath := range confDirs {
+		confExists, err := pathExists(confPath)
+		if err != nil {
+			return nil, fmt.Errorf("error checking ovs config file: error: %v", err)
+		}
+		if confExists {
+			jsonFile, err := os.Open(confPath)
 			if err != nil {
-				return nil, fmt.Errorf("open ovs config file %s error: %v", confpath, err)
+				return nil, fmt.Errorf("open ovs config file %s error: %v", confPath, err)
 			}
 			defer jsonFile.Close()
 			jsonBytes, err := ioutil.ReadAll(jsonFile)
 			if err != nil {
-				return nil, fmt.Errorf("load ovs config file %s: error: %v", confpath, err)
+				return nil, fmt.Errorf("load ovs config file %s: error: %v", confPath, err)
 			}
-			if err := json.Unmarshal(jsonBytes, flatnetConf); err != nil {
-				return nil, fmt.Errorf("parse ovs config file %s: error: %v", confpath, err)
+			if err := json.Unmarshal(jsonBytes, flatNetConf); err != nil {
+				return nil, fmt.Errorf("parse ovs config file %s: error: %v", confPath, err)
 			}
 			break
 		}
 	}
-	// merge both netconf and flatnetConf configurations
-	if err := mergo.Merge(netconf, flatnetConf); err != nil {
+
+	return flatNetConf, nil
+}
+
+func mergeConf(netconf, flatNetConf *netConf) (*netConf, error) {
+	if err := mergo.Merge(netconf, flatNetConf); err != nil {
 		return nil, fmt.Errorf("merge with ovs config file: error: %v", err)
 	}
-
 	return netconf, nil
 }
 
-func pathExists(path string) bool {
+func pathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {
-		return true
+		return true, nil
 	}
 	if os.IsNotExist(err) {
-		return false
+		return false, nil
 	}
-	return true
+	return false, err
+}
+
+func getOvsConfDir() []string {
+	return []string{"/etc/kubernetes/cni/net.d/ovs.d/ovs.conf", "/etc/cni/net.d/ovs.d/ovs.conf"}
 }
 
 func generateRandomMac() net.HardwareAddr {
@@ -327,6 +341,14 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	netconf, err := loadNetConf(args.StdinData)
+	if err != nil {
+		return err
+	}
+	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
+	if err != nil {
+		return err
+	}
+	netconf, err = mergeConf(netconf, flatNetConf)
 	if err != nil {
 		return err
 	}
