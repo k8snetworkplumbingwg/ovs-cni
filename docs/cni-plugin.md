@@ -45,6 +45,35 @@ Another example with a trunk port and jumbo frames:
 * `mtu` (integer, optional): MTU.
 * `trunk` (optional): List of VLAN ID's and/or ranges of accepted VLAN
   ID's.
+* `configuration_path` (optional): configuration file containing ovsdb
+  socket file path, etc.
+
+### Flatfile Configuation
+
+There is one option for flat file configuration:
+
+* `configuration_path`: A file path to a OVS CNI configuration file.
+
+OVS CNI will look for the configuration in these locations, in this order:
+
+* The location specified by the `configuration_path` option.
+* `/etc/kubernetes/cni/net.d/ovs.d/ovs.conf`
+* `/etc/cni/net.d/ovs.d/ovs.conf`
+
+You may specify the `configuration_path` to point to another location should it be desired.
+
+Any options added to the `ovs.conf` are overridden by configuration options that are in the
+CNI configuration (e.g. in a custom resource `NetworkAttachmentDefinition` used by Multus CNI
+or in the first file ASCII-betically in the CNI configuration directory -- which is
+`/etc/cni/net.d/` by default).
+
+The sample content of ovs.conf (in JSON format) is as follows:
+
+```json
+{
+  "socket_file": "/usr/local/var/run/openvswitch/db.sock"
+}
+```
 
 ## Manual Testing
 

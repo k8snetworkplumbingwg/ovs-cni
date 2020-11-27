@@ -24,8 +24,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"runtime"
 	"sort"
 	"time"
@@ -36,6 +38,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/imdario/mergo"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
@@ -51,11 +54,13 @@ const (
 
 type netConf struct {
 	types.NetConf
-	BrName   string   `json:"bridge,omitempty"`
-	VlanTag  *uint    `json:"vlan"`
-	MTU      int      `json:"mtu"`
-	Trunk    []*trunk `json:"trunk,omitempty"`
-	DeviceID string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
+	BrName            string   `json:"bridge,omitempty"`
+	VlanTag           *uint    `json:"vlan"`
+	MTU               int      `json:"mtu"`
+	Trunk             []*trunk `json:"trunk,omitempty"`
+	DeviceID          string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
+	ConfigurationPath string   `json:"configuration_path"`
+	SocketFile        string   `json:"socket_file"`
 }
 
 type trunk struct {
@@ -110,6 +115,61 @@ func loadNetConf(bytes []byte) (*netConf, error) {
 	}
 
 	return netconf, nil
+}
+
+func loadFlatNetConf(configPath string) (*netConf, error) {
+	confFiles := getOvsConfFiles()
+	if configPath != "" {
+		confFiles = append([]string{configPath}, confFiles...)
+	}
+
+	// loop through the path and parse the JSON config
+	flatNetConf := &netConf{}
+	for _, confFile := range confFiles {
+		confExists, err := pathExists(confFile)
+		if err != nil {
+			return nil, fmt.Errorf("error checking ovs config file: error: %v", err)
+		}
+		if confExists {
+			jsonFile, err := os.Open(confFile)
+			if err != nil {
+				return nil, fmt.Errorf("open ovs config file %s error: %v", confFile, err)
+			}
+			defer jsonFile.Close()
+			jsonBytes, err := ioutil.ReadAll(jsonFile)
+			if err != nil {
+				return nil, fmt.Errorf("load ovs config file %s: error: %v", confFile, err)
+			}
+			if err := json.Unmarshal(jsonBytes, flatNetConf); err != nil {
+				return nil, fmt.Errorf("parse ovs config file %s: error: %v", confFile, err)
+			}
+			break
+		}
+	}
+
+	return flatNetConf, nil
+}
+
+func mergeConf(netconf, flatNetConf *netConf) (*netConf, error) {
+	if err := mergo.Merge(netconf, flatNetConf); err != nil {
+		return nil, fmt.Errorf("merge with ovs config file: error: %v", err)
+	}
+	return netconf, nil
+}
+
+func pathExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
+func getOvsConfFiles() []string {
+	return []string{"/etc/kubernetes/cni/net.d/ovs.d/ovs.conf", "/etc/cni/net.d/ovs.d/ovs.conf"}
 }
 
 func generateRandomMac() net.HardwareAddr {
@@ -284,6 +344,14 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
+	if err != nil {
+		return err
+	}
+	netconf, err = mergeConf(netconf, flatNetConf)
+	if err != nil {
+		return err
+	}
 
 	var vlanTagNum uint = 0
 	trunks := make([]uint, 0)
@@ -306,7 +374,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName)
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
 	if err != nil {
 		return err
 	}
@@ -480,7 +548,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName)
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
 	if err != nil {
 		return err
 	}

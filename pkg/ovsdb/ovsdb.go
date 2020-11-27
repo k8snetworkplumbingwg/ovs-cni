@@ -53,12 +53,16 @@ func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
 }
 
 // Create a new OVS driver for a bridge with Unix socket
-func NewOvsBridgeDriver(bridgeName string) (*OvsBridgeDriver, error) {
+func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error) {
 	ovsDriver := new(OvsBridgeDriver)
 
-	ovsDB, err := libovsdb.ConnectWithUnixSocket("/var/run/openvswitch/db.sock")
+	if socketFile == "" {
+		socketFile = "/var/run/openvswitch/db.sock"
+	}
+
+	ovsDB, err := libovsdb.ConnectWithUnixSocket(socketFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to ovsdb error: %v", err)
+		return nil, fmt.Errorf("failed to connect to ovsdb socket %s: error: %v", socketFile, err)
 	}
 
 	// Setup state
