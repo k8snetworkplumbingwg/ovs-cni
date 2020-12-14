@@ -11,15 +11,36 @@ BIN_DIR = $(CURDIR)/build/_output/bin/
 export GOROOT=$(BIN_DIR)/go/
 export GOBIN = $(GOROOT)/bin/
 export PATH := $(GOBIN):$(PATH)
+GOPATH = $(CURDIR)/.gopath
+ORG_PATH = github.com/kubevirt
+PACKAGE = ovs-cni
+REPO_PATH = $(ORG_PATH)/$(PACKAGE)
+BASE = $(GOPATH)/src/$(REPO_PATH)
+PKGS = $(or $(PKG),$(shell cd $(BASE) && env GOPATH=$(GOPATH) $(GO) list ./... | grep -v "$(PACKAGE)/vendor/" | grep -v "$(PACKAGE)/tests/cluster" | grep -v "$(PACKAGE)/tests/node"))
+V = 0
+Q = $(if $(filter 1,$V),,@)
 
-all: build
+all: lint build
 
 GO := $(GOBIN)/go
 
 $(GO):
 	hack/install-go.sh $(BIN_DIR)
 
+$(BASE): ; $(info  setting GOPATH...)
+	@mkdir -p $(dir $@)
+	@ln -sf $(CURDIR) $@
+
+GOLINT = $(GOBIN)/golint
+$(GOBIN)/golint: | $(BASE) ; $(info  building golint...)
+	$Q go get -u golang.org/x/lint/golint
+
 build: format $(patsubst %, build-%, $(COMPONENTS))
+
+lint: | $(GO) $(BASE) $(GOLINT) ; $(info  running golint...) @ ## Run golint
+	$Q cd $(BASE) && ret=0 && for pkg in $(PKGS); do \
+		test -z "$$($(GOLINT) $$pkg | tee /dev/stderr)" || ret=1 ; \
+	 done ; exit $$ret
 
 build-%: $(GO)
 	hack/version.sh > ./cmd/$(subst -,/,$*)/.version
@@ -67,4 +88,4 @@ cluster-down:
 cluster-sync: build
 	./cluster/sync.sh
 
-.PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync
+.PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync lint
