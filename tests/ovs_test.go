@@ -65,8 +65,8 @@ var _ = Describe("ovs-cni", func() {
 						cidrPod2 = "10.0.0.2/24"
 					)
 					BeforeEach(func() {
-						clusterApi.CreatePrivilegedPodWithIp(pod1Name, nadName, bridgeName, cidrPod1)
-						clusterApi.CreatePrivilegedPodWithIp(pod2Name, nadName, bridgeName, cidrPod2)
+						clusterApi.CreatePrivilegedPodWithIP(pod1Name, nadName, bridgeName, cidrPod1)
+						clusterApi.CreatePrivilegedPodWithIP(pod2Name, nadName, bridgeName, cidrPod2)
 					})
 					AfterEach(func() {
 						clusterApi.DeletePodsInTestNamespace()

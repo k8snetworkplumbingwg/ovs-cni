@@ -28,6 +28,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+// RunOnNode performs bash shell command on node
 // TODO: Use job with a node affinity instead
 func RunOnNode(node string, command string) (string, error) {
 	out, err := exec.Command("bash", "-c", fmt.Sprintf("docker ps | grep %s | awk '{ print $1}'", node)).CombinedOutput()
@@ -48,12 +49,14 @@ func RunOnNode(node string, command string) (string, error) {
 	return outStrippedString, err
 }
 
+// RemoveOvsBridgeOnNode removes ovs bridge on the node
 func RemoveOvsBridgeOnNode(bridgeName string) {
 	By("Removing ovs-bridge on the node")
 	out, err := RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br "+bridgeName)
 	Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("Failed to run command on node. stdout: %s", out))
 }
 
+// AddOvsBridgeOnNode add ovs bridge on the node
 func AddOvsBridgeOnNode(bridgeName string) {
 	By("Adding ovs-bridge on the node")
 	out, err := RunOnNode("node01", "sudo ovs-vsctl add-br "+bridgeName)
