@@ -542,6 +542,14 @@ func CmdDel(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
+	if err != nil {
+		return err
+	}
+	netconf, err = mergeConf(netconf, flatNetConf)
+	if err != nil {
+		return err
+	}
 
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
 	if err != nil {
