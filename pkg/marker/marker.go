@@ -41,12 +41,14 @@ type patchOperation struct {
 	Value interface{} `json:"value,omitempty"`
 }
 
+// Marker object containing k8s in cluster api and ovs config
 type Marker struct {
 	nodeName  string
 	clientset kubernetes.Interface
 	ovsdb     *ovsdb.OvsDriver
 }
 
+// NewMarker creates new Marker object
 func NewMarker(nodeName string, ovsSocket string) (*Marker, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
@@ -90,7 +92,7 @@ func (m *Marker) getReportedResources() (map[string]bool, error) {
 		return nil, fmt.Errorf("failed to get node: %v", err)
 	}
 
-	for nodeResourceName, _ := range node.Status.Capacity {
+	for nodeResourceName := range node.Status.Capacity {
 		splitNodeResourceName := strings.Split(nodeResourceName.String(), "/")
 		if len(splitNodeResourceName) == 2 && splitNodeResourceName[0] == resourceNamespace {
 			reportedResources[splitNodeResourceName[1]] = true
@@ -100,6 +102,7 @@ func (m *Marker) getReportedResources() (map[string]bool, error) {
 	return reportedResources, nil
 }
 
+// Update reports ovs bridge status to api server
 func (m *Marker) Update() error {
 	availableResources, err := m.getAvailableResources()
 	if err != nil {
@@ -113,7 +116,7 @@ func (m *Marker) Update() error {
 
 	patchOperations := make([]patchOperation, 0)
 
-	for reportedResource, _ := range reportedResources {
+	for reportedResource := range reportedResources {
 		if _, available := availableResources[reportedResource]; !available {
 			patchOperations = append(patchOperations, patchOperation{
 				Op:   "remove",
@@ -122,7 +125,7 @@ func (m *Marker) Update() error {
 		}
 	}
 
-	for availableResource, _ := range availableResources {
+	for availableResource := range availableResources {
 		if _, reported := reportedResources[availableResource]; !reported {
 			patchOperations = append(patchOperations, patchOperation{
 				Op:    "add",

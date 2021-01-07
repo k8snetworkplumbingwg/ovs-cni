@@ -17,6 +17,9 @@ main() {
     source automation/setup.sh
     cd ${TMP_PROJECT_PATH}
 
+    echo 'Run golint'
+    make lint
+
     echo 'Run functional tests'
     make docker-test
 

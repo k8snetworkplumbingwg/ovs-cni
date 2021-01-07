@@ -69,6 +69,7 @@ type trunk struct {
 	ID    *uint `json:"id,omitempty"`
 }
 
+// EnvArgs args containing common, desired mac and ovs port name
 type EnvArgs struct {
 	types.CommonArgs
 	MAC     types.UnmarshallableString `json:"mac,omitempty"`
@@ -325,6 +326,7 @@ func splitVlanIds(trunks []*trunk) ([]uint, error) {
 	return vlanIds, nil
 }
 
+// CmdAdd add handler for attaching container into network
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
 
@@ -470,7 +472,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		for ifIndex, ifCfg := range result.Interfaces {
 			// Adjust interface index with new container interface index in result.Interfaces
 			if ifCfg.Name == args.IfName {
-				for ipIndex, _ := range result.IPs {
+				for ipIndex := range result.IPs {
 					result.IPs[ipIndex].Interface = current.Int(ifIndex)
 				}
 			}
@@ -525,6 +527,7 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 	return ovsDriver.DeletePort(portName)
 }
 
+// CmdDel remove handler for deleting container from network
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
@@ -593,21 +596,21 @@ func CmdDel(args *skel.CmdArgs) error {
 			}
 		}
 		return nil
-	} else {
-		// Unlike veth pair, OVS port will not be automatically removed when
-		// container namespace is gone. Find port matching DEL arguments and remove
-		// it explicitly.
-		portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
-		if err != nil {
-			return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
-		}
+	}
 
-		// Do not return an error if the port was not found, it may have been
-		// already removed by someone.
-		if portFound {
-			if err := removeOvsPort(ovsDriver, portName); err != nil {
-				return err
-			}
+	// Unlike veth pair, OVS port will not be automatically removed when
+	// container namespace is gone. Find port matching DEL arguments and remove
+	// it explicitly.
+	portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
+	if err != nil {
+		return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
+	}
+
+	// Do not return an error if the port was not found, it may have been
+	// already removed by someone.
+	if portFound {
+		if err := removeOvsPort(ovsDriver, portName); err != nil {
+			return err
 		}
 	}
 
@@ -633,6 +636,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	return err
 }
 
+// CmdCheck check handler to make sure networking is as expected. yet to be implemented.
 func CmdCheck(args *skel.CmdArgs) error {
 	logCall("CHECK", args)
 	log.Print("CHECK is not yet implemented, pretending everything is fine")

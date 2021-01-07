@@ -25,12 +25,13 @@ import (
 
 const ovsPortOwner = "ovs-cni.network.kubevirt.io"
 
-// OVS driver state
+// OvsDriver OVS driver state
 type OvsDriver struct {
 	// OVS client
 	ovsClient *libovsdb.OvsdbClient
 }
 
+// OvsBridgeDriver OVS bridge driver state
 type OvsBridgeDriver struct {
 	OvsDriver
 
@@ -38,7 +39,7 @@ type OvsBridgeDriver struct {
 	OvsBridgeName string
 }
 
-// Create a new OVS driver with Unix socket
+// NewOvsDriver Create a new OVS driver with Unix socket
 func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
 	ovsDriver := new(OvsDriver)
 
@@ -52,7 +53,7 @@ func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
 	return ovsDriver, nil
 }
 
-// Create a new OVS driver for a bridge with Unix socket
+// NewOvsBridgeDriver Create a new OVS driver for a bridge with Unix socket
 func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error) {
 	ovsDriver := new(OvsBridgeDriver)
 
@@ -83,9 +84,9 @@ func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error)
 }
 
 // Wrapper for ovsDB transaction
-func (self *OvsDriver) ovsdbTransact(ops []libovsdb.Operation) ([]libovsdb.OperationResult, error) {
+func (ovsd *OvsDriver) ovsdbTransact(ops []libovsdb.Operation) ([]libovsdb.OperationResult, error) {
 	// Perform OVSDB transaction
-	reply, _ := self.ovsClient.Transact("Open_vSwitch", ops...)
+	reply, _ := ovsd.ovsClient.Transact("Open_vSwitch", ops...)
 
 	if len(reply) < len(ops) {
 		return nil, errors.New("OVS transaction failed. Less replies than operations")
@@ -103,31 +104,32 @@ func (self *OvsDriver) ovsdbTransact(ops []libovsdb.Operation) ([]libovsdb.Opera
 }
 
 // **************** OVS driver API ********************
-// Create an internal port in OVS
-func (self *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, vlanTag uint, trunks []uint, portType string) error {
-	intfUuid, intfOp, err := createInterfaceOperation(intfName, ovnPortName)
+
+// CreatePort Create an internal port in OVS
+func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, vlanTag uint, trunks []uint, portType string) error {
+	intfUUID, intfOp, err := createInterfaceOperation(intfName, ovnPortName)
 	if err != nil {
 		return err
 	}
 
-	portUuid, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, trunks, portType, intfUuid)
+	portUUID, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, trunks, portType, intfUUID)
 	if err != nil {
 		return err
 	}
 
-	mutateOp := attachPortOperation(portUuid, self.OvsBridgeName)
+	mutateOp := attachPortOperation(portUUID, ovsd.OvsBridgeName)
 
 	// Perform OVS transaction
 	operations := []libovsdb.Operation{*intfOp, *portOp, *mutateOp}
 
-	_, err = self.ovsdbTransact(operations)
+	_, err = ovsd.ovsdbTransact(operations)
 	return err
 }
 
-// Delete a port from OVS
-func (self *OvsBridgeDriver) DeletePort(intfName string) error {
+// DeletePort Delete a port from OVS
+func (ovsd *OvsBridgeDriver) DeletePort(intfName string) error {
 	condition := libovsdb.NewCondition("name", "==", intfName)
-	row, err := self.findByCondition("Port", condition, nil)
+	row, err := ovsd.findByCondition("Port", condition, nil)
 	if err != nil {
 		return err
 	}
@@ -142,19 +144,19 @@ func (self *OvsBridgeDriver) DeletePort(intfName string) error {
 
 	// We make a select transaction using the interface name
 	// Then get the Port UUID from it
-	portUuidStr := row["_uuid"].([]interface{})
-	portUuid := []libovsdb.UUID{{GoUUID: fmt.Sprintf("%v", portUuidStr[1])}}
+	portUUIDStr := row["_uuid"].([]interface{})
+	portUUID := []libovsdb.UUID{{GoUUID: fmt.Sprintf("%v", portUUIDStr[1])}}
 
 	intfOp := deleteInterfaceOperation(intfName)
 
 	portOp := deletePortOperation(intfName)
 
-	mutateOp := detachPortOperation(portUuid, self.OvsBridgeName)
+	mutateOp := detachPortOperation(portUUID, ovsd.OvsBridgeName)
 
 	// Perform OVS transaction
 	operations := []libovsdb.Operation{*intfOp, *portOp, *mutateOp}
 
-	_, err = self.ovsdbTransact(operations)
+	_, err = ovsd.ovsdbTransact(operations)
 	return err
 }
 
@@ -185,14 +187,15 @@ func getExternalIDs(row map[string]interface{}) (map[string]string, error) {
 	return extIDs, nil
 }
 
-func (self *OvsDriver) BridgeList() ([]string, error) {
+// BridgeList returns available ovs bridge names
+func (ovsd *OvsDriver) BridgeList() ([]string, error) {
 	selectOp := []libovsdb.Operation{{
 		Op:      "select",
 		Table:   "Bridge",
 		Columns: []string{"name"},
 	}}
 
-	transactionResult, err := self.ovsdbTransact(selectOp)
+	transactionResult, err := ovsd.ovsdbTransact(selectOp)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +218,7 @@ func (self *OvsDriver) BridgeList() ([]string, error) {
 }
 
 // GetOFPortOpState retrieves link state of the OF port
-func (self *OvsDriver) GetOFPortOpState(portName string) (string, error) {
+func (ovsd *OvsDriver) GetOFPortOpState(portName string) (string, error) {
 	condition := libovsdb.NewCondition("name", "==", portName)
 	selectOp := []libovsdb.Operation{{
 		Op:      "select",
@@ -224,7 +227,7 @@ func (self *OvsDriver) GetOFPortOpState(portName string) (string, error) {
 		Where:   []interface{}{condition},
 	}}
 
-	transactionResult, err := self.ovsdbTransact(selectOp)
+	transactionResult, err := ovsd.ovsdbTransact(selectOp)
 	if err != nil {
 		return "", err
 	}
@@ -245,8 +248,8 @@ func (self *OvsDriver) GetOFPortOpState(portName string) (string, error) {
 	return fmt.Sprintf("%v", operationResult.Rows[0]["link_state"]), nil
 }
 
-// Check if the bridge entry already exists
-func (self *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
+// IsBridgePresent Check if the bridge entry already exists
+func (ovsd *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	condition := libovsdb.NewCondition("name", "==", bridgeName)
 	selectOp := []libovsdb.Operation{{
 		Op:      "select",
@@ -255,7 +258,7 @@ func (self *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 		Columns: []string{"name"},
 	}}
 
-	transactionResult, err := self.ovsdbTransact(selectOp)
+	transactionResult, err := ovsd.ovsdbTransact(selectOp)
 	if err != nil {
 		return false, err
 	}
@@ -276,8 +279,8 @@ func (self *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	return true, nil
 }
 
-// Return ovs port name for an container interface
-func (self *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (string, bool, error) {
+// GetOvsPortForContIface Return ovs port name for an container interface
+func (ovsd *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (string, bool, error) {
 	searchMap := map[string]string{
 		"contNetns": contNetnsPath,
 		"contIface": contIface,
@@ -290,7 +293,7 @@ func (self *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (
 
 	condition := libovsdb.NewCondition("external_ids", "==", ovsmap)
 	colums := []string{"name", "external_ids"}
-	port, err := self.findByCondition("Port", condition, colums)
+	port, err := ovsd.findByCondition("Port", condition, colums)
 	if err != nil {
 		return "", false, err
 	}
@@ -298,13 +301,14 @@ func (self *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (
 	return fmt.Sprintf("%v", port["name"]), true, nil
 }
 
-func (self *OvsDriver) FindInterfacesWithError() ([]string, error) {
+// FindInterfacesWithError returns the interfaces which are in error state
+func (ovsd *OvsDriver) FindInterfacesWithError() ([]string, error) {
 	selectOp := libovsdb.Operation{
 		Op:      "select",
 		Columns: []string{"name", "error"},
 		Table:   "Interface",
 	}
-	transactionResult, err := self.ovsdbTransact([]libovsdb.Operation{selectOp})
+	transactionResult, err := ovsd.ovsdbTransact([]libovsdb.Operation{selectOp})
 	if err != nil {
 		return nil, err
 	}
@@ -340,19 +344,29 @@ func hasError(row map[string]interface{}) bool {
 }
 
 // ************************ Notification handler for OVS DB changes ****************
-func (self *OvsDriver) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
+
+// Update yet to be implemented
+func (ovsd *OvsDriver) Update(context interface{}, tableUpdates libovsdb.TableUpdates) {
 }
-func (self *OvsDriver) Disconnected(ovsClient *libovsdb.OvsdbClient) {
+
+// Disconnected yet to be implemented
+func (ovsd *OvsDriver) Disconnected(ovsClient *libovsdb.OvsdbClient) {
 }
-func (self *OvsDriver) Locked([]interface{}) {
+
+// Locked yet to be implemented
+func (ovsd *OvsDriver) Locked([]interface{}) {
 }
-func (self *OvsDriver) Stolen([]interface{}) {
+
+// Stolen yet to be implemented
+func (ovsd *OvsDriver) Stolen([]interface{}) {
 }
-func (self *OvsDriver) Echo([]interface{}) {
+
+// Echo yet to be implemented
+func (ovsd *OvsDriver) Echo([]interface{}) {
 }
 
 // ************************ Helper functions ********************
-func (self *OvsDriver) findByCondition(table string, condition []interface{}, columns []string) (map[string]interface{}, error) {
+func (ovsd *OvsDriver) findByCondition(table string, condition []interface{}, columns []string) (map[string]interface{}, error) {
 	selectOp := libovsdb.Operation{
 		Op:    "select",
 		Table: table,
@@ -365,7 +379,7 @@ func (self *OvsDriver) findByCondition(table string, condition []interface{}, co
 		selectOp.Columns = columns
 	}
 
-	transactionResult, err := self.ovsdbTransact([]libovsdb.Operation{selectOp})
+	transactionResult, err := ovsd.ovsdbTransact([]libovsdb.Operation{selectOp})
 	if err != nil {
 		return nil, err
 	}
@@ -387,8 +401,8 @@ func (self *OvsDriver) findByCondition(table string, condition []interface{}, co
 }
 
 func createInterfaceOperation(intfName, ovnPortName string) ([]libovsdb.UUID, *libovsdb.Operation, error) {
-	intfUuidStr := fmt.Sprintf("Intf%s", intfName)
-	intfUuid := []libovsdb.UUID{{GoUUID: intfUuidStr}}
+	intfUUIDStr := fmt.Sprintf("Intf%s", intfName)
+	intfUUID := []libovsdb.UUID{{GoUUID: intfUUIDStr}}
 
 	intf := make(map[string]interface{})
 	intf["name"] = intfName
@@ -407,15 +421,15 @@ func createInterfaceOperation(intfName, ovnPortName string) ([]libovsdb.UUID, *l
 		Op:       "insert",
 		Table:    "Interface",
 		Row:      intf,
-		UUIDName: intfUuidStr,
+		UUIDName: intfUUIDStr,
 	}
 
-	return intfUuid, &intfOp, nil
+	return intfUUID, &intfOp, nil
 }
 
-func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUuid []libovsdb.UUID) ([]libovsdb.UUID, *libovsdb.Operation, error) {
-	portUuidStr := intfName
-	portUuid := []libovsdb.UUID{{GoUUID: portUuidStr}}
+func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUUID []libovsdb.UUID) ([]libovsdb.UUID, *libovsdb.Operation, error) {
+	portUUIDStr := intfName
+	portUUID := []libovsdb.UUID{{GoUUID: portUUIDStr}}
 
 	port := make(map[string]interface{})
 	port["name"] = intfName
@@ -431,7 +445,7 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 		}
 	}
 
-	port["interfaces"], err = libovsdb.NewOvsSet(intfUuid)
+	port["interfaces"], err = libovsdb.NewOvsSet(intfUUID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -451,15 +465,15 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 		Op:       "insert",
 		Table:    "Port",
 		Row:      port,
-		UUIDName: portUuidStr,
+		UUIDName: portUUIDStr,
 	}
 
-	return portUuid, &portOp, nil
+	return portUUID, &portOp, nil
 }
 
-func attachPortOperation(portUuid []libovsdb.UUID, bridgeName string) *libovsdb.Operation {
+func attachPortOperation(portUUID []libovsdb.UUID, bridgeName string) *libovsdb.Operation {
 	// mutate the Ports column of the row in the Bridge table
-	mutateSet, _ := libovsdb.NewOvsSet(portUuid)
+	mutateSet, _ := libovsdb.NewOvsSet(portUUID)
 	mutation := libovsdb.NewMutation("ports", "insert", mutateSet)
 	condition := libovsdb.NewCondition("name", "==", bridgeName)
 	mutateOp := libovsdb.Operation{
@@ -494,9 +508,9 @@ func deletePortOperation(intfName string) *libovsdb.Operation {
 	return &portOp
 }
 
-func detachPortOperation(portUuid []libovsdb.UUID, bridgeName string) *libovsdb.Operation {
+func detachPortOperation(portUUID []libovsdb.UUID, bridgeName string) *libovsdb.Operation {
 	// mutate the Ports column of the row in the Bridge table
-	mutateSet, _ := libovsdb.NewOvsSet(portUuid)
+	mutateSet, _ := libovsdb.NewOvsSet(portUUID)
 	mutation := libovsdb.NewMutation("ports", "delete", mutateSet)
 	condition := libovsdb.NewCondition("name", "==", bridgeName)
 	mutateOp := libovsdb.Operation{

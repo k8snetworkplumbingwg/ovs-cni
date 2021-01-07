@@ -27,7 +27,7 @@ import (
 )
 
 var kubeconfig *string
-var clusterApi *clusterapi.ClusterApi
+var clusterApi *clusterapi.ClusterAPI
 
 func TestPlugin(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -41,7 +41,7 @@ func TestPlugin(t *testing.T) {
 var _ = BeforeSuite(func() {
 	flag.Parse()
 
-	clusterApi = clusterapi.NewClusterApi(*kubeconfig)
+	clusterApi = clusterapi.NewClusterAPI(*kubeconfig)
 	clusterApi.RemoveTestNamespace()
 	clusterApi.CreateTestNamespace()
 })
