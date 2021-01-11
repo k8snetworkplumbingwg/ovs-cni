@@ -391,9 +391,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if netconf.DeviceID != "" {
 		// SR-IOV Case
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, netconf.MTU, netconf.DeviceID)
+		if err != nil {
+			return err
+		}
 	} else {
 		// General Case
 		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, vlanTagNum, trunks, portType, args.Netns, ovnPort); err != nil {
