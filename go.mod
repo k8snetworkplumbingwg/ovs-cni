@@ -5,18 +5,18 @@ require (
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
-	github.com/containernetworking/cni v0.8.0
-	github.com/containernetworking/plugins v0.8.7
+	github.com/containernetworking/cni v0.8.1
+	github.com/containernetworking/plugins v0.9.1-0.20210203133829-74a6b28a2c27
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
-	github.com/imdario/mergo v0.3.8 // indirect
+	github.com/imdario/mergo v0.3.8
 	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
-	github.com/onsi/ginkgo v1.11.0
-	github.com/onsi/gomega v1.7.0
+	github.com/onsi/ginkgo v1.12.1
+	github.com/onsi/gomega v1.10.3
 	github.com/pkg/errors v0.9.1
 	github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b // indirect
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
-	github.com/vishvananda/netlink v1.1.0
+	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
 	k8s.io/api v0.19.1
 	k8s.io/apimachinery v0.19.1
 	k8s.io/client-go v0.18.3
@@ -48,5 +48,7 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.19.1
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.1
 )
+
+replace github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 
 go 1.13
