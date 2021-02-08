@@ -1,7 +1,7 @@
 module github.com/kubevirt/ovs-cni
 
 require (
-	github.com/Mellanox/sriovnet v0.0.0-20190516174650-73402dc8fcaa
+	github.com/Mellanox/sriovnet v1.0.2
 	github.com/cenk/hub v1.0.1 // indirect
 	github.com/cenkalti/hub v1.0.1 // indirect
 	github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa // indirect
