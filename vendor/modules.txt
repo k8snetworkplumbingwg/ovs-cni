@@ -1,5 +1,6 @@
-# github.com/Mellanox/sriovnet v0.0.0-20190516174650-73402dc8fcaa
+# github.com/Mellanox/sriovnet v1.0.2
 github.com/Mellanox/sriovnet
+github.com/Mellanox/sriovnet/pkg/utils/filesystem
 # github.com/cenkalti/hub v1.0.1
 github.com/cenkalti/hub
 # github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa
@@ -45,6 +46,8 @@ github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
 # github.com/google/gofuzz v1.1.0
 github.com/google/gofuzz
+# github.com/google/uuid v1.1.1
+github.com/google/uuid
 # github.com/googleapis/gnostic v0.4.1
 github.com/googleapis/gnostic/compiler
 github.com/googleapis/gnostic/extensions
@@ -106,10 +109,11 @@ github.com/onsi/gomega/types
 github.com/pkg/errors
 # github.com/safchain/ethtool v0.0.0-20190326074333-42ed695e3de8
 github.com/safchain/ethtool
-# github.com/satori/go.uuid v1.2.1-0.20181028125025-b2ce2384e17b
-github.com/satori/go.uuid
 # github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 github.com/socketplane/libovsdb
+# github.com/spf13/afero v1.4.1
+github.com/spf13/afero
+github.com/spf13/afero/mem
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
 # github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
