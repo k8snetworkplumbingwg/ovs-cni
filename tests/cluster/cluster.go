@@ -101,7 +101,7 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 		Annotations: map[string]string{"k8s.v1.cni.cncf.io/networks": nadName},
 	},
 		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "test",
-			Image:           "alpine",
+			Image:           "quay.io/jitesoft/alpine",
 			Command:         []string{"sh", "-c", fmt.Sprintf("ip address add %s dev net1; sleep 99999", cidr)},
 			Resources:       corev1.ResourceRequirements{Limits: resourceList},
 			SecurityContext: &corev1.SecurityContext{Privileged: &privileged}}}}}
