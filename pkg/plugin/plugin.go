@@ -55,6 +55,7 @@ const (
 type netConf struct {
 	types.NetConf
 	BrName            string   `json:"bridge,omitempty"`
+	IPAM              *IPAM    `json:"ipam,omitempty"`
 	VlanTag           *uint    `json:"vlan"`
 	MTU               int      `json:"mtu"`
 	Trunk             []*trunk `json:"trunk,omitempty"`
@@ -67,6 +68,23 @@ type trunk struct {
 	MinID *uint `json:"minID,omitempty"`
 	MaxID *uint `json:"maxID,omitempty"`
 	ID    *uint `json:"id,omitempty"`
+	IPAM  *IPAM `json:"ipam,omitempty"`
+}
+
+type IPAM struct {
+	*Range
+	Type   string         `json:"type,omitempty"`
+	Routes []*types.Route `json:"routes,omitempty"`
+	Ranges []RangeSet     `json:"ranges,omitempty"`
+}
+
+type RangeSet []Range
+
+type Range struct {
+	RangeStart net.IP      `json:"rangeStart,omitempty"` // The first ip, inclusive
+	RangeEnd   net.IP      `json:"rangeEnd,omitempty"`   // The last ip, inclusive
+	Subnet     types.IPNet `json:"subnet"`
+	Gateway    net.IP      `json:"gateway,omitempty"`
 }
 
 // EnvArgs args containing common, desired mac and ovs port name
@@ -116,6 +134,17 @@ func loadNetConf(bytes []byte) (*netConf, error) {
 	}
 
 	return netconf, nil
+}
+
+func marshalNetConf(netconf *netConf) ([]byte, error) {
+	var (
+		data []byte
+		err  error
+	)
+	if data, err = json.Marshal(*netconf); err != nil {
+		return nil, fmt.Errorf("failed to marshal netconf: %v", err)
+	}
+	return data, nil
 }
 
 func loadFlatNetConf(configPath string) (*netConf, error) {
@@ -183,6 +212,92 @@ func generateRandomMac() net.HardwareAddr {
 	return net.HardwareAddr(append(prefix, suffix...))
 }
 
+func setupTrunkIfaces(netconf *netConf, contNetns ns.NetNS, contIfaceName string) ([]*current.Result, error) {
+	results := make([]*current.Result, 0)
+	origIPAMConfig := netconf.IPAM
+	err := contNetns.Do(func(hostNetns ns.NetNS) error {
+		for _, trunk := range netconf.Trunk {
+			if trunk.IPAM.Type == "" {
+				continue
+			}
+			subIfName := contIfaceName + "." + fmt.Sprint(*trunk.ID)
+			if err := createVlanLink(contIfaceName, subIfName, *trunk.ID); err != nil {
+				return err
+			}
+			var macAddress net.HardwareAddr
+			containerSubIfLink, err := netlink.LinkByName(subIfName)
+			// In case the MAC address is already assigned to another interface, retry
+			for i := 1; i <= macSetupRetries; i++ {
+				macAddress = generateRandomMac()
+				err = assignMacToLink(containerSubIfLink, macAddress, subIfName)
+				if err != nil && i == macSetupRetries {
+					return err
+				}
+			}
+			netconf.IPAM = trunk.IPAM
+			netData, err := marshalNetConf(netconf)
+			if err != nil {
+				return err
+			}
+			var result *current.Result
+			r, err := ipam.ExecAdd(trunk.IPAM.Type, netData)
+			if err != nil {
+				// Invoke ipam del if err to avoid ip leak
+				ipam.ExecDel(trunk.IPAM.Type, netData)
+				return fmt.Errorf("failed to set up IPAM plugin type %q for vlan %d: %v", trunk.IPAM.Type, *trunk.ID, err)
+			}
+			// Convert whatever the IPAM result was into the current Result type
+			result, err = current.NewResultFromResult(r)
+			if err != nil {
+				return err
+			}
+			if len(result.IPs) == 0 {
+				return fmt.Errorf("IPAM plugin %q returned missing IP config for vlan %d: %v", trunk.IPAM.Type, *trunk.ID, err)
+			}
+			result.Interfaces = []*current.Interface{{
+				Name:    subIfName,
+				Mac:     macAddress.String(),
+				Sandbox: contNetns.Path(),
+			}}
+			for _, ipc := range result.IPs {
+				// All addresses apply to the container interface (move from host)
+				ipc.Interface = current.Int(0)
+			}
+
+			if err := ipam.ConfigureIface(subIfName, result); err != nil {
+				return err
+			}
+			results = append(results, result)
+		}
+		return nil
+	})
+	netconf.IPAM = origIPAMConfig
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func cleanupTrunkIfaces(netconf *netConf) error {
+	origIPAMConfig := netconf.IPAM
+	for _, trunk := range netconf.Trunk {
+		if trunk.IPAM.Type == "" {
+			continue
+		}
+		netconf.IPAM = trunk.IPAM
+		netData, err := marshalNetConf(netconf)
+		if err != nil {
+			return err
+		}
+		err = ipam.ExecDel(trunk.IPAM.Type, netData)
+		if err != nil {
+			return err
+		}
+	}
+	netconf.IPAM = origIPAMConfig
+	return nil
+}
+
 func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mtu int) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
@@ -246,6 +361,67 @@ func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error
 		return fmt.Errorf("failed to set container iface %q MAC %q: %v", name, mac.String(), err)
 	}
 	return nil
+}
+
+func createVlanLink(parentIfName string, subIfName string, vlanID uint) error {
+	if vlanID > 4094 || vlanID < 1 {
+		return fmt.Errorf("vlan id must be between 1-4094, received: %d", vlanID)
+	}
+	if interfaceExists(subIfName) {
+		return nil
+	}
+	// get the parent link to attach a vlan subinterface
+	parentLink, err := netlink.LinkByName(parentIfName)
+	if err != nil {
+		return fmt.Errorf("failed to find master interface %s on the host: %v", parentIfName, err)
+	}
+	vlanLink := &netlink.Vlan{
+		LinkAttrs: netlink.LinkAttrs{
+			Name:        subIfName,
+			ParentIndex: parentLink.Attrs().Index,
+		},
+		VlanId: int(vlanID),
+	}
+	// create the subinterface
+	if err := netlink.LinkAdd(vlanLink); err != nil {
+		return fmt.Errorf("failed to create %s vlan link: %v", vlanLink.Name, err)
+	}
+	// Bring the new netlink iface up
+	if err := netlink.LinkSetUp(vlanLink); err != nil {
+		return fmt.Errorf("failed to enable %s the macvlan parent link %v", vlanLink.Name, err)
+	}
+	return nil
+}
+
+func deleteVlanLink(parentIfName string, subIfName string, vlanID uint) error {
+	if !interfaceExists(subIfName) {
+		return nil
+	}
+	// get the parent link to attach a vlan subinterface
+	parentLink, err := netlink.LinkByName(parentIfName)
+	if err != nil {
+		return nil
+	}
+	vlanLink := &netlink.Vlan{
+		LinkAttrs: netlink.LinkAttrs{
+			Name:        subIfName,
+			ParentIndex: parentLink.Attrs().Index,
+		},
+		VlanId: int(vlanID),
+	}
+	// delete the subinterface
+	if err := netlink.LinkDel(vlanLink); err != nil {
+		return fmt.Errorf("failed to delete %s vlan link: %v", vlanLink.Name, err)
+	}
+	return nil
+}
+
+func interfaceExists(ifName string) bool {
+	_, err := netlink.LinkByName(ifName)
+	if err != nil {
+		return false
+	}
+	return true
 }
 
 func getBridgeName(bridgeName, ovnPort string) (string, error) {
@@ -485,6 +661,19 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
+	if len(netconf.Trunk) > 0 {
+		subIfResults, err := setupTrunkIfaces(netconf, contNetns, args.IfName)
+		if err != nil {
+			return err
+		}
+		ifLength := len(result.Interfaces)
+		for idx, subIfresult := range subIfResults {
+			result.Interfaces = append(result.Interfaces, subIfresult.Interfaces[0])
+			subIfresult.IPs[0].Interface = current.Int(ifLength + idx)
+			result.IPs = append(result.IPs, subIfresult.IPs[0])
+		}
+	}
+
 	return types.PrintResult(result, netconf.CNIVersion)
 }
 
@@ -572,6 +761,12 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	if netconf.IPAM.Type != "" {
 		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	}
+	if len(netconf.Trunk) > 0 {
+		err = cleanupTrunkIfaces(netconf)
 		if err != nil {
 			return err
 		}
