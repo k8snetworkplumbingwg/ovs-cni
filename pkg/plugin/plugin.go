@@ -54,33 +54,33 @@ const (
 
 type netConf struct {
 	types.NetConf
-	BrName            string      `json:"bridge,omitempty"`
-	IPAM              *ipamConfig `json:"ipam,omitempty"`
-	VlanTag           *uint       `json:"vlan"`
-	MTU               int         `json:"mtu"`
-	Trunk             []*trunk    `json:"trunk,omitempty"`
-	DeviceID          string      `json:"deviceID"` // PCI address of a VF in valid sysfs format
-	ConfigurationPath string      `json:"configuration_path"`
-	SocketFile        string      `json:"socket_file"`
+	BrName            string   `json:"bridge,omitempty"`
+	IPAM              *IPAM    `json:"ipam,omitempty"`
+	VlanTag           *uint    `json:"vlan"`
+	MTU               int      `json:"mtu"`
+	Trunk             []*trunk `json:"trunk,omitempty"`
+	DeviceID          string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
+	ConfigurationPath string   `json:"configuration_path"`
+	SocketFile        string   `json:"socket_file"`
 }
 
 type trunk struct {
-	MinID *uint       `json:"minID,omitempty"`
-	MaxID *uint       `json:"maxID,omitempty"`
-	ID    *uint       `json:"id,omitempty"`
-	IPAM  *ipamConfig `json:"ipam,omitempty"`
+	MinID *uint `json:"minID,omitempty"`
+	MaxID *uint `json:"maxID,omitempty"`
+	ID    *uint `json:"id,omitempty"`
+	IPAM  *IPAM `json:"ipam,omitempty"`
 }
 
-type ipamConfig struct {
-	*ipRange
+type IPAM struct {
+	*Range
 	Type   string         `json:"type,omitempty"`
 	Routes []*types.Route `json:"routes,omitempty"`
-	Ranges []rangeSet     `json:"ranges,omitempty"`
+	Ranges []RangeSet     `json:"ranges,omitempty"`
 }
 
-type rangeSet []ipRange
+type RangeSet []Range
 
-type ipRange struct {
+type Range struct {
 	RangeStart net.IP      `json:"rangeStart,omitempty"` // The first ip, inclusive
 	RangeEnd   net.IP      `json:"rangeEnd,omitempty"`   // The last ip, inclusive
 	Subnet     types.IPNet `json:"subnet"`
