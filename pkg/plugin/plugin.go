@@ -71,6 +71,7 @@ type trunk struct {
 	IPAM  *IPAM `json:"ipam,omitempty"`
 }
 
+// IPAM ipam configuration
 type IPAM struct {
 	*Range
 	Type   string         `json:"type,omitempty"`
@@ -78,8 +79,10 @@ type IPAM struct {
 	Ranges []RangeSet     `json:"ranges,omitempty"`
 }
 
+// RangeSet ip range set
 type RangeSet []Range
 
+// Range ip range configuration
 type Range struct {
 	RangeStart net.IP      `json:"rangeStart,omitempty"` // The first ip, inclusive
 	RangeEnd   net.IP      `json:"rangeEnd,omitempty"`   // The last ip, inclusive
