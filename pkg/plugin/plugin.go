@@ -220,7 +220,7 @@ func setupTrunkIfaces(netconf *netConf, contNetns ns.NetNS, contIfaceName string
 	origIPAMConfig := netconf.IPAM
 	err := contNetns.Do(func(hostNetns ns.NetNS) error {
 		for _, trunk := range netconf.Trunk {
-			if trunk.IPAM.Type == "" {
+			if trunk.IPAM == nil || trunk.IPAM.Type == "" {
 				continue
 			}
 			subIfName := contIfaceName + "." + fmt.Sprint(*trunk.ID)
@@ -284,7 +284,7 @@ func setupTrunkIfaces(netconf *netConf, contNetns ns.NetNS, contIfaceName string
 func cleanupTrunkIfaces(netconf *netConf) error {
 	origIPAMConfig := netconf.IPAM
 	for _, trunk := range netconf.Trunk {
-		if trunk.IPAM.Type == "" {
+		if trunk.IPAM == nil || trunk.IPAM.Type == "" {
 			continue
 		}
 		netconf.IPAM = trunk.IPAM
@@ -590,7 +590,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// run the IPAM plugin
-	if netconf.IPAM.Type != "" {
+	if netconf.IPAM != nil && netconf.IPAM.Type != "" {
 		r, err := ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
 		if err != nil {
 			return fmt.Errorf("failed to set up IPAM plugin type %q: %v", netconf.IPAM.Type, err)
@@ -762,7 +762,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if netconf.IPAM.Type != "" {
+	if netconf.IPAM != nil && netconf.IPAM.Type != "" {
 		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
 		if err != nil {
 			return err
