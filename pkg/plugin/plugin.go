@@ -215,10 +215,14 @@ func generateRandomMac() net.HardwareAddr {
 	return net.HardwareAddr(append(prefix, suffix...))
 }
 
-func setupTrunkIfaces(netconf *netConf, contNetns ns.NetNS, contIfaceName string) ([]*current.Result, error) {
+func setupTrunkIfaces(netconf *netConf, contNetns ns.NetNS, contIfaceName, contIfaceMac string) ([]*current.Result, error) {
 	results := make([]*current.Result, 0)
 	origIPAMConfig := netconf.IPAM
-	err := contNetns.Do(func(hostNetns ns.NetNS) error {
+	macAddress, err := net.ParseMAC(contIfaceMac)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse requested MAC  %q: %v", contIfaceMac, err)
+	}
+	err = contNetns.Do(func(hostNetns ns.NetNS) error {
 		for _, trunk := range netconf.Trunk {
 			if trunk.IPAM == nil || trunk.IPAM.Type == "" {
 				continue
@@ -227,15 +231,13 @@ func setupTrunkIfaces(netconf *netConf, contNetns ns.NetNS, contIfaceName string
 			if err := createVlanLink(contIfaceName, subIfName, *trunk.ID); err != nil {
 				return err
 			}
-			var macAddress net.HardwareAddr
 			containerSubIfLink, err := netlink.LinkByName(subIfName)
-			// In case the MAC address is already assigned to another interface, retry
-			for i := 1; i <= macSetupRetries; i++ {
-				macAddress = generateRandomMac()
-				err = assignMacToLink(containerSubIfLink, macAddress, subIfName)
-				if err != nil && i == macSetupRetries {
-					return err
-				}
+			if err != nil {
+				return err
+			}
+			err = assignMacToLink(containerSubIfLink, macAddress, subIfName)
+			if err != nil {
+				return err
 			}
 			netconf.IPAM = trunk.IPAM
 			netData, err := marshalNetConf(netconf)
@@ -665,15 +667,19 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	if len(netconf.Trunk) > 0 {
-		subIfResults, err := setupTrunkIfaces(netconf, contNetns, args.IfName)
+		subIfResults, err := setupTrunkIfaces(netconf, contNetns, args.IfName, contIface.Mac)
 		if err != nil {
 			return err
 		}
 		ifLength := len(result.Interfaces)
 		for idx, subIfresult := range subIfResults {
+			// subIfresult has only one interface
 			result.Interfaces = append(result.Interfaces, subIfresult.Interfaces[0])
-			subIfresult.IPs[0].Interface = current.Int(ifLength + idx)
-			result.IPs = append(result.IPs, subIfresult.IPs[0])
+			ifIdxPtr := current.Int(ifLength + idx)
+			for ipIndex := range subIfresult.IPs {
+				subIfresult.IPs[ipIndex].Interface = ifIdxPtr
+				result.IPs = append(result.IPs, subIfresult.IPs[ipIndex])
+			}
 		}
 	}
 
