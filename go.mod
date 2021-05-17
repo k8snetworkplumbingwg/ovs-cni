@@ -1,4 +1,4 @@
-module github.com/kubevirt/ovs-cni
+module github.com/k8snetworkplumbingwg/ovs-cni
 
 require (
 	github.com/Mellanox/sriovnet v1.0.2
