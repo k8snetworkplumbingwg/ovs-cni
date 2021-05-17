@@ -19,7 +19,7 @@ import (
 	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/utils/buildversion"
 
-	"github.com/kubevirt/ovs-cni/pkg/plugin"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/plugin"
 )
 
 func main() {

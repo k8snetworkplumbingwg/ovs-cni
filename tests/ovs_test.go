@@ -25,7 +25,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/kubevirt/ovs-cni/tests/node"
+	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
 )
 
 var _ = Describe("ovs-cni", func() {

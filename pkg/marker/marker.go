@@ -25,7 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 )
 
 const (

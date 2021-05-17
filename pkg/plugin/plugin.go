@@ -42,8 +42,8 @@ import (
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
-	"github.com/kubevirt/ovs-cni/pkg/ovsdb"
-	"github.com/kubevirt/ovs-cni/pkg/sriov"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
 )
 
 const (

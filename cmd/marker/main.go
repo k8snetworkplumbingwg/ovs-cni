@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/kubevirt/ovs-cni/pkg/marker"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/marker"
 )
 
 func main() {
