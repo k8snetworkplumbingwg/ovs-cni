@@ -18,7 +18,7 @@ curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=$
 source ${GIMME}/gimme.sh
 
 echo 'Install the project under the temporary Go path'
-TMP_PROJECT_PATH=${GOPATH}/src/github.com/kubevirt/ovs-cni
+TMP_PROJECT_PATH=${GOPATH}/src/github.com/k8snetworkplumbingwg/ovs-cni
 rm -rf ${TMP_PROJECT_PATH}
 mkdir -p ${TMP_PROJECT_PATH}
 cp -rf $(pwd)/. ${TMP_PROJECT_PATH}

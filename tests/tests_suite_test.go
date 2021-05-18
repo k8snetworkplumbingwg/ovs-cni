@@ -23,7 +23,7 @@ import (
 	. "github.com/onsi/gomega"
 	ginkgo_reporters "kubevirt.io/qe-tools/pkg/ginkgo-reporters"
 
-	clusterapi "github.com/kubevirt/ovs-cni/tests/cluster"
+	clusterapi "github.com/k8snetworkplumbingwg/ovs-cni/tests/cluster"
 )
 
 var kubeconfig *string

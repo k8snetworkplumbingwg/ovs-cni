@@ -39,4 +39,4 @@ fi
 # Build the build container
 (cd ${DOCKER_DIR} && docker build . ${BUILD_QUIET} -t ${BUILDER})
 
-docker run --rm --privileged --network host --cap-add ALL -v /lib/modules:/lib/modules -v `pwd`:/root/go/src/github.com/kubevirt/ovs-cni -w "/root/go/src/github.com/kubevirt/ovs-cni" ${BUILDER} make test
+docker run --rm --privileged --network host --cap-add ALL -v /lib/modules:/lib/modules -v `pwd`:/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni -w "/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni" ${BUILDER} make test

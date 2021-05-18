@@ -53,4 +53,4 @@ for ovs-cni may lead to unexpected behavior.
 # Open vSwitch CNI plugin
 
 Finally, we can install ovs-cni on our cluster. In order to do that,
-please use [Cluster Network Addons Operator Project](https://github.com/kubevirt/cluster-network-addons-operator#open-vswitch).
+please use [Cluster Network Addons Operator Project](https://github.com/k8snetworkplumbingwg/cluster-network-addons-operator#open-vswitch).
