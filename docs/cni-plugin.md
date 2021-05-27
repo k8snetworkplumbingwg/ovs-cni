@@ -71,9 +71,13 @@ The sample content of ovs.conf (in JSON format) is as follows:
 
 ```json
 {
-  "socket_file": "/usr/local/var/run/openvswitch/db.sock"
+  "socket_file": "/usr/local/var/run/openvswitch/db.sock",
+  "link_state_check_retries": 5,
+  "link_state_check_interval": 1000
 }
 ```
+
+The `link_state_check_interval` is in milliseconds.
 
 ## Manual Testing
 
