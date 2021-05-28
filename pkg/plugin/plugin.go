@@ -28,8 +28,10 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -44,6 +46,7 @@ import (
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
 
 const (
@@ -404,6 +407,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
+	// Cache NetConf for CmdDel
+	if err = utils.SaveConf(args.ContainerID, args.IfName, "netconf", netconf); err != nil {
+		return fmt.Errorf("error saving NetConf %q", err)
+	}
+
 	var hostIface, contIface *current.Interface
 	if netconf.DeviceID != "" {
 		// SR-IOV Case
@@ -554,6 +562,24 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
+	netconf, cRefPath, err := loadConfFromCache(args)
+	if err != nil {
+		// If cmdDel() fails, cached netconf is cleaned up by
+		// the followed defer call. However, subsequence calls
+		// of cmdDel() from kubelet fail in a dead loop due to
+		// cached netconf doesn't exist.
+		// Return nil when LoadConfFromCache fails since the rest
+		// of cmdDel() code relies on netconf as input argument
+		// and there is no meaning to continue.
+		return nil
+	}
+
+	defer func() {
+		if err == nil && cRefPath != "" {
+			utils.CleanCachedConf(cRefPath)
+		}
+	}()
+
 	envArgs, err := getEnvArgs(args.Args)
 	if err != nil {
 		return err
@@ -564,11 +590,6 @@ func CmdDel(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	netconf, err := loadAllNetConf(args.StdinData)
-	if err != nil {
-		return err
-	}
-
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
 	if err != nil {
 		return err
@@ -577,13 +598,6 @@ func CmdDel(args *skel.CmdArgs) error {
 	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
 	if err != nil {
 		return err
-	}
-
-	if netconf.IPAM.Type != "" {
-		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
-		if err != nil {
-			return err
-		}
 	}
 
 	if args.Netns == "" {
@@ -648,6 +662,13 @@ func CmdDel(args *skel.CmdArgs) error {
 		})
 	}
 
+	if netconf.IPAM.Type != "" {
+		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	}
+
 	return err
 }
 
@@ -656,4 +677,23 @@ func CmdCheck(args *skel.CmdArgs) error {
 	logCall("CHECK", args)
 	log.Print("CHECK is not yet implemented, pretending everything is fine")
 	return nil
+}
+
+func loadConfFromCache(args *skel.CmdArgs) (*netConf, string, error) {
+	netConf := &netConf{}
+
+	s := []string{args.ContainerID, args.IfName, "netconf"}
+	cRef := strings.Join(s, "-")
+	cRefPath := filepath.Join(utils.DefaultCNIDir, cRef)
+
+	netConfBytes, err := utils.ReadScratchConf(cRefPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("error reading cached NetConf in %s with name %s", utils.DefaultCNIDir, cRef)
+	}
+
+	if err = json.Unmarshal(netConfBytes, netConf); err != nil {
+		return nil, "", fmt.Errorf("failed to parse NetConf: %q", err)
+	}
+
+	return netConf, cRefPath, nil
 }

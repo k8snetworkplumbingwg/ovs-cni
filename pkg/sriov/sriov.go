@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Mellanox/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -28,6 +29,8 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
+
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
 
 var (
@@ -96,7 +99,7 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int
 		return nil, nil, err
 	}
 	// Cache hostIFName for CmdDel
-	if err = SaveConf(containerID, ifName, hostIFName); err != nil {
+	if err = utils.SaveConf(containerID, ifName, "sriov", hostIFName); err != nil {
 		return nil, nil, fmt.Errorf("error saving hostIFName %q", err)
 	}
 
@@ -205,13 +208,13 @@ func renameLink(curName, newName string) (netlink.Link, error) {
 
 // ReleaseVF release the VF from container namespace into host namespace
 func ReleaseVF(args *skel.CmdArgs) error {
-	hostIFName, cRefPath, err := LoadHostIFNameFromCache(args)
+	hostIFName, cRefPath, err := loadHostIFNameFromCache(args)
 	if err != nil {
 		return err
 	}
 	defer func() {
 		if err == nil && cRefPath != "" {
-			CleanCachedConf(cRefPath)
+			utils.CleanCachedConf(cRefPath)
 		}
 	}()
 
@@ -241,7 +244,7 @@ func ReleaseVF(args *skel.CmdArgs) error {
 
 // ResetVF reset the VF which accidently moved into default network namespace by a container failure
 func ResetVF(args *skel.CmdArgs, deviceID string) error {
-	hostIFName, cRefPath, err := LoadHostIFNameFromCache(args)
+	hostIFName, cRefPath, err := loadHostIFNameFromCache(args)
 	if err != nil {
 		return err
 	}
@@ -263,7 +266,18 @@ func ResetVF(args *skel.CmdArgs, deviceID string) error {
 	}
 	// remove the cache entry if everything cleaned up for the device.
 	if cRefPath != "" {
-		CleanCachedConf(cRefPath)
+		utils.CleanCachedConf(cRefPath)
 	}
 	return nil
+}
+
+func loadHostIFNameFromCache(args *skel.CmdArgs) (string, string, error) {
+	s := []string{args.ContainerID, args.IfName, "sriov"}
+	cRef := strings.Join(s, "-")
+	cRefPath := filepath.Join(utils.DefaultCNIDir, cRef)
+	confBytes, err := utils.ReadScratchConf(cRefPath)
+	if err != nil {
+		return "", "", fmt.Errorf("error reading cached Conf in %s with name %s", utils.DefaultCNIDir, cRef)
+	}
+	return strings.Replace(string(confBytes), "\"", "", -1), cRefPath, nil
 }
