@@ -21,7 +21,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/Mellanox/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -29,8 +28,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/vishvananda/netlink"
-
-	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
 
 var (
@@ -38,7 +35,8 @@ var (
 	SysBusPci = "/sys/bus/pci/devices"
 )
 
-func getVFLinkName(pciAddr string) (string, error) {
+// GetVFLinkName retrives interface name for given pci address
+func GetVFLinkName(pciAddr string) (string, error) {
 	var names []string
 	vfDir := filepath.Join(SysBusPci, pciAddr, "net")
 	if _, err := os.Lstat(vfDir); err != nil {
@@ -93,15 +91,6 @@ func GetNetRepresentor(deviceID string) (string, error) {
 func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int, deviceID string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
-
-	hostIFName, err := getVFLinkName(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-	// Cache hostIFName for CmdDel
-	if err = utils.SaveConf(containerID, ifName, "sriov", hostIFName); err != nil {
-		return nil, nil, fmt.Errorf("error saving hostIFName %q", err)
-	}
 
 	// get smart VF netdevice from PCI
 	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
@@ -207,17 +196,7 @@ func renameLink(curName, newName string) (netlink.Link, error) {
 }
 
 // ReleaseVF release the VF from container namespace into host namespace
-func ReleaseVF(args *skel.CmdArgs) error {
-	hostIFName, cRefPath, err := loadHostIFNameFromCache(args)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err == nil && cRefPath != "" {
-			utils.CleanCachedConf(cRefPath)
-		}
-	}()
-
+func ReleaseVF(args *skel.CmdArgs, origIfName string) error {
 	hostNs, err := ns.GetCurrentNS()
 	if err != nil {
 		return fmt.Errorf("failed to get host netns: %v", err)
@@ -229,13 +208,13 @@ func ReleaseVF(args *skel.CmdArgs) error {
 
 	return contNetns.Do(func(_ ns.NetNS) error {
 		// rename VF device back to its original name
-		linkObj, err := renameLink(args.IfName, hostIFName)
+		linkObj, err := renameLink(args.IfName, origIfName)
 		if err != nil {
 			return err
 		}
 		// move VF device to host netns
 		if err = netlink.LinkSetNsFd(linkObj, int(hostNs.Fd())); err != nil {
-			return fmt.Errorf("failed to move interface %s to host netns: %v", hostIFName, err)
+			return fmt.Errorf("failed to move interface %s to host netns: %v", origIfName, err)
 		}
 		return nil
 	})
@@ -243,11 +222,7 @@ func ReleaseVF(args *skel.CmdArgs) error {
 }
 
 // ResetVF reset the VF which accidently moved into default network namespace by a container failure
-func ResetVF(args *skel.CmdArgs, deviceID string) error {
-	hostIFName, cRefPath, err := loadHostIFNameFromCache(args)
-	if err != nil {
-		return err
-	}
+func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 	// get smart VF netdevice from PCI
 	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
 	if err != nil {
@@ -260,24 +235,10 @@ func ResetVF(args *skel.CmdArgs, deviceID string) error {
 		// until link is available.
 		return ip.ErrLinkNotFound
 	}
-	_, err = renameLink(vfNetdevices[0], hostIFName)
+	_, err = renameLink(vfNetdevices[0], origIfName)
 	if err != nil {
 		return err
 	}
-	// remove the cache entry if everything cleaned up for the device.
-	if cRefPath != "" {
-		utils.CleanCachedConf(cRefPath)
-	}
-	return nil
-}
 
-func loadHostIFNameFromCache(args *skel.CmdArgs) (string, string, error) {
-	s := []string{args.ContainerID, args.IfName, "sriov"}
-	cRef := strings.Join(s, "-")
-	cRefPath := filepath.Join(utils.DefaultCNIDir, cRef)
-	confBytes, err := utils.ReadScratchConf(cRefPath)
-	if err != nil {
-		return "", "", fmt.Errorf("error reading cached Conf in %s with name %s", utils.DefaultCNIDir, cRef)
-	}
-	return strings.Replace(string(confBytes), "\"", "", -1), cRefPath, nil
+	return nil
 }

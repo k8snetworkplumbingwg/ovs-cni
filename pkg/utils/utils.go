@@ -34,13 +34,13 @@ var (
 
 // SaveConf takes in container ID, data dir and Pod interface name as string and a json encoded struct Conf
 // and save this Conf in data dir
-func SaveConf(cid, podIfName, prefix string, conf interface{}) error {
+func SaveConf(cid, podIfName string, conf interface{}) error {
 	confBytes, err := json.Marshal(conf)
 	if err != nil {
 		return fmt.Errorf("error serializing delegate conf: %v", err)
 	}
 
-	s := []string{cid, podIfName, prefix}
+	s := []string{cid, podIfName}
 	cRef := strings.Join(s, "-")
 
 	// save the rendered conf for cmdDel

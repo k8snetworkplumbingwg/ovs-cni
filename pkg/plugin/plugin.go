@@ -81,6 +81,11 @@ type EnvArgs struct {
 	OvnPort types.UnmarshallableString `json:"ovnPort,omitempty"`
 }
 
+type cachedNetConf struct {
+	Netconf    *netConf
+	OrigIfName string
+}
+
 func init() {
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
@@ -407,8 +412,16 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
+	var origIfName string
+	if netconf.DeviceID != "" {
+		origIfName, err = sriov.GetVFLinkName(netconf.DeviceID)
+		if err != nil {
+			return err
+		}
+	}
+
 	// Cache NetConf for CmdDel
-	if err = utils.SaveConf(args.ContainerID, args.IfName, "netconf", netconf); err != nil {
+	if err = utils.SaveConf(args.ContainerID, args.IfName, &cachedNetConf{netconf, origIfName}); err != nil {
 		return fmt.Errorf("error saving NetConf %q", err)
 	}
 
@@ -562,7 +575,7 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
-	netconf, cRefPath, err := loadConfFromCache(args)
+	cache, cRefPath, err := loadConfFromCache(args)
 	if err != nil {
 		// If cmdDel() fails, cached netconf is cleaned up by
 		// the followed defer call. However, subsequence calls
@@ -590,12 +603,12 @@ func CmdDel(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	bridgeName, err := getBridgeName(cache.Netconf.BrName, ovnPort)
 	if err != nil {
 		return err
 	}
 
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, cache.Netconf.SocketFile)
 	if err != nil {
 		return err
 	}
@@ -603,11 +616,11 @@ func CmdDel(args *skel.CmdArgs) error {
 	if args.Netns == "" {
 		// The CNI_NETNS parameter may be empty according to version 0.4.0
 		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
-		if netconf.DeviceID != "" {
+		if cache.Netconf.DeviceID != "" {
 			// SR-IOV Case - The sriov device is moved into host network namespace when args.Netns is empty.
 			// This happens container is killed due to an error (example: CrashLoopBackOff, OOMKilled)
 			var rep string
-			if rep, err = sriov.GetNetRepresentor(netconf.DeviceID); err != nil {
+			if rep, err = sriov.GetNetRepresentor(cache.Netconf.DeviceID); err != nil {
 				return err
 			}
 			if err = removeOvsPort(ovsDriver, rep); err != nil {
@@ -615,7 +628,7 @@ func CmdDel(args *skel.CmdArgs) error {
 				// port is already deleted in a previous invocation.
 				log.Printf("Error: %v\n", err)
 			}
-			if err = sriov.ResetVF(args, netconf.DeviceID); err != nil {
+			if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 				return err
 			}
 		} else {
@@ -645,9 +658,9 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	// Delete can be called multiple times, so don't return an error if the
 	// device is already removed.
-	if netconf.DeviceID != "" {
+	if cache.Netconf.DeviceID != "" {
 		//  SR-IOV Case
-		err = sriov.ReleaseVF(args)
+		err = sriov.ReleaseVF(args, cache.OrigIfName)
 		if err != nil && err == ip.ErrLinkNotFound {
 			return nil
 		}
@@ -662,8 +675,8 @@ func CmdDel(args *skel.CmdArgs) error {
 		})
 	}
 
-	if netconf.IPAM.Type != "" {
-		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
+	if cache.Netconf.IPAM.Type != "" {
+		err = ipam.ExecDel(cache.Netconf.IPAM.Type, args.StdinData)
 		if err != nil {
 			return err
 		}
@@ -679,10 +692,10 @@ func CmdCheck(args *skel.CmdArgs) error {
 	return nil
 }
 
-func loadConfFromCache(args *skel.CmdArgs) (*netConf, string, error) {
-	netConf := &netConf{}
+func loadConfFromCache(args *skel.CmdArgs) (*cachedNetConf, string, error) {
+	netCache := &cachedNetConf{}
 
-	s := []string{args.ContainerID, args.IfName, "netconf"}
+	s := []string{args.ContainerID, args.IfName}
 	cRef := strings.Join(s, "-")
 	cRefPath := filepath.Join(utils.DefaultCNIDir, cRef)
 
@@ -691,9 +704,9 @@ func loadConfFromCache(args *skel.CmdArgs) (*netConf, string, error) {
 		return nil, "", fmt.Errorf("error reading cached NetConf in %s with name %s", utils.DefaultCNIDir, cRef)
 	}
 
-	if err = json.Unmarshal(netConfBytes, netConf); err != nil {
+	if err = json.Unmarshal(netConfBytes, netCache); err != nil {
 		return nil, "", fmt.Errorf("failed to parse NetConf: %q", err)
 	}
 
-	return netConf, cRefPath, nil
+	return netCache, cRefPath, nil
 }
