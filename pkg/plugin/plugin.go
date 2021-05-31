@@ -28,7 +28,6 @@ import (
 	"log"
 	"net"
 	"os"
-	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -421,7 +420,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// Cache NetConf for CmdDel
-	if err = utils.SaveCache(args.ContainerID, args.IfName, utils.DefaultCacheDir, &cachedNetConf{netconf, origIfName}); err != nil {
+	if err = utils.SaveCache(getCRef(args.ContainerID, args.IfName), &cachedNetConf{netconf, origIfName}); err != nil {
 		return fmt.Errorf("error saving NetConf %q", err)
 	}
 
@@ -575,21 +574,22 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
-	cache, cRefPath, err := loadConfFromCache(args)
+	cRef := getCRef(args.ContainerID, args.IfName)
+	cache, err := loadConfFromCache(cRef)
 	if err != nil {
 		// If cmdDel() fails, cached netconf is cleaned up by
 		// the followed defer call. However, subsequence calls
 		// of cmdDel() from kubelet fail in a dead loop due to
 		// cached netconf doesn't exist.
-		// Return nil when LoadConfFromCache fails since the rest
+		// Return nil when loadConfFromCache fails since the rest
 		// of cmdDel() code relies on netconf as input argument
 		// and there is no meaning to continue.
 		return nil
 	}
 
 	defer func() {
-		if err == nil && cRefPath != "" {
-			utils.CleanCache(cRefPath)
+		if err == nil {
+			utils.CleanCache(cRef)
 		}
 	}()
 
@@ -692,21 +692,21 @@ func CmdCheck(args *skel.CmdArgs) error {
 	return nil
 }
 
-func loadConfFromCache(args *skel.CmdArgs) (*cachedNetConf, string, error) {
+func loadConfFromCache(cRef string) (*cachedNetConf, error) {
 	netCache := &cachedNetConf{}
-
-	s := []string{args.ContainerID, args.IfName}
-	cRef := strings.Join(s, "-")
-	cRefPath := filepath.Join(utils.DefaultCacheDir, cRef)
-
-	netConfBytes, err := utils.ReadCache(cRefPath)
+	netConfBytes, err := utils.ReadCache(cRef)
 	if err != nil {
-		return nil, "", fmt.Errorf("error reading cached NetConf in %s with name %s", utils.DefaultCacheDir, cRef)
+		return nil, fmt.Errorf("error reading cached NetConf with name %s: %v", cRef, err)
 	}
 
 	if err = json.Unmarshal(netConfBytes, netCache); err != nil {
-		return nil, "", fmt.Errorf("failed to parse NetConf: %q", err)
+		return nil, fmt.Errorf("failed to parse NetConf: %v", err)
 	}
 
-	return netCache, cRefPath, nil
+	return netCache, nil
+}
+
+// getCRef unique identifier for a container interface
+func getCRef(cid, podIfName string) string {
+	return strings.Join([]string{cid, podIfName}, "-")
 }
