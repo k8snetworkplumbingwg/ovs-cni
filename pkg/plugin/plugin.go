@@ -49,18 +49,20 @@ import (
 const (
 	macSetupRetries        = 2
 	linkstateCheckRetries  = 5
-	linkStateCheckInterval = 500 * time.Millisecond
+	linkStateCheckInterval = 600 // in milliseconds
 )
 
 type netConf struct {
 	types.NetConf
-	BrName            string   `json:"bridge,omitempty"`
-	VlanTag           *uint    `json:"vlan"`
-	MTU               int      `json:"mtu"`
-	Trunk             []*trunk `json:"trunk,omitempty"`
-	DeviceID          string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
-	ConfigurationPath string   `json:"configuration_path"`
-	SocketFile        string   `json:"socket_file"`
+	BrName                 string   `json:"bridge,omitempty"`
+	VlanTag                *uint    `json:"vlan"`
+	MTU                    int      `json:"mtu"`
+	Trunk                  []*trunk `json:"trunk,omitempty"`
+	DeviceID               string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
+	ConfigurationPath      string   `json:"configuration_path"`
+	SocketFile             string   `json:"socket_file"`
+	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
+	LinkStateCheckInterval int      `json:"link_state_check_interval"`
 }
 
 type trunk struct {
@@ -107,6 +109,29 @@ func getHardwareAddr(ifName string) string {
 	}
 	return ifLink.Attrs().HardwareAddr.String()
 
+}
+
+func loadAllNetConf(data []byte) (*netConf, error) {
+	netconf, err := loadNetConf(data)
+	if err != nil {
+		return nil, err
+	}
+	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
+	if err != nil {
+		return nil, err
+	}
+	netconf, err = mergeConf(netconf, flatNetConf)
+	if err != nil {
+		return nil, err
+	}
+	if netconf.LinkStateCheckRetries == 0 {
+		netconf.LinkStateCheckRetries = linkstateCheckRetries
+	}
+
+	if netconf.LinkStateCheckInterval == 0 {
+		netconf.LinkStateCheckInterval = linkStateCheckInterval
+	}
+	return netconf, nil
 }
 
 func loadNetConf(bytes []byte) (*netConf, error) {
@@ -342,15 +367,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	netconf, err := loadNetConf(args.StdinData)
-	if err != nil {
-		return err
-	}
-	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
-	if err != nil {
-		return err
-	}
-	netconf, err = mergeConf(netconf, flatNetConf)
+	netconf, err := loadAllNetConf(args.StdinData)
 	if err != nil {
 		return err
 	}
@@ -413,15 +430,14 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// run the IPAM plugin
 	if netconf.IPAM.Type != "" {
 		r, err := ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
-		if err != nil {
-			return fmt.Errorf("failed to set up IPAM plugin type %q: %v", netconf.IPAM.Type, err)
-		}
-
 		defer func() {
 			if err != nil {
 				ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
 			}
 		}()
+		if err != nil {
+			return fmt.Errorf("failed to set up IPAM plugin type %q: %v", netconf.IPAM.Type, err)
+		}
 
 		// Convert the IPAM result into the current Result type
 		newResult, err := current.NewResultFromResult(r)
@@ -443,7 +459,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 		// wait until OF port link state becomes up. This is needed to make
 		// gratuitous arp for args.IfName to be sent over ovs bridge
-		err = waitLinkUp(ovsDriver, hostIface.Name)
+		err = waitLinkUp(ovsDriver, hostIface.Name, netconf.LinkStateCheckRetries, netconf.LinkStateCheckInterval)
 		if err != nil {
 			return err
 		}
@@ -488,8 +504,9 @@ func CmdAdd(args *skel.CmdArgs) error {
 	return types.PrintResult(result, netconf.CNIVersion)
 }
 
-func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string) error {
-	for i := 1; i <= linkstateCheckRetries; i++ {
+func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string, retryCount, interval int) error {
+	checkInterval := time.Duration(interval) * time.Millisecond
+	for i := 1; i <= retryCount; i++ {
 		portState, err := ovsDriver.GetOFPortOpState(ofPortName)
 		if err != nil {
 			log.Printf("error in retrieving port %s state: %v", ofPortName, err)
@@ -498,10 +515,10 @@ func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string) error {
 				break
 			}
 		}
-		if i == linkstateCheckRetries {
-			return fmt.Errorf("The OF port %s state is not up", ofPortName)
+		if i == retryCount {
+			return fmt.Errorf("The OF port %s state is not up, try increasing number of retries/interval config parameter", ofPortName)
 		}
-		time.Sleep(linkStateCheckInterval)
+		time.Sleep(checkInterval)
 	}
 	return nil
 }
@@ -547,15 +564,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	netconf, err := loadNetConf(args.StdinData)
-	if err != nil {
-		return err
-	}
-	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
-	if err != nil {
-		return err
-	}
-	netconf, err = mergeConf(netconf, flatNetConf)
+	netconf, err := loadAllNetConf(args.StdinData)
 	if err != nil {
 		return err
 	}
