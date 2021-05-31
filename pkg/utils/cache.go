@@ -12,10 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Go version 1.10 or greater is required. Before that, switching namespaces in
-// long running processes in go did not work in a reliable way.
-// +build go1.10
-
 package utils
 
 import (
@@ -28,13 +24,13 @@ import (
 )
 
 var (
-	// DefaultCNIDir used for caching hostIFName
-	DefaultCNIDir = "/var/lib/cni/ovs"
+	// DefaultCacheDir used for caching
+	DefaultCacheDir = "/tmp/ovscache"
 )
 
-// SaveConf takes in container ID, data dir and Pod interface name as string and a json encoded struct Conf
-// and save this Conf in data dir
-func SaveConf(cid, podIfName string, conf interface{}) error {
+// SaveCache takes in container ID, Pod interface name and cache dir as string and a json
+// encoded struct Conf and save this Conf in cache dir
+func SaveCache(cid, podIfName, cacheDir string, conf interface{}) error {
 	confBytes, err := json.Marshal(conf)
 	if err != nil {
 		return fmt.Errorf("error serializing delegate conf: %v", err)
@@ -44,19 +40,19 @@ func SaveConf(cid, podIfName string, conf interface{}) error {
 	cRef := strings.Join(s, "-")
 
 	// save the rendered conf for cmdDel
-	if err = saveScratchConf(cRef, DefaultCNIDir, confBytes); err != nil {
+	if err = saveScratchConf(cacheDir, cRef, confBytes); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func saveScratchConf(containerID, dataDir string, conf []byte) error {
-	if err := os.MkdirAll(dataDir, 0700); err != nil {
-		return fmt.Errorf("failed to create the sriov data directory(%q): %v", dataDir, err)
+func saveScratchConf(cacheDir, cRef string, conf []byte) error {
+	if err := os.MkdirAll(cacheDir, 0700); err != nil {
+		return fmt.Errorf("failed to create the sriov data directory(%q): %v", cacheDir, err)
 	}
 
-	path := filepath.Join(dataDir, containerID)
+	path := filepath.Join(cacheDir, cRef)
 
 	err := ioutil.WriteFile(path, conf, 0600)
 	if err != nil {
@@ -66,8 +62,9 @@ func saveScratchConf(containerID, dataDir string, conf []byte) error {
 	return err
 }
 
-// ReadScratchConf read conf from disk and returns data in byte array
-func ReadScratchConf(cRefPath string) ([]byte, error) {
+// ReadCache read cached conf from disk for the given container reference path
+// and returns data in byte array
+func ReadCache(cRefPath string) ([]byte, error) {
 	data, err := ioutil.ReadFile(cRefPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read container data in the path(%q): %v", cRefPath, err)
@@ -75,8 +72,8 @@ func ReadScratchConf(cRefPath string) ([]byte, error) {
 	return data, err
 }
 
-// CleanCachedConf removed cached Conf from disk
-func CleanCachedConf(cRefPath string) error {
+// CleanCache removes cached conf from disk for the given container reference path
+func CleanCache(cRefPath string) error {
 	if err := os.Remove(cRefPath); err != nil {
 		return fmt.Errorf("error removing Conf file %s: %q", cRefPath, err)
 	}

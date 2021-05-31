@@ -421,7 +421,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// Cache NetConf for CmdDel
-	if err = utils.SaveConf(args.ContainerID, args.IfName, &cachedNetConf{netconf, origIfName}); err != nil {
+	if err = utils.SaveCache(args.ContainerID, args.IfName, utils.DefaultCacheDir, &cachedNetConf{netconf, origIfName}); err != nil {
 		return fmt.Errorf("error saving NetConf %q", err)
 	}
 
@@ -589,7 +589,7 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	defer func() {
 		if err == nil && cRefPath != "" {
-			utils.CleanCachedConf(cRefPath)
+			utils.CleanCache(cRefPath)
 		}
 	}()
 
@@ -697,11 +697,11 @@ func loadConfFromCache(args *skel.CmdArgs) (*cachedNetConf, string, error) {
 
 	s := []string{args.ContainerID, args.IfName}
 	cRef := strings.Join(s, "-")
-	cRefPath := filepath.Join(utils.DefaultCNIDir, cRef)
+	cRefPath := filepath.Join(utils.DefaultCacheDir, cRef)
 
-	netConfBytes, err := utils.ReadScratchConf(cRefPath)
+	netConfBytes, err := utils.ReadCache(cRefPath)
 	if err != nil {
-		return nil, "", fmt.Errorf("error reading cached NetConf in %s with name %s", utils.DefaultCNIDir, cRef)
+		return nil, "", fmt.Errorf("error reading cached NetConf in %s with name %s", utils.DefaultCacheDir, cRef)
 	}
 
 	if err = json.Unmarshal(netConfBytes, netCache); err != nil {
