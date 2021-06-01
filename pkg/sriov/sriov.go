@@ -60,6 +60,12 @@ func GetVFLinkName(pciAddr string) (string, error) {
 	return names[0], nil
 }
 
+// IsOvsHardwareOffloadEnabled when device id is set, then ovs hardware offload
+// is enabled.
+func IsOvsHardwareOffloadEnabled(deviceID string) bool {
+	return deviceID != ""
+}
+
 // GetNetRepresentor retrieves network representor device for smartvf
 func GetNetRepresentor(deviceID string) (string, error) {
 	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).

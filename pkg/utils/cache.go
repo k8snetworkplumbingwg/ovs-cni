@@ -1,3 +1,5 @@
+// Copyright (c) 2021 Red Hat, Inc.
+// Copyright (c) 2021 CNI authors
 // Copyright (c) 2021 Nordix Foundation.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
