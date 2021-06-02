@@ -309,13 +309,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var hostIface, contIface *current.Interface
 	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
-		// SR-IOV Case
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, netconf.MTU, netconf.DeviceID)
 		if err != nil {
 			return err
 		}
 	} else {
-		// General Case
 		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
 		if err != nil {
 			return err
@@ -539,30 +537,28 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}
 
-	// Delete can be called multiple times, so don't return an error if the
-	// device is already removed.
-	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
-		//  SR-IOV Case
-		err = sriov.ReleaseVF(args, cache.OrigIfName)
-		if err != nil && err == ip.ErrLinkNotFound {
-			return nil
-		}
-	} else {
-		// General Case
-		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
-			err = ip.DelLinkByName(args.IfName)
-			if err != nil && err == ip.ErrLinkNotFound {
-				return nil
-			}
-			return err
-		})
-	}
-
 	if cache.Netconf.IPAM.Type != "" {
 		err = ipam.ExecDel(cache.Netconf.IPAM.Type, args.StdinData)
 		if err != nil {
 			return err
 		}
+	}
+
+	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
+		err = sriov.ReleaseVF(args, cache.OrigIfName)
+		if err != nil {
+			// try to reset vf into original state as much as possible in case of error
+			sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName)
+		}
+	} else {
+		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
+			err = ip.DelLinkByName(args.IfName)
+			if err != nil {
+				// clean up as many stale ovs resources as possible.
+				cleanPorts(ovsDriver)
+			}
+			return err
+		})
 	}
 
 	return err
