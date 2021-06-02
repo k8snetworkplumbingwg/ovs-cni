@@ -21,61 +21,37 @@ package plugin
 
 import (
 	"crypto/rand"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
-	"os"
 	"runtime"
 	"sort"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/imdario/mergo"
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
 
-const (
-	macSetupRetries        = 2
-	linkstateCheckRetries  = 5
-	linkStateCheckInterval = 600 // in milliseconds
-)
-
-type netConf struct {
-	types.NetConf
-	BrName                 string   `json:"bridge,omitempty"`
-	VlanTag                *uint    `json:"vlan"`
-	MTU                    int      `json:"mtu"`
-	Trunk                  []*trunk `json:"trunk,omitempty"`
-	DeviceID               string   `json:"deviceID"` // PCI address of a VF in valid sysfs format
-	ConfigurationPath      string   `json:"configuration_path"`
-	SocketFile             string   `json:"socket_file"`
-	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
-	LinkStateCheckInterval int      `json:"link_state_check_interval"`
-}
-
-type trunk struct {
-	MinID *uint `json:"minID,omitempty"`
-	MaxID *uint `json:"maxID,omitempty"`
-	ID    *uint `json:"id,omitempty"`
-}
+const macSetupRetries = 2
 
 // EnvArgs args containing common, desired mac and ovs port name
 type EnvArgs struct {
-	types.CommonArgs
-	MAC     types.UnmarshallableString `json:"mac,omitempty"`
-	OvnPort types.UnmarshallableString `json:"ovnPort,omitempty"`
+	cnitypes.CommonArgs
+	MAC     cnitypes.UnmarshallableString `json:"mac,omitempty"`
+	OvnPort cnitypes.UnmarshallableString `json:"ovnPort,omitempty"`
 }
 
 func init() {
@@ -93,7 +69,7 @@ func logCall(command string, args *skel.CmdArgs) {
 func getEnvArgs(envArgsString string) (*EnvArgs, error) {
 	if envArgsString != "" {
 		e := EnvArgs{}
-		err := types.LoadArgs(envArgsString, &e)
+		err := cnitypes.LoadArgs(envArgsString, &e)
 		if err != nil {
 			return nil, err
 		}
@@ -109,93 +85,6 @@ func getHardwareAddr(ifName string) string {
 	}
 	return ifLink.Attrs().HardwareAddr.String()
 
-}
-
-func loadAllNetConf(data []byte) (*netConf, error) {
-	netconf, err := loadNetConf(data)
-	if err != nil {
-		return nil, err
-	}
-	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
-	if err != nil {
-		return nil, err
-	}
-	netconf, err = mergeConf(netconf, flatNetConf)
-	if err != nil {
-		return nil, err
-	}
-	if netconf.LinkStateCheckRetries == 0 {
-		netconf.LinkStateCheckRetries = linkstateCheckRetries
-	}
-
-	if netconf.LinkStateCheckInterval == 0 {
-		netconf.LinkStateCheckInterval = linkStateCheckInterval
-	}
-	return netconf, nil
-}
-
-func loadNetConf(bytes []byte) (*netConf, error) {
-	netconf := &netConf{}
-	if err := json.Unmarshal(bytes, netconf); err != nil {
-		return nil, fmt.Errorf("failed to load netconf: %v", err)
-	}
-
-	return netconf, nil
-}
-
-func loadFlatNetConf(configPath string) (*netConf, error) {
-	confFiles := getOvsConfFiles()
-	if configPath != "" {
-		confFiles = append([]string{configPath}, confFiles...)
-	}
-
-	// loop through the path and parse the JSON config
-	flatNetConf := &netConf{}
-	for _, confFile := range confFiles {
-		confExists, err := pathExists(confFile)
-		if err != nil {
-			return nil, fmt.Errorf("error checking ovs config file: error: %v", err)
-		}
-		if confExists {
-			jsonFile, err := os.Open(confFile)
-			if err != nil {
-				return nil, fmt.Errorf("open ovs config file %s error: %v", confFile, err)
-			}
-			defer jsonFile.Close()
-			jsonBytes, err := ioutil.ReadAll(jsonFile)
-			if err != nil {
-				return nil, fmt.Errorf("load ovs config file %s: error: %v", confFile, err)
-			}
-			if err := json.Unmarshal(jsonBytes, flatNetConf); err != nil {
-				return nil, fmt.Errorf("parse ovs config file %s: error: %v", confFile, err)
-			}
-			break
-		}
-	}
-
-	return flatNetConf, nil
-}
-
-func mergeConf(netconf, flatNetConf *netConf) (*netConf, error) {
-	if err := mergo.Merge(netconf, flatNetConf); err != nil {
-		return nil, fmt.Errorf("merge with ovs config file: error: %v", err)
-	}
-	return netconf, nil
-}
-
-func pathExists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
-
-func getOvsConfFiles() []string {
-	return []string{"/etc/kubernetes/cni/net.d/ovs.d/ovs.conf", "/etc/cni/net.d/ovs.d/ovs.conf"}
 }
 
 func generateRandomMac() net.HardwareAddr {
@@ -306,7 +195,7 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
-func splitVlanIds(trunks []*trunk) ([]uint, error) {
+func splitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 	vlans := make(map[uint]bool)
 	for _, item := range trunks {
 		var minID uint = 0
@@ -367,7 +256,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	netconf, err := loadAllNetConf(args.StdinData)
+	netconf, err := config.LoadConf(args.StdinData)
 	if err != nil {
 		return err
 	}
@@ -404,15 +293,27 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 	defer contNetns.Close()
 
+	var origIfName string
+	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+		origIfName, err = sriov.GetVFLinkName(netconf.DeviceID)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Cache NetConf for CmdDel
+	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName),
+		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName}); err != nil {
+		return fmt.Errorf("error saving NetConf %q", err)
+	}
+
 	var hostIface, contIface *current.Interface
-	if netconf.DeviceID != "" {
-		// SR-IOV Case
+	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, netconf.MTU, netconf.DeviceID)
 		if err != nil {
 			return err
 		}
 	} else {
-		// General Case
 		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
 		if err != nil {
 			return err
@@ -501,7 +402,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	return types.PrintResult(result, netconf.CNIVersion)
+	return cnitypes.PrintResult(result, netconf.CNIVersion)
 }
 
 func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string, retryCount, interval int) error {
@@ -554,6 +455,25 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
+	cRef := config.GetCRef(args.ContainerID, args.IfName)
+	cache, err := config.LoadConfFromCache(cRef)
+	if err != nil {
+		// If cmdDel() fails, cached netconf is cleaned up by
+		// the followed defer call. However, subsequence calls
+		// of cmdDel() from kubelet fail in a dead loop due to
+		// cached netconf doesn't exist.
+		// Return nil when loadConfFromCache fails since the rest
+		// of cmdDel() code relies on netconf as input argument
+		// and there is no meaning to continue.
+		return nil
+	}
+
+	defer func() {
+		if err == nil {
+			utils.CleanCache(cRef)
+		}
+	}()
+
 	envArgs, err := getEnvArgs(args.Args)
 	if err != nil {
 		return err
@@ -564,36 +484,24 @@ func CmdDel(args *skel.CmdArgs) error {
 		ovnPort = string(envArgs.OvnPort)
 	}
 
-	netconf, err := loadAllNetConf(args.StdinData)
+	bridgeName, err := getBridgeName(cache.Netconf.BrName, ovnPort)
 	if err != nil {
 		return err
 	}
 
-	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, cache.Netconf.SocketFile)
 	if err != nil {
 		return err
-	}
-
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
-	if err != nil {
-		return err
-	}
-
-	if netconf.IPAM.Type != "" {
-		err = ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
-		if err != nil {
-			return err
-		}
 	}
 
 	if args.Netns == "" {
 		// The CNI_NETNS parameter may be empty according to version 0.4.0
 		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
-		if netconf.DeviceID != "" {
+		if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 			// SR-IOV Case - The sriov device is moved into host network namespace when args.Netns is empty.
 			// This happens container is killed due to an error (example: CrashLoopBackOff, OOMKilled)
 			var rep string
-			if rep, err = sriov.GetNetRepresentor(netconf.DeviceID); err != nil {
+			if rep, err = sriov.GetNetRepresentor(cache.Netconf.DeviceID); err != nil {
 				return err
 			}
 			if err = removeOvsPort(ovsDriver, rep); err != nil {
@@ -601,7 +509,7 @@ func CmdDel(args *skel.CmdArgs) error {
 				// port is already deleted in a previous invocation.
 				log.Printf("Error: %v\n", err)
 			}
-			if err = sriov.ResetVF(args, netconf.DeviceID); err != nil {
+			if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 				return err
 			}
 		} else {
@@ -629,20 +537,25 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}
 
-	// Delete can be called multiple times, so don't return an error if the
-	// device is already removed.
-	if netconf.DeviceID != "" {
-		//  SR-IOV Case
-		err = sriov.ReleaseVF(args)
-		if err != nil && err == ip.ErrLinkNotFound {
-			return nil
+	if cache.Netconf.IPAM.Type != "" {
+		err = ipam.ExecDel(cache.Netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	}
+
+	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
+		err = sriov.ReleaseVF(args, cache.OrigIfName)
+		if err != nil {
+			// try to reset vf into original state as much as possible in case of error
+			sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName)
 		}
 	} else {
-		// General Case
 		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
 			err = ip.DelLinkByName(args.IfName)
-			if err != nil && err == ip.ErrLinkNotFound {
-				return nil
+			if err != nil {
+				// clean up as many stale ovs resources as possible.
+				cleanPorts(ovsDriver)
 			}
 			return err
 		})

@@ -26,7 +26,7 @@ import (
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/types"
+	cnitypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -35,6 +35,8 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
 
 const bridgeName = "test-bridge"
@@ -70,7 +72,7 @@ var _ = Describe("CNI Plugin", func() {
 	})
 
 	testSplitVlanIds := func(conf string, expTrunks []uint, expErr error, setUnmarshalErr bool) {
-		var trunks []*trunk
+		var trunks []*types.Trunk
 		err := json.Unmarshal([]byte(conf), &trunks)
 		if setUnmarshalErr {
 			Expect(err).To(HaveOccurred())
@@ -556,7 +558,7 @@ func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Resu
 	return result
 }
 
-func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (types.Result, []byte, error) {
+func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (cnitypes.Result, []byte, error) {
 	return testutils.CmdAdd(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
 }
 
