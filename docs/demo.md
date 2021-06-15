@@ -213,6 +213,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: samplepod-3
+  annotations:
     k8s.v1.cni.cncf.io/networks: '[
         {
           "name": "ovs-ipam-net",
