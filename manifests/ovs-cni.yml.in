@@ -36,6 +36,7 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host${CNI_MOUNT_PATH}
+      priorityClassName: system-node-critical
       containers:
       - name: ovs-cni-marker
         image: ${OVS_CNI_MARKER_IMAGE_REPO}/${OVS_CNI_MARKER_IMAGE_NAME}:${OVS_CNI_MARKER_IMAGE_VERSION}
