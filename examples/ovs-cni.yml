@@ -36,6 +36,7 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin
+      priorityClassName: system-node-critical
       containers:
       - name: ovs-cni-marker
         image: quay.io/kubevirt/ovs-cni-marker:latest
