@@ -1,5 +1,6 @@
 REGISTRY ?= quay.io/kubevirt
 IMAGE_TAG ?= latest
+IMAGE_GIT_TAG ?= $(shell git describe --abbrev=8 --tags)
 
 COMPONENTS = $(sort \
 			 $(subst /,-,\
@@ -71,6 +72,8 @@ docker-push: $(patsubst %, docker-push-%, $(COMPONENTS))
 
 docker-push-%:
 	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
+	docker tag ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
+	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
 
 dep: $(GO)
 	$(GO) mod tidy
