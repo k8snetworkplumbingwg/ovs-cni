@@ -139,6 +139,12 @@ var _ = Describe("CNI Plugin", func() {
 			return nil
 		})
 		Expect(err).NotTo(HaveOccurred())
+
+		By("Calling DEL command to cleanup assigned ip address")
+		err = cmdDelWithArgs(args, func() error {
+			return CmdDel(args)
+		})
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	testAddDel := func(conf string, setVlan, setMtu bool, Trunk string) {
