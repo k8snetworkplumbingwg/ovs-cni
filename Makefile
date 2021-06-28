@@ -11,7 +11,7 @@ COMPONENTS = $(sort \
 BIN_DIR = $(CURDIR)/build/_output/bin/
 export GOROOT=$(BIN_DIR)/go/
 export GOBIN = $(GOROOT)/bin/
-export PATH := $(GOBIN):$(PATH)
+export PATH := $(GOBIN):$(PATH):$(BIN_DIR)
 GOPATH = $(CURDIR)/.gopath
 ORG_PATH = github.com/k8snetworkplumbingwg
 PACKAGE = ovs-cni
@@ -51,13 +51,23 @@ format: $(GO)
 	$(GO) fmt ./pkg/... ./cmd/...
 	$(GO) vet ./pkg/... ./cmd/...
 
-test: $(GO)
+build-host-local-plugin:
+	if [ ! -f $(BIN_DIR)/host-local -a `uname` = 'Linux' ]; then\
+		cd $(BIN_DIR) && \
+		git clone https://github.com/containernetworking/plugins && \
+		cd plugins && git checkout v0.9.1 && cd .. && \
+		./plugins/build_linux.sh && \
+		cp ./plugins/bin/host-local . && \
+		rm -rf plugins; \
+	fi
+
+test: $(GO) build-host-local-plugin
 	$(GO) test ./cmd/... ./pkg/... -v --ginkgo.v
 
 docker-test:
 	hack/test-dockerized.sh
 
-test-%: $(GO)
+test-%: $(GO) build-host-local-plugin
 	$(GO) test ./$(subst -,/,$*)/... -v --ginkgo.v
 
 functest: $(GO)
