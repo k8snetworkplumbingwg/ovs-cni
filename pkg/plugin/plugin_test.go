@@ -325,7 +325,8 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s",
 				"ipam": {
 					"type": "host-local",
-					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ]]
+					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ]],
+					"dataDir": "/tmp/ovs-cni/conf"
 				}
 			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
