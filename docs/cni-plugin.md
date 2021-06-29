@@ -137,7 +137,6 @@ ip netns del ns1
 This plugin also have Go test coverage. To run tests, Open vSwitch must be
 installed and its service running. Since those tests configure host networking,
 they must be executed by root.
-This also needs `host-local` ipam plugin to be present in one of the `PATH` directory.
 
 ```shell
 sudo --preserve-env make test-pkg-plugin
