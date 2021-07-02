@@ -189,8 +189,8 @@ github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1Cpa
 github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7JYyY=
 github.com/onsi/gomega v1.10.3 h1:gph6h/qe9GSUw1NhH1gp+qb+h8rXD8Cy60Z32Qw3ELA=
 github.com/onsi/gomega v1.10.3/go.mod h1:V9xEwhxec5O8UDM77eCW8vLymOMltsqPVYWrpDsH8xc=
-github.com/ovn-org/libovsdb v0.3.0 h1:h5tTCTDhyU4h06DMYh1TxcAzoisU8czPivpcPW487VA=
-github.com/ovn-org/libovsdb v0.3.0/go.mod h1:0KSIzXkMMjelmJYBJ7VTYI0ROWOOp67sXpeKUxC6nAU=
+github.com/ovn-org/libovsdb v0.3.1 h1:ZgztVy/RldfUSOUDojzZ2bWE72naH6tVQv2MG8VLGnM=
+github.com/ovn-org/libovsdb v0.3.1/go.mod h1:0KSIzXkMMjelmJYBJ7VTYI0ROWOOp67sXpeKUxC6nAU=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
