@@ -90,7 +90,7 @@ var _ = Describe("CNI Plugin", func() {
 		}
 	}
 
-	testIPAM := func(conf, ipPrefix string) {
+	testIPAM := func(conf string, isDual bool, ipPrefix, ip6Prefix string) {
 		const IFNAME = "eth0"
 
 		By("Creating temporary target namespace to simulate a container")
@@ -117,8 +117,11 @@ var _ = Describe("CNI Plugin", func() {
 		result, err = current.GetResult(r)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(result.Interfaces)).To(Equal(2))
-
-		Expect(len(result.IPs)).To(Equal(1))
+		if isDual {
+			Expect(len(result.IPs)).To(Equal(2))
+		} else {
+			Expect(len(result.IPs)).To(Equal(1))
+		}
 
 		By("Checking that IP config in result of ADD command is referencing the container interface index")
 		Expect(result.IPs[0].Interface).To(Equal(current.Int(1)))
@@ -138,6 +141,15 @@ var _ = Describe("CNI Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(addrs)).To(Equal(1))
 			Expect(addrs[0].String()).To(HavePrefix(ipPrefix))
+
+			if isDual {
+				addrs, err := netlink.AddrList(link, syscall.AF_INET6)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(len(addrs)).To(Equal(2))
+				Expect(addrs[0].String()).To(HavePrefix(ip6Prefix))
+				Expect(addrs[1].String()).To(HavePrefix("fe80"))
+			}
+
 			return nil
 		})
 		Expect(err).NotTo(HaveOccurred())
@@ -330,7 +342,23 @@ var _ = Describe("CNI Plugin", func() {
 				}
 			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
-				testIPAM(conf, "10.1.2")
+				testIPAM(conf, false, "10.1.2", "")
+			})
+		})
+		Context("with dual stack ip addresses set for container interface", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "0.3.1",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"ipam": {
+					"type": "host-local",
+					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ], [{"subnet": "3ffe:ffff:0:1ff::/64", "rangeStart": "3ffe:ffff:0:1ff::10", "rangeEnd": "3ffe:ffff:0:1ff::20"}]],
+					"dataDir": "/tmp/ovs-cni/conf"
+				}
+			}`, bridgeName)
+			It("should successfully complete ADD and DEL commands", func() {
+				testIPAM(conf, true, "10.1.2", "3ffe:ffff:0:1ff")
 			})
 		})
 		Context("with MTU set on port", func() {
