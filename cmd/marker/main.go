@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -38,20 +39,37 @@ func main() {
 		glog.Fatal("ovs-socket must be set")
 	}
 
-	for {
-		_, err := os.Stat(*ovsSocket)
-		if err == nil {
-			glog.Info("Found the OVS socket")
-			break
-		} else if os.IsNotExist(err) {
-			glog.Infof("Given ovs-socket %q was not found, waiting for the socket to appear", *ovsSocket)
-			time.Sleep(time.Minute)
-		} else {
-			glog.Fatalf("Failed opening the OVS socket with: %v", err)
+	var socketType, path string
+	ovsSocketTokens := strings.Split(*ovsSocket, ":")
+	if len(ovsSocketTokens) < 2 {
+		/*
+		 * ovsSocket should consist of comma separated socket type and socket
+		 * detail. If no socket type is specified, it is assumed to be a unix
+		 * domain socket, for backwards compatibility.
+		 */
+		socketType = "unix"
+		path = *ovsSocket
+	} else {
+		socketType = ovsSocketTokens[0]
+		path = ovsSocketTokens[1]
+	}
+
+	if socketType == "unix" {
+		for {
+			_, err := os.Stat(path)
+			if err == nil {
+				glog.Info("Found the OVS socket")
+				break
+			} else if os.IsNotExist(err) {
+				glog.Infof("Given ovs-socket %q was not found, waiting for the socket to appear", path)
+				time.Sleep(time.Minute)
+			} else {
+				glog.Fatalf("Failed opening the OVS socket with: %v", err)
+			}
 		}
 	}
 
-	markerApp, err := marker.NewMarker(*nodeName, *ovsSocket)
+	markerApp, err := marker.NewMarker(*nodeName, socketType+":"+path)
 	if err != nil {
 		glog.Fatalf("Failed to create a new marker object: %v", err)
 	}
