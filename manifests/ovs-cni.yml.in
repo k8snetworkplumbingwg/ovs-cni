@@ -47,7 +47,7 @@ spec:
           - -node-name
           - $(NODE_NAME)
           - -ovs-socket
-          - /host/var/run/openvswitch/db.sock
+          - unix:/host/var/run/openvswitch/db.sock
         volumeMounts:
           - name: ovs-var-run
             mountPath: /host/var/run/openvswitch

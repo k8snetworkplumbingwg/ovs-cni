@@ -3,7 +3,7 @@ github.com/Mellanox/sriovnet
 github.com/Mellanox/sriovnet/pkg/utils/filesystem
 # github.com/cenkalti/hub v1.0.1
 github.com/cenkalti/hub
-# github.com/cenkalti/rpc2 v0.0.0-20180727162946-9642ea02d0aa
+# github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1
 github.com/cenkalti/rpc2
 github.com/cenkalti/rpc2/jsonrpc
 # github.com/containernetworking/cni v0.8.1 => github.com/containernetworking/cni v0.8.1
@@ -105,17 +105,22 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
+# github.com/ovn-org/libovsdb v0.3.1
+github.com/ovn-org/libovsdb/client
+github.com/ovn-org/libovsdb/ovsdb
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
+# github.com/pmezard/go-difflib v1.0.0
+github.com/pmezard/go-difflib/difflib
 # github.com/safchain/ethtool v0.0.0-20190326074333-42ed695e3de8
 github.com/safchain/ethtool
-# github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
-github.com/socketplane/libovsdb
 # github.com/spf13/afero v1.4.1
 github.com/spf13/afero
 github.com/spf13/afero/mem
 # github.com/spf13/pflag v1.0.5
 github.com/spf13/pflag
+# github.com/stretchr/testify v1.5.1
+github.com/stretchr/testify/assert
 # github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl
@@ -123,7 +128,7 @@ github.com/vishvananda/netlink/nl
 github.com/vishvananda/netns
 # golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 golang.org/x/crypto/ssh/terminal
-# golang.org/x/net v0.0.0-20201006153459-a7d1128ccaa0
+# golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 golang.org/x/net/context
 golang.org/x/net/context/ctxhttp
 golang.org/x/net/html
@@ -136,7 +141,7 @@ golang.org/x/net/idna
 # golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6
 golang.org/x/oauth2
 golang.org/x/oauth2/internal
-# golang.org/x/sys v0.0.0-20201117170446-d9b008d0a637
+# golang.org/x/sys v0.0.0-20210510120138-977fb7262007
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
@@ -163,7 +168,7 @@ golang.org/x/text/unicode/bidi
 golang.org/x/text/unicode/norm
 # golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 golang.org/x/time/rate
-# golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543
+# golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
 golang.org/x/xerrors
 golang.org/x/xerrors/internal
 # google.golang.org/appengine v1.6.5

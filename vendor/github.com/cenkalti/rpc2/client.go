@@ -51,9 +51,9 @@ func NewClientWithCodec(codec Codec) *Client {
 
 // SetBlocking puts the client in blocking mode.
 // In blocking mode, received requests are processes synchronously.
-// If you have methods that may take a long time, other subsequent reqeusts may time out.
+// If you have methods that may take a long time, other subsequent requests may time out.
 func (c *Client) SetBlocking(blocking bool) {
-	c.blocking = true
+	c.blocking = blocking
 }
 
 // Run the client's read loop.
@@ -122,6 +122,9 @@ func (c *Client) readLoop() {
 		debugln("rpc2: client protocol error:", err)
 	}
 	close(c.disconnect)
+	if !closing {
+		c.codec.Close()
+	}
 }
 
 func (c *Client) handleRequest(req Request, method *handler, argv reflect.Value) {
@@ -145,7 +148,9 @@ func (c *Client) handleRequest(req Request, method *handler, argv reflect.Value)
 		Seq:   req.Seq,
 		Error: errmsg,
 	}
-	c.codec.WriteResponse(resp, replyv.Interface())
+	if err := c.codec.WriteResponse(resp, replyv.Interface()); err != nil {
+		debugln("rpc2: error writing response:", err.Error())
+	}
 }
 
 func (c *Client) readRequest(req *Request) error {
@@ -221,7 +226,7 @@ func (c *Client) readResponse(resp *Response) error {
 		call.done()
 	}
 
-	return nil
+	return err
 }
 
 // Close waits for active calls to finish and closes the codec.
