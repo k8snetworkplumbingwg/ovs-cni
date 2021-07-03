@@ -304,6 +304,9 @@ func (a api) Mutate(model model.Model, mutationObjs ...model.Mutation) ([]ovsdb.
 	}
 
 	tableName := a.cache.DBModel().FindTable(reflect.ValueOf(model).Type())
+	if tableName == "" {
+		return nil, fmt.Errorf("table not found for object")
+	}
 	table := a.cache.Mapper().Schema.Table(tableName)
 	if table == nil {
 		return nil, fmt.Errorf("schema error: table not found in Database Model for type %s", reflect.TypeOf(model))

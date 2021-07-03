@@ -394,3 +394,29 @@ func (m Mapper) equalIndexes(table *ovsdb.TableSchema, one, other interface{}, i
 	}
 	return false, nil
 }
+
+// NewMonitorRequest returns a monitor request for the provided tableName
+// If fields is provided, the request will be constrained to the provided columns
+// If no fields are provided, all columns will be used
+func (m *Mapper) NewMonitorRequest(tableName string, data interface{}, fields []interface{}) (*ovsdb.MonitorRequest, error) {
+	var columns []string
+	schema := m.Schema.Tables[tableName]
+	info, err := NewInfo(&schema, data)
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) > 0 {
+		for _, f := range fields {
+			column, err := info.ColumnByPtr(f)
+			if err != nil {
+				return nil, err
+			}
+			columns = append(columns, column)
+		}
+	} else {
+		for c := range info.table.Columns {
+			columns = append(columns, c)
+		}
+	}
+	return &ovsdb.MonitorRequest{Columns: columns, Select: ovsdb.NewDefaultMonitorSelect()}, nil
+}

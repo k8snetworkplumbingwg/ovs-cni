@@ -165,6 +165,20 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 	}
 }
 
+// NativeToOvsAtomic returns the OVS type of the atomic native value
+func NativeToOvsAtomic(basicType string, nativeElem interface{}) (interface{}, error) {
+	naType := NativeTypeFromAtomic(basicType)
+	if reflect.TypeOf(nativeElem) != naType {
+		return nil, NewErrWrongType("NativeToOvsAtomic", naType.String(), nativeElem)
+	}
+	switch basicType {
+	case TypeUUID:
+		return UUID{GoUUID: nativeElem.(string)}, nil
+	default:
+		return nativeElem, nil
+	}
+}
+
 // NativeToOvs transforms an native type to a ovs type based on the column type information
 func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error) {
 	naType := NativeType(column)
@@ -179,14 +193,14 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 	case TypeUUID:
 		return UUID{GoUUID: rawElem.(string)}, nil
 	case TypeSet:
-		var ovsSet *OvsSet
+		var ovsSet OvsSet
 		if column.TypeObj.Key.Type == TypeUUID {
 			var ovsSlice []interface{}
 			for _, v := range rawElem.([]string) {
 				uuid := UUID{GoUUID: v}
 				ovsSlice = append(ovsSlice, uuid)
 			}
-			ovsSet = &OvsSet{GoSet: ovsSlice}
+			ovsSet = OvsSet{GoSet: ovsSlice}
 
 		} else {
 			var err error
@@ -197,11 +211,21 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 		}
 		return ovsSet, nil
 	case TypeMap:
-		ovsMap, err := NewOvsMap(rawElem)
-		if err != nil {
-			return nil, err
+		nativeMapVal := reflect.ValueOf(rawElem)
+		ovsMap := make(map[interface{}]interface{}, nativeMapVal.Len())
+		for _, key := range nativeMapVal.MapKeys() {
+			ovsKey, err := NativeToOvsAtomic(column.TypeObj.Key.Type, key.Interface())
+			if err != nil {
+				return nil, err
+			}
+			ovsVal, err := NativeToOvsAtomic(column.TypeObj.Value.Type, nativeMapVal.MapIndex(key).Interface())
+			if err != nil {
+				return nil, err
+			}
+			ovsMap[ovsKey] = ovsVal
 		}
-		return ovsMap, nil
+		return OvsMap{GoMap: ovsMap}, nil
+
 	default:
 		panic(fmt.Sprintf("Unknown Type: %v", column.Type))
 	}

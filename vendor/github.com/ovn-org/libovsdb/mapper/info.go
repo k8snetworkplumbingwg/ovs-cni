@@ -47,11 +47,11 @@ func (i *Info) SetField(column string, value interface{}) error {
 	return nil
 }
 
-// ColumnByPtr returns the column name that corresponds to the field by the field's pminter
+// ColumnByPtr returns the column name that corresponds to the field by the field's pointer
 func (i *Info) ColumnByPtr(fieldPtr interface{}) (string, error) {
 	fieldPtrVal := reflect.ValueOf(fieldPtr)
 	if fieldPtrVal.Kind() != reflect.Ptr {
-		return "", ovsdb.NewErrWrongType("ColumnByPminter", "pminter to a field in the struct", fieldPtr)
+		return "", ovsdb.NewErrWrongType("ColumnByPointer", "pointer to a field in the struct", fieldPtr)
 	}
 	offset := fieldPtrVal.Pointer() - reflect.ValueOf(i.obj).Pointer()
 	objType := reflect.TypeOf(i.obj).Elem()
@@ -64,7 +64,7 @@ func (i *Info) ColumnByPtr(fieldPtr interface{}) (string, error) {
 			return column, nil
 		}
 	}
-	return "", fmt.Errorf("field pminter does not correspond to orm struct")
+	return "", fmt.Errorf("field pointer does not correspond to orm struct")
 }
 
 // getValidIndexes inspects the object and returns the a list of indexes (set of columns) for witch
@@ -104,11 +104,11 @@ OUTER:
 func NewInfo(table *ovsdb.TableSchema, obj interface{}) (*Info, error) {
 	objPtrVal := reflect.ValueOf(obj)
 	if objPtrVal.Type().Kind() != reflect.Ptr {
-		return nil, ovsdb.NewErrWrongType("NewMapperInfo", "pminter to a struct", obj)
+		return nil, ovsdb.NewErrWrongType("NewMapperInfo", "pointer to a struct", obj)
 	}
 	objVal := reflect.Indirect(objPtrVal)
 	if objVal.Kind() != reflect.Struct {
-		return nil, ovsdb.NewErrWrongType("NewMapperInfo", "pminter to a struct", obj)
+		return nil, ovsdb.NewErrWrongType("NewMapperInfo", "pointer to a struct", obj)
 	}
 	objType := objVal.Type()
 

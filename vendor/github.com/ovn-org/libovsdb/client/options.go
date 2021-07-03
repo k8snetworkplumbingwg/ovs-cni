@@ -42,7 +42,9 @@ func WithTLSConfig(cfg *tls.Config) Option {
 
 // WithEndpoint sets the endpoint to be used by the client
 // It can be used multiple times, and the first endpoint that
-// successfully connects will be used:
+// successfully connects will be used.
+// Endpoints are specified in OVSDB Connection Format
+// For more details, see the ovsdb(7) man page
 func WithEndpoint(endpoint string) Option {
 	return func(o *options) error {
 		ep, err := url.Parse(endpoint)

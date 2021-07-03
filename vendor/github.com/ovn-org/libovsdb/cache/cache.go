@@ -28,7 +28,7 @@ const (
 type IndexExistsError struct {
 	table    string
 	value    interface{}
-	column   string
+	index    index
 	new      string
 	existing string
 }
@@ -37,15 +37,15 @@ func (i *IndexExistsError) Error() string {
 	return fmt.Sprintf("operation would cause rows in the \"%s\" table to have identical values (%v) for index on column \"%s\". First row, with UUID %s, was inserted by this transaction. Second row, with UUID %s, existed in the database before this operation and was not modified",
 		i.table,
 		i.value,
-		i.column,
+		i.index,
 		i.new,
 		i.existing,
 	)
 }
 
-func NewIndexExistsError(table string, value interface{}, column, new, existing string) *IndexExistsError {
+func NewIndexExistsError(table string, value interface{}, index index, new, existing string) *IndexExistsError {
 	return &IndexExistsError{
-		table, value, column, new, existing,
+		table, value, index, new, existing,
 	}
 }
 
@@ -53,7 +53,20 @@ func NewIndexExistsError(table string, value interface{}, column, new, existing 
 type valueToUUID map[interface{}]string
 
 // map of column name(s) to a unique values, to UUIDs
-type columnToValue map[string]valueToUUID
+type columnToValue map[index]valueToUUID
+
+// index is the type used to implement multiple cache indexes
+type index string
+
+// columns returns the columns that conform the index
+func (i index) columns() []string {
+	return strings.Split(string(i), columnDelimiter)
+}
+
+// newIndex builds a index from a list of columns
+func newIndex(columns ...string) index {
+	return index(strings.Join(columns, columnDelimiter))
+}
 
 // RowCache is a collections of Models hashed by UUID
 type RowCache struct {
@@ -99,27 +112,18 @@ func (r *RowCache) create(uuid string, m model.Model) error {
 	}
 	newIndexes := newColumnToValue(r.schema.Indexes)
 	var errs []error
-	for columnStr := range r.indexes {
-		columns := strings.Split(columnStr, columnDelimiter)
-		var val interface{}
-		var err error
-		if len(columns) > 1 {
-			val, err = hashColumnValues(info, columns)
-			if err != nil {
-				return err
-			}
-		} else {
-			column := columns[0]
-			val, err = info.FieldByColumn(column)
-			if err != nil {
-				return err
-			}
+	for index := range r.indexes {
+
+		val, err := valueFromIndex(info, index)
+
+		if err != nil {
+			return err
 		}
-		if existing, ok := r.indexes[columnStr][val]; ok {
+		if existing, ok := r.indexes[index][val]; ok {
 			errs = append(errs,
-				NewIndexExistsError(r.name, val, columnStr, uuid, existing))
+				NewIndexExistsError(r.name, val, index, uuid, existing))
 		}
-		newIndexes[columnStr][val] = uuid
+		newIndexes[index][val] = uuid
 	}
 	if len(errs) != 0 {
 		return fmt.Errorf("%v", errs)
@@ -157,31 +161,17 @@ func (r *RowCache) update(uuid string, m model.Model) error {
 	newIndexes := newColumnToValue(r.schema.Indexes)
 	oldIndexes := newColumnToValue(r.schema.Indexes)
 	var errs []error
-	for columnStr := range r.indexes {
-		columns := strings.Split(columnStr, columnDelimiter)
-		var oldVal interface{}
-		var newVal interface{}
+	for index := range r.indexes {
 		var err error
-		if len(columns) > 1 {
-			oldVal, err = hashColumnValues(oldInfo, columns)
-			if err != nil {
-				return err
-			}
-			newVal, err = hashColumnValues(newInfo, columns)
-			if err != nil {
-				return err
-			}
-		} else {
-			column := columns[0]
-			oldVal, err = oldInfo.FieldByColumn(column)
-			if err != nil {
-				return err
-			}
-			newVal, err = newInfo.FieldByColumn(column)
-			if err != nil {
-				return err
-			}
+		oldVal, err := valueFromIndex(oldInfo, index)
+		if err != nil {
+			return err
 		}
+		newVal, err := valueFromIndex(newInfo, index)
+		if err != nil {
+			return err
+		}
+
 		// if old and new values are the same, don't worry
 		if oldVal == newVal {
 			continue
@@ -189,17 +179,17 @@ func (r *RowCache) update(uuid string, m model.Model) error {
 		// old and new values are NOT the same
 
 		// check that there are no conflicts
-		if conflict, ok := r.indexes[columnStr][newVal]; ok && conflict != uuid {
+		if conflict, ok := r.indexes[index][newVal]; ok && conflict != uuid {
 			errs = append(errs, NewIndexExistsError(
 				r.name,
 				newVal,
-				columnStr,
+				index,
 				uuid,
 				conflict,
 			))
 		}
-		newIndexes[columnStr][newVal] = uuid
-		oldIndexes[columnStr][oldVal] = ""
+		newIndexes[index][newVal] = uuid
+		oldIndexes[index][oldVal] = ""
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("%+v", errs)
@@ -236,12 +226,12 @@ func (r *RowCache) delete(uuid string) error {
 	if err != nil {
 		return err
 	}
-	for column := range r.indexes {
-		oldVal, err := oldInfo.FieldByColumn(column)
+	for index := range r.indexes {
+		oldVal, err := valueFromIndex(oldInfo, index)
 		if err != nil {
 			return err
 		}
-		delete(r.indexes[column], oldVal)
+		delete(r.indexes[index], oldVal)
 	}
 	delete(r.cache, uuid)
 	return nil
@@ -265,12 +255,12 @@ func (r *RowCache) Len() int {
 	return len(r.cache)
 }
 
-func (r *RowCache) Index(column string) (map[interface{}]string, error) {
+func (r *RowCache) Index(columns ...string) (map[interface{}]string, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
-	index, ok := r.indexes[column]
+	index, ok := r.indexes[newIndex(columns...)]
 	if !ok {
-		return nil, fmt.Errorf("%s is not an index", column)
+		return nil, fmt.Errorf("%s is not an index", index)
 	}
 	return index, nil
 }
@@ -313,11 +303,14 @@ func (e *EventHandlerFuncs) OnDelete(table string, row model.Model) {
 
 // TableCache contains a collection of RowCaches, hashed by name,
 // and an array of EventHandlers that respond to cache updates
+// It implements the ovsdb.NotifcationHandler interface so it may
+// handle update notifications
 type TableCache struct {
 	cache          map[string]*RowCache
 	eventProcessor *eventProcessor
 	mapper         *mapper.Mapper
 	dbModel        *model.DBModel
+	ovsdb.NotificationHandler
 }
 
 // Data is the type for data that can be prepoulated in the cache
@@ -439,11 +432,7 @@ func (t *TableCache) Populate(tableUpdates ovsdb.TableUpdates) {
 						if err := tCache.update(uuid, newModel); err != nil {
 							panic(err)
 						}
-						oldModel, err := t.CreateModel(table, row.Old, uuid)
-						if err != nil {
-							panic(err)
-						}
-						t.eventProcessor.AddEvent(updateEvent, table, oldModel, newModel)
+						t.eventProcessor.AddEvent(updateEvent, table, existing, newModel)
 					}
 					// no diff
 					continue
@@ -497,9 +486,9 @@ func newColumnToValue(schemaIndexes [][]string) columnToValue {
 	// columns whose values, taken together within any given row, must be
 	// unique within the table". We'll store the column names, separated by comma
 	// as we'll assuume (RFC is not clear), that comma isn't valid in a <id>
-	var indexes []string
+	var indexes []index
 	for i := range schemaIndexes {
-		indexes = append(indexes, strings.Join(schemaIndexes[i], columnDelimiter))
+		indexes = append(indexes, newIndex(schemaIndexes[i]...))
 	}
 	c := make(columnToValue)
 	for _, index := range indexes {
@@ -617,20 +606,28 @@ func (t *TableCache) CreateModel(tableName string, row *ovsdb.Row, uuid string) 
 	return model, nil
 }
 
-func hashColumnValues(info *mapper.Info, columns []string) (string, error) {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	for _, column := range columns {
-		val, err := info.FieldByColumn(column)
-		if err != nil {
-			return "", err
+func valueFromIndex(info *mapper.Info, index index) (interface{}, error) {
+	columns := index.columns()
+	if len(columns) > 1 {
+		var buf bytes.Buffer
+		enc := gob.NewEncoder(&buf)
+		for _, column := range columns {
+			val, err := info.FieldByColumn(column)
+			if err != nil {
+				return "", err
+			}
+			err = enc.Encode(val)
+			if err != nil {
+				return "", err
+			}
 		}
-		err = enc.Encode(val)
-		if err != nil {
-			return "", err
-		}
+		h := sha256.New()
+		val := hex.EncodeToString(h.Sum(buf.Bytes()))
+		return val, nil
 	}
-	h := sha256.New()
-	val := hex.EncodeToString(h.Sum(buf.Bytes()))
-	return val, nil
+	val, err := info.FieldByColumn(columns[0])
+	if err != nil {
+		return nil, err
+	}
+	return val, err
 }

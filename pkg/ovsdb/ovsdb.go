@@ -45,7 +45,7 @@ type OpenvSwitch struct {
 // OvsDriver OVS driver state
 type OvsDriver struct {
 	// OVS client
-	ovsClient *client.OvsdbClient
+	ovsClient client.Client
 }
 
 // OvsBridgeDriver OVS bridge driver state
@@ -57,14 +57,18 @@ type OvsBridgeDriver struct {
 }
 
 // connectToOvsDb connect to ovsdb
-func connectToOvsDb(ovsSocket string) (*client.OvsdbClient, error) {
+func connectToOvsDb(ovsSocket string) (client.Client, error) {
 	dbmodel, err := model.NewDBModel("Open_vSwitch",
 		map[string]model.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create DB model error: %v", err)
 	}
 
-	ovsDB, err := client.Connect(context.Background(), dbmodel, client.WithEndpoint(ovsSocket))
+	ovsDB, err := client.NewOVSDBClient(dbmodel, client.WithEndpoint(ovsSocket))
+	if err != nil {
+		return nil, fmt.Errorf("unable to create DB client error: %v", err)
+	}
+	err = ovsDB.Connect(context.Background())
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ovsdb error: %v", err)
 	}
@@ -373,7 +377,7 @@ func (ovsd *OvsDriver) Update(context interface{}, tableUpdates ovsdb.TableUpdat
 }
 
 // Disconnected yet to be implemented
-func (ovsd *OvsDriver) Disconnected(ovsClient *client.OvsdbClient) {
+func (ovsd *OvsDriver) Disconnected(ovsClient client.Client) {
 }
 
 // Locked yet to be implemented

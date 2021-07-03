@@ -361,11 +361,11 @@ func (b BaseType) MarshalJSON() ([]byte, error) {
 		RefType:    b.refType,
 	}
 	if len(b.Enum) > 0 {
-		var err error
-		j.Enum, err = NewOvsSet(b.Enum)
+		set, err := NewOvsSet(b.Enum)
 		if err != nil {
 			return nil, err
 		}
+		j.Enum = &set
 	}
 	return json.Marshal(j)
 }
