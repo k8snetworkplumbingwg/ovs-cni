@@ -50,4 +50,4 @@ replace (
 
 replace github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 
-go 1.13
+go 1.16
