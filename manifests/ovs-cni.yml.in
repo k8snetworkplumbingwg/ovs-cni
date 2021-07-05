@@ -33,6 +33,10 @@ spec:
         imagePullPolicy: ${OVS_CNI_PLUGIN_IMAGE_PULL_POLICY}
         securityContext:
           privileged: true
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "15Mi"
         volumeMounts:
         - name: cnibin
           mountPath: /host${CNI_MOUNT_PATH}
@@ -51,6 +55,10 @@ spec:
         volumeMounts:
           - name: ovs-var-run
             mountPath: /host/var/run/openvswitch
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "10Mi"
         env:
           - name: NODE_NAME
             valueFrom:
