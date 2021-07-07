@@ -494,6 +494,13 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	if cache.Netconf.IPAM.Type != "" {
+		err = ipam.ExecDel(cache.Netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	}
+
 	if args.Netns == "" {
 		// The CNI_NETNS parameter may be empty according to version 0.4.0
 		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
@@ -533,13 +540,6 @@ func CmdDel(args *skel.CmdArgs) error {
 	// already removed by someone.
 	if portFound {
 		if err := removeOvsPort(ovsDriver, portName); err != nil {
-			return err
-		}
-	}
-
-	if cache.Netconf.IPAM.Type != "" {
-		err = ipam.ExecDel(cache.Netconf.IPAM.Type, args.StdinData)
-		if err != nil {
 			return err
 		}
 	}
