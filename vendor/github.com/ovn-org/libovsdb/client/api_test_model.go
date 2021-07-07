@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 	"github.com/stretchr/testify/assert"
 )
@@ -109,16 +111,16 @@ var apiTestSchema = []byte(`{
     }`)
 
 type testLogicalSwitch struct {
-	UUID             string            `ovs:"_uuid"`
-	Ports            []string          `ovs:"ports"`
-	ExternalIds      map[string]string `ovs:"external_ids"`
-	Name             string            `ovs:"name"`
-	QosRules         []string          `ovs:"qos_rules"`
-	LoadBalancer     []string          `ovs:"load_balancer"`
-	DnsRecords       []string          `ovs:"dns_records"`
-	OtherConfig      map[string]string `ovs:"other_config"`
-	ForwardingGroups []string          `ovs:"forwarding_groups"`
-	Acls             []string          `ovs:"acls"`
+	UUID             string            `ovsdb:"_uuid"`
+	Ports            []string          `ovsdb:"ports"`
+	ExternalIds      map[string]string `ovsdb:"external_ids"`
+	Name             string            `ovsdb:"name"`
+	QosRules         []string          `ovsdb:"qos_rules"`
+	LoadBalancer     []string          `ovsdb:"load_balancer"`
+	DNSRecords       []string          `ovsdb:"dns_records"`
+	OtherConfig      map[string]string `ovsdb:"other_config"`
+	ForwardingGroups []string          `ovsdb:"forwarding_groups"`
+	Acls             []string          `ovsdb:"acls"`
 }
 
 // Table returns the table name. It's part of the Model interface
@@ -128,22 +130,22 @@ func (*testLogicalSwitch) Table() string {
 
 //LogicalSwitchPort struct defines an object in Logical_Switch_Port table
 type testLogicalSwitchPort struct {
-	UUID             string            `ovs:"_uuid"`
-	Up               []bool            `ovs:"up"`
-	Dhcpv4Options    []string          `ovs:"dhcpv4_options"`
-	Name             string            `ovs:"name"`
-	DynamicAddresses []string          `ovs:"dynamic_addresses"`
-	HaChassisGroup   []string          `ovs:"ha_chassis_group"`
-	Options          map[string]string `ovs:"options"`
-	Enabled          []bool            `ovs:"enabled"`
-	Addresses        []string          `ovs:"addresses"`
-	Dhcpv6Options    []string          `ovs:"dhcpv6_options"`
-	TagRequest       []int             `ovs:"tag_request"`
-	Tag              []int             `ovs:"tag"`
-	PortSecurity     []string          `ovs:"port_security"`
-	ExternalIds      map[string]string `ovs:"external_ids"`
-	Type             string            `ovs:"type"`
-	ParentName       []string          `ovs:"parent_name"`
+	UUID             string            `ovsdb:"_uuid"`
+	Up               []bool            `ovsdb:"up"`
+	Dhcpv4Options    []string          `ovsdb:"dhcpv4_options"`
+	Name             string            `ovsdb:"name"`
+	DynamicAddresses []string          `ovsdb:"dynamic_addresses"`
+	HaChassisGroup   []string          `ovsdb:"ha_chassis_group"`
+	Options          map[string]string `ovsdb:"options"`
+	Enabled          []bool            `ovsdb:"enabled"`
+	Addresses        []string          `ovsdb:"addresses"`
+	Dhcpv6Options    []string          `ovsdb:"dhcpv6_options"`
+	TagRequest       []int             `ovsdb:"tag_request"`
+	Tag              []int             `ovsdb:"tag"`
+	PortSecurity     []string          `ovsdb:"port_security"`
+	ExternalIds      map[string]string `ovsdb:"external_ids"`
+	Type             string            `ovsdb:"type"`
+	ParentName       []string          `ovsdb:"parent_name"`
 }
 
 // Table returns the table name. It's part of the Model interface
@@ -151,13 +153,13 @@ func (*testLogicalSwitchPort) Table() string {
 	return "Logical_Switch_Port"
 }
 
-func apiTestCache(t *testing.T) *TableCache {
+func apiTestCache(t *testing.T, data map[string]map[string]model.Model) *cache.TableCache {
 	var schema ovsdb.DatabaseSchema
 	err := json.Unmarshal(apiTestSchema, &schema)
 	assert.Nil(t, err)
-	db, err := NewDBModel("OVN_NorthBound", map[string]Model{"Logical_Switch": &testLogicalSwitch{}, "Logical_Switch_Port": &testLogicalSwitchPort{}})
+	db, err := model.NewDBModel("OVN_NorthBound", map[string]model.Model{"Logical_Switch": &testLogicalSwitch{}, "Logical_Switch_Port": &testLogicalSwitchPort{}})
 	assert.Nil(t, err)
-	cache, err := newTableCache(&schema, db)
+	cache, err := cache.NewTableCache(&schema, db, data)
 	assert.Nil(t, err)
 	return cache
 }

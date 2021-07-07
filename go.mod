@@ -10,7 +10,7 @@ require (
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.3
-	github.com/ovn-org/libovsdb v0.3.1
+	github.com/ovn-org/libovsdb v0.4.0
 	github.com/pkg/errors v0.9.1
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4 // indirect

@@ -1,9 +1,10 @@
-package client
+package model
 
 import (
 	"fmt"
 	"reflect"
 
+	"github.com/ovn-org/libovsdb/mapper"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -16,10 +17,10 @@ import (
 // The Model interface must be implemented by the pointer to such type
 // Example:
 //type MyLogicalRouter struct {
-//	UUID          string            `ovs:"_uuid"`
-//	Name          string            `ovs:"name"`
-//	ExternalIDs   map[string]string `ovs:"external_ids"`
-//	LoadBalancers []string          `ovs:"load_balancer"`
+//	UUID          string            `ovsdb:"_uuid"`
+//	Name          string            `ovsdb:"name"`
+//	ExternalIDs   map[string]string `ovsdb:"external_ids"`
+//	LoadBalancers []string          `ovsdb:"load_balancer"`
 //}
 type Model interface{}
 
@@ -29,8 +30,8 @@ type DBModel struct {
 	types map[string]reflect.Type
 }
 
-// newModel returns a new instance of a model from a specific string
-func (db DBModel) newModel(table string) (Model, error) {
+// NewModel returns a new instance of a model from a specific string
+func (db DBModel) NewModel(table string) (Model, error) {
 	mtype, ok := db.types[table]
 	if !ok {
 		return nil, fmt.Errorf("table %s not found in database model", string(table))
@@ -39,7 +40,7 @@ func (db DBModel) newModel(table string) (Model, error) {
 	return model.Interface().(Model), nil
 }
 
-// GetTypes returns the DBModel Types
+// Types returns the DBModel Types
 // the DBModel types is a map of reflect.Types indexed by string
 // The reflect.Type is a pointer to a struct that contains 'ovs' tags
 // as described above. Such pointer to struct also implements the Model interface
@@ -77,12 +78,12 @@ func (db DBModel) Validate(schema *ovsdb.DatabaseSchema) []error {
 			errors = append(errors, fmt.Errorf("database model contains a model for table %s that does not exist in schema", tableName))
 			continue
 		}
-		model, err := db.newModel(tableName)
+		model, err := db.NewModel(tableName)
 		if err != nil {
 			errors = append(errors, err)
 			continue
 		}
-		if _, err := newORMInfo(tableSchema, model); err != nil {
+		if _, err := mapper.NewInfo(tableSchema, model); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -99,7 +100,7 @@ func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 		}
 		hasUUID := false
 		for i := 0; i < modelType.Elem().NumField(); i++ {
-			if field := modelType.Elem().Field(i); field.Tag.Get("ovs") == "_uuid" &&
+			if field := modelType.Elem().Field(i); field.Tag.Get("ovsdb") == "_uuid" &&
 				field.Type.Kind() == reflect.String {
 				hasUUID = true
 			}
@@ -119,11 +120,31 @@ func NewDBModel(name string, models map[string]Model) (*DBModel, error) {
 func modelSetUUID(model Model, uuid string) error {
 	modelVal := reflect.ValueOf(model).Elem()
 	for i := 0; i < modelVal.NumField(); i++ {
-		if field := modelVal.Type().Field(i); field.Tag.Get("ovs") == "_uuid" &&
+		if field := modelVal.Type().Field(i); field.Tag.Get("ovsdb") == "_uuid" &&
 			field.Type.Kind() == reflect.String {
 			modelVal.Field(i).Set(reflect.ValueOf(uuid))
 			return nil
 		}
 	}
 	return fmt.Errorf("model is expected to have a string field mapped to column _uuid")
+}
+
+// Condition is a model-based representation of an OVSDB Condition
+type Condition struct {
+	// Pointer to the field of the model where the operation applies
+	Field interface{}
+	// Condition function
+	Function ovsdb.ConditionFunction
+	// Value to use in the condition
+	Value interface{}
+}
+
+// Mutation is a model-based representation of an OVSDB Mutation
+type Mutation struct {
+	// Pointer to the field of the model that shall be mutated
+	Field interface{}
+	// String representing the mutator (as per RFC7047)
+	Mutator ovsdb.Mutator
+	// Value to use in the mutation
+	Value interface{}
 }

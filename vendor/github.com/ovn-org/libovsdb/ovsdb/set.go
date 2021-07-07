@@ -7,7 +7,7 @@ import (
 )
 
 // OvsSet is an OVSDB style set
-// RFC 7047 has a wierd (but understandable) notation for set as described as :
+// RFC 7047 has a weird (but understandable) notation for set as described as :
 // Either an <atom>, representing a set with exactly one element, or
 // a 2-element JSON array that represents a database set value.  The
 // first element of the array must be the string "set", and the

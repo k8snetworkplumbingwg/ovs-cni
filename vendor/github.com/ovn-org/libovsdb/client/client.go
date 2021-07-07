@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -12,6 +13,8 @@ import (
 
 	"github.com/cenkalti/rpc2"
 	"github.com/cenkalti/rpc2/jsonrpc"
+	"github.com/ovn-org/libovsdb/cache"
+	"github.com/ovn-org/libovsdb/model"
 	"github.com/ovn-org/libovsdb/ovsdb"
 )
 
@@ -21,9 +24,9 @@ type OvsdbClient struct {
 	Schema        ovsdb.DatabaseSchema
 	handlers      []ovsdb.NotificationHandler
 	handlersMutex *sync.Mutex
-	Cache         *TableCache
+	Cache         *cache.TableCache
 	stopCh        chan struct{}
-	API           API
+	api           API
 }
 
 func newOvsdbClient() *OvsdbClient {
@@ -37,62 +40,59 @@ func newOvsdbClient() *OvsdbClient {
 
 // Constants defined for libovsdb
 const (
-	defaultTCPAddress  = "127.0.0.1:6640"
-	defaultUnixAddress = "/var/run/openvswitch/ovnnb_db.sock"
-	SSL                = "ssl"
-	TCP                = "tcp"
-	UNIX               = "unix"
+	SSL  = "ssl"
+	TCP  = "tcp"
+	UNIX = "unix"
 )
 
-// Connect to ovn, using endpoint in format ovsdb Connection Methods
-// If address is empty, use default address for specified protocol
-func Connect(endpoints string, database *DBModel, tlsConfig *tls.Config) (*OvsdbClient, error) {
+// Connect to an OVSDB Server using the provided endpoint in OVSDB Connection Format
+// For more details, see the ovsdb(7) man page
+// The connection can be configured using one or more Option(s), like WithTLSConfig
+// If no WithEndpoint option is supplied, the default of unix:/var/run/openvswitch/ovsdb.sock is used
+func Connect(ctx context.Context, database *model.DBModel, opts ...Option) (*OvsdbClient, error) {
 	var c net.Conn
+	var dialer net.Dialer
 	var err error
 	var u *url.URL
 
-	for _, endpoint := range strings.Split(endpoints, ",") {
+	options, err := newOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, endpoint := range options.endpoints {
 		if u, err = url.Parse(endpoint); err != nil {
 			return nil, err
 		}
-		// u.Opaque contains the original endPoint with the leading protocol stripped
-		// off. For example: endPoint is "tcp:127.0.0.1:6640" and u.Opaque is "127.0.0.1:6640"
-		host := u.Opaque
-		if len(host) == 0 {
-			host = defaultTCPAddress
-		}
 		switch u.Scheme {
 		case UNIX:
-			path := u.Path
-			if len(path) == 0 {
-				path = defaultUnixAddress
-			}
-			c, err = net.Dial(u.Scheme, path)
+			c, err = dialer.DialContext(ctx, u.Scheme, u.Path)
 		case TCP:
-			c, err = net.Dial(u.Scheme, host)
+			c, err = dialer.DialContext(ctx, u.Scheme, u.Opaque)
 		case SSL:
-			c, err = tls.Dial("tcp", host, tlsConfig)
+			dialer := tls.Dialer{
+				Config: options.tlsConfig,
+			}
+			c, err = dialer.DialContext(ctx, "tcp", u.Opaque)
 		default:
 			err = fmt.Errorf("unknown network protocol %s", u.Scheme)
 		}
-
 		if err == nil {
 			return newRPC2Client(c, database)
 		}
 	}
-
-	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", endpoints, err)
+	return nil, fmt.Errorf("failed to connect to endpoints %q: %v", options.endpoints, err)
 }
 
-func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
+func newRPC2Client(conn net.Conn, database *model.DBModel) (*OvsdbClient, error) {
 	ovs := newOvsdbClient()
 	ovs.rpcClient = rpc2.NewClientWithCodec(jsonrpc.NewJSONCodec(conn))
 	ovs.rpcClient.SetBlocking(true)
 	ovs.rpcClient.Handle("echo", func(_ *rpc2.Client, args []interface{}, reply *[]interface{}) error {
 		return ovs.echo(args, reply)
 	})
-	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []interface{}, _ *[]interface{}) error {
-		return ovs.update(args)
+	ovs.rpcClient.Handle("update", func(_ *rpc2.Client, args []json.RawMessage, reply *[]interface{}) error {
+		return ovs.update(args, reply)
 	})
 	go ovs.rpcClient.Run()
 	go ovs.handleDisconnectNotification()
@@ -128,10 +128,10 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 
 	if err == nil {
 		ovs.Schema = *schema
-		if cache, err := newTableCache(schema, database); err == nil {
+		if cache, err := cache.NewTableCache(schema, database, nil); err == nil {
 			ovs.Cache = cache
 			ovs.Register(ovs.Cache)
-			ovs.API = newAPI(ovs.Cache)
+			ovs.api = newAPI(ovs.Cache)
 		} else {
 			ovs.rpcClient.Close()
 			return nil, err
@@ -146,7 +146,7 @@ func newRPC2Client(conn net.Conn, database *DBModel) (*OvsdbClient, error) {
 	return ovs, nil
 }
 
-// Register registers the supplied NotificationHandler to recieve OVSDB Notifications
+// Register registers the supplied NotificationHandler to receive OVSDB Notifications
 func (ovs *OvsdbClient) Register(handler ovsdb.NotificationHandler) {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
@@ -163,7 +163,7 @@ func getHandlerIndex(handler ovsdb.NotificationHandler, handlers []ovsdb.Notific
 	return -1, fmt.Errorf("handler not found")
 }
 
-// Unregister the supplied NotificationHandler to not recieve OVSDB Notifications anymore
+// Unregister the supplied NotificationHandler to not receive OVSDB Notifications anymore
 func (ovs *OvsdbClient) Unregister(handler ovsdb.NotificationHandler) error {
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
@@ -187,36 +187,27 @@ func (ovs *OvsdbClient) echo(args []interface{}, reply *[]interface{}) error {
 }
 
 // RFC 7047 : Update Notification Section 4.1.6
-// Processing "params": [<json-value>, <table-updates>]
-func (ovs *OvsdbClient) update(params []interface{}) error {
-	if len(params) < 2 {
-		return fmt.Errorf("invalid update message")
+func (ovs *OvsdbClient) update(args []json.RawMessage, reply *[]interface{}) error {
+	var value string
+	if len(args) > 2 {
+		return fmt.Errorf("update requires exactly 2 args")
 	}
-	// Ignore params[0] as we dont use the <json-value> currently for comparison
-
-	raw, ok := params[1].(map[string]interface{})
-	if !ok {
-		return fmt.Errorf("invalid update message")
-	}
-	var rowUpdates map[string]map[string]ovsdb.RowUpdate
-
-	b, err := json.Marshal(raw)
+	err := json.Unmarshal(args[0], &value)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(b, &rowUpdates)
+	var updates ovsdb.TableUpdates
+	err = json.Unmarshal(args[1], &updates)
 	if err != nil {
 		return err
 	}
-
 	// Update the local DB cache with the tableUpdates
-	tableUpdates := getTableUpdatesFromRawUnmarshal(rowUpdates)
 	ovs.handlersMutex.Lock()
 	defer ovs.handlersMutex.Unlock()
 	for _, handler := range ovs.handlers {
-		handler.Update(params[0], tableUpdates)
+		handler.Update(value, updates)
 	}
-
+	*reply = []interface{}{}
 	return nil
 }
 
@@ -271,12 +262,8 @@ func (ovs OvsdbClient) MonitorAll(jsonContext interface{}) error {
 		}
 		requests[table] = ovsdb.MonitorRequest{
 			Columns: columns,
-			Select: ovsdb.MonitorSelect{
-				Initial: true,
-				Insert:  true,
-				Delete:  true,
-				Modify:  true,
-			}}
+			Select:  ovsdb.NewDefaultMonitorSelect(),
+		}
 	}
 	return ovs.Monitor(jsonContext, requests)
 }
@@ -306,26 +293,26 @@ func (ovs OvsdbClient) Monitor(jsonContext interface{}, requests map[string]ovsd
 	var reply ovsdb.TableUpdates
 
 	args := ovsdb.NewMonitorArgs(ovs.Schema.Name, jsonContext, requests)
-
-	// This totally sucks. Refer to golang JSON issue #6213
-	var response map[string]map[string]ovsdb.RowUpdate
-	err := ovs.rpcClient.Call("monitor", args, &response)
-	reply = getTableUpdatesFromRawUnmarshal(response)
+	err := ovs.rpcClient.Call("monitor", args, &reply)
 	if err != nil {
 		return err
 	}
-	ovs.Cache.populate(reply)
+	ovs.Cache.Populate(reply)
 	return nil
 }
 
-func getTableUpdatesFromRawUnmarshal(raw map[string]map[string]ovsdb.RowUpdate) ovsdb.TableUpdates {
-	var tableUpdates ovsdb.TableUpdates
-	tableUpdates.Updates = make(map[string]ovsdb.TableUpdate)
-	for table, update := range raw {
-		tableUpdate := ovsdb.TableUpdate{Rows: update}
-		tableUpdates.Updates[table] = tableUpdate
+// Echo tests the liveness of the OVSDB connetion
+func (ovs *OvsdbClient) Echo() error {
+	args := ovsdb.NewEchoArgs()
+	var reply []interface{}
+	err := ovs.rpcClient.Call("echo", args, &reply)
+	if err != nil {
+		return err
 	}
-	return tableUpdates
+	if !reflect.DeepEqual(args, reply) {
+		return fmt.Errorf("incorrect server response: %v, %v", args, reply)
+	}
+	return nil
 }
 
 func (ovs *OvsdbClient) clearConnection() {
@@ -346,4 +333,41 @@ func (ovs *OvsdbClient) handleDisconnectNotification() {
 func (ovs OvsdbClient) Disconnect() {
 	close(ovs.stopCh)
 	ovs.rpcClient.Close()
+}
+
+// Client API interface wrapper functions
+// We add this wrapper to allow users to access the API directly on the
+// client object
+
+// Ensure client implements API
+var _ API = OvsdbClient{}
+
+//Get implements the API interface's Get function
+func (ovs OvsdbClient) Get(model model.Model) error {
+	return ovs.api.Get(model)
+}
+
+//Create implements the API interface's Create function
+func (ovs OvsdbClient) Create(models ...model.Model) ([]ovsdb.Operation, error) {
+	return ovs.api.Create(models...)
+}
+
+//List implements the API interface's List function
+func (ovs OvsdbClient) List(result interface{}) error {
+	return ovs.api.List(result)
+}
+
+//Where implements the API interface's Where function
+func (ovs OvsdbClient) Where(m model.Model, conditions ...model.Condition) ConditionalAPI {
+	return ovs.api.Where(m, conditions...)
+}
+
+//WhereAll implements the API interface's WhereAll function
+func (ovs OvsdbClient) WhereAll(m model.Model, conditions ...model.Condition) ConditionalAPI {
+	return ovs.api.WhereAll(m, conditions...)
+}
+
+//WhereCache implements the API interface's WhereCache function
+func (ovs OvsdbClient) WhereCache(predicate interface{}) ConditionalAPI {
+	return ovs.api.WhereCache(predicate)
 }
