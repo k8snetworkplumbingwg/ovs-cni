@@ -96,7 +96,10 @@ var _ = Describe("CNI Plugin", func() {
 		By("Creating temporary target namespace to simulate a container")
 		targetNs, err := testutils.NewNS()
 		Expect(err).NotTo(HaveOccurred())
-		defer targetNs.Close()
+		defer func() {
+			Expect(targetNs.Close()).To(Succeed())
+			Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+		}()
 
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
@@ -155,7 +158,10 @@ var _ = Describe("CNI Plugin", func() {
 		By("Creating temporary target namespace to simulate a container")
 		targetNs, err := testutils.NewNS()
 		Expect(err).NotTo(HaveOccurred())
-		defer targetNs.Close()
+		defer func() {
+			Expect(targetNs.Close()).To(Succeed())
+			Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+		}()
 
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
@@ -360,10 +366,16 @@ var _ = Describe("CNI Plugin", func() {
 				By("Creating two temporary target namespace to simulate two containers")
 				targetNsOne, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
-				defer targetNsOne.Close()
+				defer func() {
+					Expect(targetNsOne.Close()).To(Succeed())
+					Expect(testutils.UnmountNS(targetNsOne)).To(Succeed())
+				}()
 				targetNsTwo, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
-				defer targetNsTwo.Close()
+				defer func() {
+					Expect(targetNsTwo.Close()).To(Succeed())
+					Expect(testutils.UnmountNS(targetNsTwo)).To(Succeed())
+				}()
 
 				By("Checking that both namespaces have different mac addresses on eth0")
 				resultOne := attach(targetNsOne, conf, IFNAME, "", "")
@@ -390,7 +402,10 @@ var _ = Describe("CNI Plugin", func() {
 				By("Creating temporary target namespace to simulate a container")
 				targetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
-				defer targetNs.Close()
+				defer func() {
+					Expect(targetNs.Close()).To(Succeed())
+					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+				}()
 
 				By("Checking that the mac address on eth0 equals to the requested one")
 				mac := "0a:00:00:00:00:80"
@@ -414,7 +429,10 @@ var _ = Describe("CNI Plugin", func() {
 
 				targetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
-				defer targetNs.Close()
+				defer func() {
+					Expect(targetNs.Close()).To(Succeed())
+					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+				}()
 
 				OvnPort := "test-port"
 				result := attach(targetNs, conf, IFNAME, "", OvnPort)
@@ -474,11 +492,17 @@ var _ = Describe("CNI Plugin", func() {
 			It("DEL removes ports without network namespace", func() {
 				firstTargetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
-				defer firstTargetNs.Close()
+				defer func() {
+					Expect(firstTargetNs.Close()).To(Succeed())
+					Expect(testutils.UnmountNS(firstTargetNs)).To(Succeed())
+				}()
 
 				secondTargetNs, err := testutils.NewNS()
 				Expect(err).NotTo(HaveOccurred())
-				defer secondTargetNs.Close()
+				defer func() {
+					Expect(secondTargetNs.Close()).To(Succeed())
+					Expect(testutils.UnmountNS(secondTargetNs)).To(Succeed())
+				}()
 
 				// Create two ports for two separate target namespaces.
 				firstResult := attach(firstTargetNs, conf, IFNAME, "", "test-port-1")
