@@ -48,7 +48,7 @@ func NativeTypeFromAtomic(basicType string) reflect.Type {
 	case TypeUUID:
 		return strType
 	default:
-		panic("Unkown basic type %s basicType")
+		panic("Unknown basic type %s basicType")
 	}
 }
 
@@ -65,12 +65,12 @@ func NativeType(column *ColumnSchema) reflect.Type {
 	case TypeEnum:
 		return NativeTypeFromAtomic(column.TypeObj.Key.Type)
 	case TypeMap:
-		kType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
-		vType := NativeTypeFromAtomic(column.TypeObj.Value.Type)
-		return reflect.MapOf(kType, vType)
+		keyType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
+		valueType := NativeTypeFromAtomic(column.TypeObj.Value.Type)
+		return reflect.MapOf(keyType, valueType)
 	case TypeSet:
-		kType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
-		return reflect.SliceOf(kType)
+		keyType := NativeTypeFromAtomic(column.TypeObj.Key.Type)
+		return reflect.SliceOf(keyType)
 	default:
 		panic(fmt.Errorf("unknown extended type %s", column.Type))
 	}
@@ -165,6 +165,20 @@ func OvsToNative(column *ColumnSchema, ovsElem interface{}) (interface{}, error)
 	}
 }
 
+// NativeToOvsAtomic returns the OVS type of the atomic native value
+func NativeToOvsAtomic(basicType string, nativeElem interface{}) (interface{}, error) {
+	naType := NativeTypeFromAtomic(basicType)
+	if reflect.TypeOf(nativeElem) != naType {
+		return nil, NewErrWrongType("NativeToOvsAtomic", naType.String(), nativeElem)
+	}
+	switch basicType {
+	case TypeUUID:
+		return UUID{GoUUID: nativeElem.(string)}, nil
+	default:
+		return nativeElem, nil
+	}
+}
+
 // NativeToOvs transforms an native type to a ovs type based on the column type information
 func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error) {
 	naType := NativeType(column)
@@ -179,14 +193,14 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 	case TypeUUID:
 		return UUID{GoUUID: rawElem.(string)}, nil
 	case TypeSet:
-		var ovsSet *OvsSet
+		var ovsSet OvsSet
 		if column.TypeObj.Key.Type == TypeUUID {
 			var ovsSlice []interface{}
 			for _, v := range rawElem.([]string) {
 				uuid := UUID{GoUUID: v}
 				ovsSlice = append(ovsSlice, uuid)
 			}
-			ovsSet = &OvsSet{GoSet: ovsSlice}
+			ovsSet = OvsSet{GoSet: ovsSlice}
 
 		} else {
 			var err error
@@ -197,11 +211,21 @@ func NativeToOvs(column *ColumnSchema, rawElem interface{}) (interface{}, error)
 		}
 		return ovsSet, nil
 	case TypeMap:
-		ovsMap, err := NewOvsMap(rawElem)
-		if err != nil {
-			return nil, err
+		nativeMapVal := reflect.ValueOf(rawElem)
+		ovsMap := make(map[interface{}]interface{}, nativeMapVal.Len())
+		for _, key := range nativeMapVal.MapKeys() {
+			ovsKey, err := NativeToOvsAtomic(column.TypeObj.Key.Type, key.Interface())
+			if err != nil {
+				return nil, err
+			}
+			ovsVal, err := NativeToOvsAtomic(column.TypeObj.Value.Type, nativeMapVal.MapIndex(key).Interface())
+			if err != nil {
+				return nil, err
+			}
+			ovsMap[ovsKey] = ovsVal
 		}
-		return ovsMap, nil
+		return OvsMap{GoMap: ovsMap}, nil
+
 	default:
 		panic(fmt.Sprintf("Unknown Type: %v", column.Type))
 	}
@@ -230,14 +254,14 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 		return fmt.Errorf("atomictype %s does not support mutation", atype)
 	case TypeReal:
 		switch mutator {
-		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide:
+		case MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide:
 			return nil
 		default:
 			return fmt.Errorf("wrong mutator for real type %s", mutator)
 		}
 	case TypeInteger:
 		switch mutator {
-		case MutateOperationAdd, MutateOperationSubstract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
+		case MutateOperationAdd, MutateOperationSubtract, MutateOperationMultiply, MutateOperationDivide, MutateOperationModulo:
 			return nil
 		default:
 			return fmt.Errorf("wrong mutator for integer type: %s", mutator)
@@ -247,16 +271,25 @@ func validateMutationAtomic(atype string, mutator Mutator, value interface{}) er
 	}
 }
 
-// ValidateMutation checks if the mutation value and mutator string area apropriate
+// ValidateMutation checks if the mutation value and mutator string area appropriate
 // for a given column based on the rules specified RFC7047
 func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) error {
-	if !column.Mutable {
+	if !column.Mutable() {
 		return fmt.Errorf("column is not mutable")
 	}
 	switch column.Type {
 	case TypeSet:
 		switch mutator {
 		case MutateOperationInsert, MutateOperationDelete:
+			// RFC7047 says a <set> may be an <atom> with a single
+			// element. Check if we can store this value in our column
+			if reflect.TypeOf(value).Kind() != reflect.Slice {
+				if NativeType(column) != reflect.SliceOf(reflect.TypeOf(value)) {
+					return NewErrWrongType(fmt.Sprintf("Mutation %s of single value in to column %s", mutator, column),
+						NativeType(column).String(), reflect.SliceOf(reflect.TypeOf(value)).String())
+				}
+				return nil
+			}
 			if NativeType(column) != reflect.TypeOf(value) {
 				return NewErrWrongType(fmt.Sprintf("Mutation %s of column %s", mutator, column),
 					NativeType(column).String(), value)
@@ -294,6 +327,28 @@ func ValidateMutation(column *ColumnSchema, mutator Mutator, value interface{}) 
 	}
 }
 
+func ValidateCondition(column *ColumnSchema, function ConditionFunction, nativeValue interface{}) error {
+	if NativeType(column) != reflect.TypeOf(nativeValue) {
+		return NewErrWrongType(fmt.Sprintf("Condition for column %s", column),
+			NativeType(column).String(), nativeValue)
+	}
+
+	switch column.Type {
+	case TypeSet, TypeMap, TypeBoolean, TypeString, TypeUUID:
+		switch function {
+		case ConditionEqual, ConditionNotEqual, ConditionIncludes, ConditionExcludes:
+			return nil
+		default:
+			return fmt.Errorf("wrong condition function %s for type: %s", function, column.Type)
+		}
+	case TypeInteger, TypeReal:
+		// All functions are valid
+		return nil
+	default:
+		panic("Unsupported Type")
+	}
+}
+
 func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 	value := reflect.ValueOf(elem)
 	if !value.IsValid() {
@@ -302,7 +357,7 @@ func isDefaultBaseValue(elem interface{}, etype ExtendedType) bool {
 
 	switch etype {
 	case TypeUUID:
-		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == ""
+		return elem.(string) == "00000000-0000-0000-0000-000000000000" || elem.(string) == "" || isNamed(elem.(string))
 	case TypeMap, TypeSet:
 		return value.IsNil() || value.Len() == 0
 	case TypeString:

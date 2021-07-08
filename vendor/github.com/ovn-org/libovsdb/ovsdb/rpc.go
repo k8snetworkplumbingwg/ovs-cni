@@ -1,5 +1,10 @@
 package ovsdb
 
+// NewEchoArgs creates a new set of arguments for an echo RPC
+func NewEchoArgs() []interface{} {
+	return []interface{}{"libovsdb echo"}
+}
+
 // NewGetSchemaArgs creates a new set of arguments for a get_schemas RPC
 func NewGetSchemaArgs(schema string) []interface{} {
 	return []interface{}{schema}

@@ -7,7 +7,7 @@ import (
 )
 
 // OvsSet is an OVSDB style set
-// RFC 7047 has a wierd (but understandable) notation for set as described as :
+// RFC 7047 has a weird (but understandable) notation for set as described as :
 // Either an <atom>, representing a set with exactly one element, or
 // a 2-element JSON array that represents a database set value.  The
 // first element of the array must be the string "set", and the
@@ -18,7 +18,7 @@ type OvsSet struct {
 }
 
 // NewOvsSet creates a new OVSDB style set from a Go interface (object)
-func NewOvsSet(obj interface{}) (*OvsSet, error) {
+func NewOvsSet(obj interface{}) (OvsSet, error) {
 	v := reflect.ValueOf(obj)
 	var ovsSet []interface{}
 	switch v.Kind() {
@@ -34,9 +34,9 @@ func NewOvsSet(obj interface{}) (*OvsSet, error) {
 	case reflect.ValueOf(UUID{}).Kind():
 		ovsSet = append(ovsSet, v.Interface())
 	default:
-		return nil, fmt.Errorf("ovsset supports only go slice/string/numbers/uuid types")
+		return OvsSet{}, fmt.Errorf("ovsset supports only go slice/string/numbers/uuid types")
 	}
-	return &OvsSet{ovsSet}, nil
+	return OvsSet{ovsSet}, nil
 }
 
 // MarshalJSON wil marshal an OVSDB style Set in to a JSON byte array

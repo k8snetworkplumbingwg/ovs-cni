@@ -35,6 +35,8 @@ $(BASE): ; $(info  setting GOPATH...)
 GOLINT = $(GOBIN)/golint
 $(GOBIN)/golint: | $(BASE) ; $(info  building golint...)
 	$Q go get -u golang.org/x/lint/golint
+	# golint installation modifies go.mod and it causes golint failure so run mod tidy here
+	$(GO) mod tidy
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 

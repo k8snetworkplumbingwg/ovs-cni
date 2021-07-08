@@ -10,8 +10,8 @@ export GOPATH=/tmp/ovs-cni/go/path
 mkdir -p $GOPATH
 export PATH=${GOPATH}/bin:${GOROOT}/bin:${PATH}
 
-echo 'Install Go 1.13'
-export GIMME_GO_VERSION=1.13
+echo 'Install Go 1.16'
+export GIMME_GO_VERSION=1.16
 GIMME=/tmp/ovs-cni/go/gimme
 mkdir -p $GIMME
 curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=${GIMME} bash >> ${GIMME}/gimme.sh

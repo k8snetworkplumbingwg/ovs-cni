@@ -3,7 +3,7 @@ FROM quay.io/fedora/fedora:32-x86_64
 RUN dnf -y install make git sudo gcc rsync-daemon rsync openvswitch hostname && \
     dnf -y clean all
 
-ENV GIMME_GO_VERSION=1.13
+ENV GIMME_GO_VERSION=1.16
 
 RUN mkdir -p /gimme && curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | HOME=/gimme bash >> /etc/profile.d/gimme.sh
 
