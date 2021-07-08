@@ -79,9 +79,9 @@ The sample content of ovs.conf (in JSON format) is as follows:
 
 The `socket_file` consist of socket type and socket detail like these.
 
-* unix:<path to unix domain socket>
-* tcp:<ip address>:<port number>
-* ssl:<ip address>:<port number>
+* `unix:<path to unix domain socket>`
+* `tcp:<ip address>:<port number>`
+* `ssl:<ip address>:<port number>`
 
 If no socket type is specified, it is assumed to be a unix domain socket, for backwards compatibility.
 
