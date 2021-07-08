@@ -559,6 +559,15 @@ func CmdDel(args *skel.CmdArgs) error {
 			}
 			return err
 		})
+		// do the following as per cni spec (i.e. Plugins should generally complete a DEL action
+		// without error even if some resources are missing)
+		if _, ok := err.(ns.NSPathNotExistErr); ok || err == ip.ErrLinkNotFound {
+			if portFound {
+				ip.DelLinkByName(portName)
+			}
+			cleanPorts(ovsDriver)
+			return nil
+		}
 	}
 
 	return err
