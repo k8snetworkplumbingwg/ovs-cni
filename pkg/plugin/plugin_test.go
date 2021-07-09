@@ -311,13 +311,12 @@ var _ = Describe("CNI Plugin", func() {
 				"vlan": %d
 			}`, bridgeName, vlanID)
 			It("should successfully complete ADD and DEL commands", func() {
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
-				testDel(conf, testAdd(conf, true, false, "", targetNs), targetNs, true)
+				hostIfName := testAdd(conf, true, false, "", targetNs)
+				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("without a VLAN ID set on port", func() {
@@ -328,13 +327,12 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s"
 			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
-				testDel(conf, testAdd(conf, false, false, "", targetNs), targetNs, true)
+				hostIfName := testAdd(conf, false, false, "", targetNs)
+				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("with specific VLAN ID ranges set (via both range and id) for the port", func() {
@@ -346,13 +344,12 @@ var _ = Describe("CNI Plugin", func() {
 				"trunk": [ {"minID": 10, "maxID": 12}, {"id": 15}, {"minID": 17, "maxID": 18}  ]
 			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
-				testDel(conf, testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs), targetNs, true)
+				hostIfName := testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
+				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("with specific IPAM set for container interface", func() {
@@ -396,13 +393,12 @@ var _ = Describe("CNI Plugin", func() {
 				"mtu": %d
 			}`, bridgeName, mtu)
 			It("should successfully complete ADD and DEL commands", func() {
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
-				testDel(conf, testAdd(conf, false, true, "", targetNs), targetNs, true)
+				hostIfName := testAdd(conf, false, true, "", targetNs)
+				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("invoke DEL action after deleting container net namespace", func() {
@@ -413,8 +409,7 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s"
 			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
 					// clean up targetNs in case of testAdd failure
 					targetNs.Close()
@@ -434,14 +429,12 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s"
 			}`, bridgeName)
 			It("should successfully complete ADD and DEL commands", func() {
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
 				hostIfName := testAdd(conf, false, false, "", targetNs)
-				err = targetNs.Do(func(ns.NetNS) error {
+				err := targetNs.Do(func(ns.NetNS) error {
 					defer GinkgoRecover()
 					return ip.DelLinkByName(IFNAME)
 				})
@@ -460,17 +453,13 @@ var _ = Describe("CNI Plugin", func() {
 				}`, bridgeName, vlanID)
 
 				By("Creating two temporary target namespace to simulate two containers")
-				targetNsOne, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNsOne := newNS()
 				defer func() {
-					Expect(targetNsOne.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNsOne)).To(Succeed())
+					closeNS(targetNsOne)
 				}()
-				targetNsTwo, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNsTwo := newNS()
 				defer func() {
-					Expect(targetNsTwo.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNsTwo)).To(Succeed())
+					closeNS(targetNsTwo)
 				}()
 
 				By("Checking that both namespaces have different mac addresses on eth0")
@@ -494,11 +483,9 @@ var _ = Describe("CNI Plugin", func() {
 				}`, bridgeName, vlanID)
 
 				By("Creating temporary target namespace to simulate a container")
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
 
 				By("Checking that the mac address on eth0 equals to the requested one")
@@ -520,11 +507,9 @@ var _ = Describe("CNI Plugin", func() {
 				"OvnPort": "test-port",
 				"bridge": "%s"}`, bridgeName)
 
-				targetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				targetNs := newNS()
 				defer func() {
-					Expect(targetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+					closeNS(targetNs)
 				}()
 
 				OvnPort := "test-port"
@@ -581,18 +566,14 @@ var _ = Describe("CNI Plugin", func() {
 				"bridge": "%s"}`, bridgeName)
 
 			It("DEL removes ports without network namespace", func() {
-				firstTargetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				firstTargetNs := newNS()
 				defer func() {
-					Expect(firstTargetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(firstTargetNs)).To(Succeed())
+					closeNS(firstTargetNs)
 				}()
 
-				secondTargetNs, err := testutils.NewNS()
-				Expect(err).NotTo(HaveOccurred())
+				secondTargetNs := newNS()
 				defer func() {
-					Expect(secondTargetNs.Close()).To(Succeed())
-					Expect(testutils.UnmountNS(secondTargetNs)).To(Succeed())
+					closeNS(secondTargetNs)
 				}()
 
 				// Create two ports for two separate target namespaces.
@@ -603,7 +584,7 @@ var _ = Describe("CNI Plugin", func() {
 				// port faulty. Our test should remove the interfaces of this
 				// port, but not the interfaces of the second.
 				firstHostIface := firstResult.Interfaces[0]
-				err = ip.DelLinkByName(firstHostIface.Name)
+				err := ip.DelLinkByName(firstHostIface.Name)
 				Expect(err).NotTo(HaveOccurred())
 
 				// It takes a short while for OVS to notice that we removed the
@@ -678,6 +659,17 @@ func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Resu
 	Expect(err).NotTo(HaveOccurred())
 
 	return result
+}
+
+func newNS() ns.NetNS {
+	targetNs, err := testutils.NewNS()
+	Expect(err).NotTo(HaveOccurred())
+	return targetNs
+}
+
+func closeNS(targetNs ns.NetNS) {
+	Expect(targetNs.Close()).To(Succeed())
+	Expect(testutils.UnmountNS(targetNs)).To(Succeed())
 }
 
 func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (cnitypes.Result, []byte, error) {
