@@ -20,6 +20,7 @@ source ./cluster/kubevirtci.sh
 kubevirtci::install
 
 $(kubevirtci::path)/cluster-up/up.sh
+echo blabla
 
 echo 'Installing Open vSwitch on nodes'
 for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); do
