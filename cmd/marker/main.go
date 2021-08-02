@@ -85,8 +85,10 @@ func main() {
 	}
 
 	markerCache := cache.Cache{}
-	wait.PollImmediateInfinite(time.Duration(*updateInterval)*time.Second, func() (bool, error) {
-		if time.Now().Sub(markerCache.LastRefreshTime()) >= time.Duration(*reconcileInterval)*time.Minute {
+	wait.JitterUntil(func() {
+		jitteredReconcileInterval := wait.Jitter(time.Duration(*reconcileInterval)*time.Minute, 1.2)
+		shouldReconcileNode := time.Now().Sub(markerCache.LastRefreshTime()) >= jitteredReconcileInterval
+		if shouldReconcileNode {
 			reportedBridges, err := markerApp.GetReportedResources()
 			if err != nil {
 				glog.Errorf("GetReportedResources failed: %v", err)
@@ -104,6 +106,5 @@ func main() {
 			glog.Fatalf("Update failed: %v", err)
 		}
 
-		return false, nil
-	})
+	}, time.Duration(*updateInterval)*time.Second, 1.2, true, wait.NeverStop)
 }
