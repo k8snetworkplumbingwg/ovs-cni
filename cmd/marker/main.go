@@ -18,18 +18,26 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
+
 	"github.com/golang/glog"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/cache"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/marker"
 )
 
 func main() {
 	nodeName := flag.String("node-name", "", "name of kubernetes node")
-	const defaultPollInterval = 60 * time.Second
-	pollInterval := flag.Int("poll-interval", int(defaultPollInterval.Seconds()), fmt.Sprintf("interval between updates in seconds, %d by default", int(defaultPollInterval.Seconds())))
 	ovsSocket := flag.String("ovs-socket", "", "address of openvswitch database connection")
+
+	const defaultUpdateInterval = 60 * time.Second
+	updateInterval := flag.Int("update-interval", int(defaultUpdateInterval.Seconds()), fmt.Sprintf("interval between updates in seconds, %d by default", int(defaultUpdateInterval.Seconds())))
+
+	const defaultReconcileInterval = 10 * time.Minute
+	reconcileInterval := flag.Int("reconcile-interval", int(defaultReconcileInterval.Minutes()), fmt.Sprintf("interval between node bridges reconcile in minutes, %d by default", int(defaultReconcileInterval.Minutes())))
 
 	flag.Parse()
 
@@ -76,11 +84,26 @@ func main() {
 		glog.Fatalf("Failed to create a new marker object: %v", err)
 	}
 
-	for {
-		err := markerApp.Update()
+	markerCache := cache.Cache{}
+	wait.PollImmediateInfinite(time.Duration(*updateInterval)*time.Second, func() (bool, error) {
+		if time.Now().Sub(markerCache.LastRefreshTime()) >= time.Duration(*reconcileInterval)*time.Minute {
+			reportedBridges, err := markerApp.GetReportedResources()
+			if err != nil {
+				glog.Errorf("GetReportedResources failed: %v", err)
+			}
+
+			if !reflect.DeepEqual(markerCache.Bridges(), reportedBridges) {
+				glog.Warningf("cached bridges are different than the reported bridges on node %s", *nodeName)
+			}
+
+			markerCache.Refresh(reportedBridges)
+		}
+
+		err := markerApp.Update(&markerCache)
 		if err != nil {
 			glog.Fatalf("Update failed: %v", err)
 		}
-		time.Sleep(time.Duration(*pollInterval) * time.Second)
-	}
+
+		return false, nil
+	})
 }
