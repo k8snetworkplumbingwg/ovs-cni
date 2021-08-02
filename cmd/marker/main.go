@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -26,7 +27,8 @@ import (
 
 func main() {
 	nodeName := flag.String("node-name", "", "name of kubernetes node")
-	pollInterval := flag.Int("poll-interval", 10, "interval between updates in seconds, 10 by default")
+	const defaultPollInterval = 60 * time.Second
+	pollInterval := flag.Int("poll-interval", int(defaultPollInterval.Seconds()), fmt.Sprintf("interval between updates in seconds, %d by default", int(defaultPollInterval.Seconds())))
 	ovsSocket := flag.String("ovs-socket", "", "address of openvswitch database connection")
 
 	flag.Parse()

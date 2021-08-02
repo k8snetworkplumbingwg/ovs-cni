@@ -48,7 +48,7 @@ var _ = Describe("ovs-cni-marker", func() {
 					return false
 				}
 				return true
-			}, 20*time.Second, 5*time.Second).Should(Equal(true))
+			}, 120*time.Second, 5*time.Second).Should(Equal(true))
 
 			out, err = node.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
 			if err != nil {
@@ -61,7 +61,7 @@ var _ = Describe("ovs-cni-marker", func() {
 				_, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				return reported
 
-			}, 20*time.Second, 5*time.Second).Should(Equal(false))
+			}, 120*time.Second, 5*time.Second).Should(Equal(false))
 		})
 	})
 })
