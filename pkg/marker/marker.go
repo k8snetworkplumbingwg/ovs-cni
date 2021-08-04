@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/cache"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 )
 
@@ -82,7 +83,8 @@ func (m *Marker) getAvailableResources() (map[string]bool, error) {
 	return availableResources, nil
 }
 
-func (m *Marker) getReportedResources() (map[string]bool, error) {
+// GetReportedResources returns bridges that are reported on the node object
+func (m *Marker) GetReportedResources() (map[string]bool, error) {
 	reportedResources := make(map[string]bool)
 	node, err := m.clientset.
 		CoreV1().
@@ -103,16 +105,13 @@ func (m *Marker) getReportedResources() (map[string]bool, error) {
 }
 
 // Update reports ovs bridge status to api server
-func (m *Marker) Update() error {
+func (m *Marker) Update(cache *cache.Cache) error {
 	availableResources, err := m.getAvailableResources()
 	if err != nil {
 		return fmt.Errorf("failed to list available resources: %v", err)
 	}
 
-	reportedResources, err := m.getReportedResources()
-	if err != nil {
-		return fmt.Errorf("failed to list reported resources: %v", err)
-	}
+	reportedResources := cache.Bridges()
 
 	patchOperations := make([]patchOperation, 0)
 
@@ -152,5 +151,6 @@ func (m *Marker) Update() error {
 		return fmt.Errorf("failed to apply patch %s on node: %v", payloadBytes, err)
 	}
 
+	cache.Refresh(availableResources)
 	return nil
 }
