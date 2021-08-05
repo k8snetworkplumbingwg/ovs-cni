@@ -10,6 +10,10 @@ spec:
   selector:
     matchLabels:
       app: ovs-cni
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 10%
   template:
     metadata:
       labels:
