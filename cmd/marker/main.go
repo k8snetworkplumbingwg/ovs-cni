@@ -40,7 +40,7 @@ func main() {
 	reconcileInterval := flag.Int("reconcile-interval", int(defaultReconcileInterval.Minutes()), fmt.Sprintf("interval between node bridges reconcile in minutes, %d by default", int(defaultReconcileInterval.Minutes())))
 
 	flag.Parse()
-
+	// test
 	if *nodeName == "" {
 		glog.Fatal("node-name must be set")
 	}
