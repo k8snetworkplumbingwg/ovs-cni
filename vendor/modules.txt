@@ -6,7 +6,7 @@ github.com/Mellanox/sriovnet/pkg/utils/filesystem
 github.com/cenkalti/backoff/v4
 # github.com/cenkalti/hub v1.0.1
 github.com/cenkalti/hub
-# github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1
+# github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984
 github.com/cenkalti/rpc2
 github.com/cenkalti/rpc2/jsonrpc
 # github.com/containernetworking/cni v0.8.1 => github.com/containernetworking/cni v0.8.1
@@ -116,7 +116,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/ovn-org/libovsdb v0.6.0
+# github.com/ovn-org/libovsdb v0.6.1-0.20210824154155-9cab5b210dce
 ## explicit
 github.com/ovn-org/libovsdb/cache
 github.com/ovn-org/libovsdb/client

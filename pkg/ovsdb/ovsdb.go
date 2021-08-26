@@ -123,7 +123,7 @@ func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error)
 // Wrapper for ovsDB transaction
 func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	// Perform OVSDB transaction
-	reply, _ := ovsd.ovsClient.Transact(ops...)
+	reply, _ := ovsd.ovsClient.Transact(context.Background(), ops...)
 
 	if len(reply) < len(ops) {
 		return nil, errors.New("OVS transaction failed. Less replies than operations")

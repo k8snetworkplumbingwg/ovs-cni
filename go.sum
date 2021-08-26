@@ -45,8 +45,8 @@ github.com/cenkalti/backoff/v4 v4.1.1 h1:G2HAfAmvm/GcKan2oOQpBXOd2tT2G57ZnZGWa1P
 github.com/cenkalti/backoff/v4 v4.1.1/go.mod h1:scbssz8iZGpm3xbr14ovlUdkxfGXNInqkPWOWmG2CLw=
 github.com/cenkalti/hub v1.0.1 h1:UMtjc6dHSaOQTO15SVA50MBIR9zQwvsukQupDrkIRtg=
 github.com/cenkalti/hub v1.0.1/go.mod h1:tcYwtS3a2d9NO/0xDXVJWx3IedurUjYCqFCmpi0lpHs=
-github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1 h1:aT9Ez2drLmrviqTnVnH87AeXLXLgUrXACJ2g90cTT2w=
-github.com/cenkalti/rpc2 v0.0.0-20210220005819-4a29bc83afe1/go.mod h1:v2npkhrXyk5BCnkNIiPdRI23Uq6uWPUQGL2hnRcRr/M=
+github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984 h1:CNwZyGS6KpfaOWbh2yLkSy3rSTUh3jub9CzpFpP6PVQ=
+github.com/cenkalti/rpc2 v0.0.0-20210604223624-c1acbc6ec984/go.mod h1:v2npkhrXyk5BCnkNIiPdRI23Uq6uWPUQGL2hnRcRr/M=
 github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=
 github.com/chzyer/logex v1.1.10/go.mod h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=
 github.com/chzyer/readline v0.0.0-20180603132655-2972be24d48e/go.mod h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=
@@ -214,8 +214,8 @@ github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQ
 github.com/opencontainers/image-spec v1.0.1/go.mod h1:BtxoFyWECRxE4U/7sNtV5W15zMzWCbyJoFRP3s7yZA0=
 github.com/opencontainers/runc v1.0.0-rc9/go.mod h1:qT5XzbpPznkRYVz/mWwUaVBUv2rmF59PVA73FjuZG0U=
 github.com/ory/dockertest/v3 v3.7.0/go.mod h1:PvCCgnP7AfBZeVrzwiUTjZx/IUXlGLC1zQlUQrLIlUE=
-github.com/ovn-org/libovsdb v0.6.0 h1:/N4AU0QjIAe0vCLp99Mi82um6c4xh439pGFYEcZPUlQ=
-github.com/ovn-org/libovsdb v0.6.0/go.mod h1:5Ld4X+oWvMlbPAGvbJyE/wp8TAWdydI67jatQ3qbsVc=
+github.com/ovn-org/libovsdb v0.6.1-0.20210824154155-9cab5b210dce h1:G0ih8wuuqmap8Hj6+uQLw9UW0rMpc0Ib2dYUiqfjp9U=
+github.com/ovn-org/libovsdb v0.6.1-0.20210824154155-9cab5b210dce/go.mod h1:z8nnwUG5G+D4bzoUm6qbg5fC4q9pphb5VwO0AS473Ks=
 github.com/peterbourgon/diskv v2.0.1+incompatible/go.mod h1:uqqh8zWWbv1HBMNONnaR/tNboyR3/BZd58JJSHlUSCU=
 github.com/pkg/errors v0.8.1/go.mod h1:bwawxfHBFNV+L2hUp1rHADufV3IMtnDRdf1r5NINEl0=
 github.com/pkg/errors v0.9.1 h1:FEBLx1zS214owpjy7qsBeixbURkuhQAwrK5UwLGTwt4=
