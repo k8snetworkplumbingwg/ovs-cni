@@ -38,7 +38,7 @@ github.com/docker/spdystream/spdy
 github.com/fsnotify/fsnotify
 # github.com/go-logr/logr v0.2.0
 github.com/go-logr/logr
-# github.com/gogo/protobuf v1.3.2
+# github.com/gogo/protobuf v1.3.2 => github.com/gogo/protobuf v1.3.2
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
@@ -426,3 +426,4 @@ sigs.k8s.io/yaml
 # k8s.io/metrics => k8s.io/metrics v0.19.1
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.1
 # github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
+# github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
