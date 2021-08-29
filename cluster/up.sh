@@ -25,9 +25,9 @@ echo 'Installing Open vSwitch on nodes'
 for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); do
     ./cluster/cli.sh ssh ${node} -- sudo yum install -y  \
      dpdk \
-     https://cbs.centos.org/kojifiles/packages/openvswitch-selinux-extra-policy/1.0/22.el8/noarch/openvswitch-selinux-extra-policy-1.0-22.el8.noarch.rpm \
-     https://cbs.centos.org/kojifiles/packages/openvswitch2.13/2.13.0/39.el8/x86_64/openvswitch2.13-2.13.0-39.el8.x86_64.rpm \
-     https://cbs.centos.org/kojifiles/packages/openvswitch2.13/2.13.0/39.el8/x86_64/openvswitch2.13-devel-2.13.0-39.el8.x86_64.rpm
+     https://cbs.centos.org/kojifiles/packages/openvswitch-selinux-extra-policy/1.0/28.el8/noarch/openvswitch-selinux-extra-policy-1.0-28.el8.noarch.rpm \
+     https://cbs.centos.org/kojifiles/packages/openvswitch2.15/2.15.0/35.el8s/x86_64/openvswitch2.15-2.15.0-35.el8s.x86_64.rpm \
+     https://cbs.centos.org/kojifiles/packages/openvswitch2.15/2.15.0/35.el8s/x86_64/openvswitch2.15-devel-2.15.0-35.el8s.x86_64.rpm
     ./cluster/cli.sh ssh ${node} -- sudo systemctl daemon-reload
     ./cluster/cli.sh ssh ${node} -- sudo systemctl restart openvswitch
 done
