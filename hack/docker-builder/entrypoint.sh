@@ -2,9 +2,6 @@
 set -e
 set -o pipefail
 
-source /etc/profile.d/gimme.sh
-export GOPATH="/root/go"
-
 # launch OVS
 function quit {
   /usr/share/openvswitch/scripts/ovs-ctl stop
