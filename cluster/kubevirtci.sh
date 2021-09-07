@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export KUBEVIRT_PROVIDER='k8s-1.17'
+export KUBEVIRT_PROVIDER='k8s-1.20'
 
 KUBEVIRTCI_VERSION='8f48705333a7b9c4c91cf8a0b96b40bb54ef6c8d'
 export KUBEVIRTCI_TAG=2103111738-8f48705
