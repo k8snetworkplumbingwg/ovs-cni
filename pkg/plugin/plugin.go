@@ -383,18 +383,20 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 
 		err = contNetns.Do(func(_ ns.NetNS) error {
-			for _, ipc := range newResult.IPs {
-				containerMac := IPAddrToHWAddr(ipc.Address.IP)
-				containerLink, err := netlink.LinkByName(args.IfName)
-				if err != nil {
-					return fmt.Errorf("failed to lookup container interface %q: %v", args.IfName, err)
+			if mac == "" && !sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+				for _, ipc := range newResult.IPs {
+					containerMac := IPAddrToHWAddr(ipc.Address.IP)
+					containerLink, err := netlink.LinkByName(args.IfName)
+					if err != nil {
+						return fmt.Errorf("failed to lookup container interface %q: %v", args.IfName, err)
+					}
+					err = assignMacToLink(containerLink, containerMac, args.IfName)
+					if err != nil {
+						return err
+					}
+					newResult.Interfaces[0].Mac = containerMac.String()
+					break
 				}
-				err = assignMacToLink(containerLink, containerMac, args.IfName)
-				if err != nil {
-					return err
-				}
-				newResult.Interfaces[0].Mac = containerMac.String()
-				break
 			}
 			err := ipam.ConfigureIface(args.IfName, newResult)
 			if err != nil {
