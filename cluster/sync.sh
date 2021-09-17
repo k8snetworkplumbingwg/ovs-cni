@@ -19,6 +19,15 @@ set -ex
 source ./cluster/kubevirtci.sh
 kubevirtci::install
 
+function check_deleted() {
+    OUTPUT=$(./cluster/kubectl.sh get --ignore-not-found $1)
+    if [ $? -eq 0 ]; then
+        echo $(echo "$OUTPUT" | wc -l)
+    else
+        echo 100
+    fi
+}
+
 registry_port=$(./cluster/cli.sh ports registry | tr -d '\r')
 registry=localhost:$registry_port
 
@@ -37,8 +46,8 @@ for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
 done
 
 # Wait until all objects are deleted
-until [[ $(./cluster/kubectl.sh get --ignore-not-found -f $ovs_cni_manifest 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
-until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-cni-plugin-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
-until [[ $(./cluster/kubectl.sh get --ignore-not-found ds ovs-vsctl-amd64 2>&1 | wc -l) -eq 0 ]]; do sleep 1; done
+until [ $(check_deleted "-f $ovs_cni_manifest") -eq 1 ]; do sleep 1; done
+until [ $(check_deleted "ds ovs-cni-plugin-amd64") -eq 1 ]; do sleep 1; done
+until [ $(check_deleted "ds ovs-vsctl-amd64") -eq 1 ]; do sleep 1; done
 
 sed 's/quay.io\/kubevirt/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -
