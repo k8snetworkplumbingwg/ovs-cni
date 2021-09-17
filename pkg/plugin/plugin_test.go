@@ -143,6 +143,7 @@ var _ = Describe("CNI Plugin", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(addrs)).To(Equal(1))
 			Expect(addrs[0].String()).To(HavePrefix(ipPrefix))
+			Expect(link.Attrs().HardwareAddr).To(Equal(IPAddrToHWAddr(addrs[0].IP)))
 
 			if isDual {
 				addrs, err := netlink.AddrList(link, syscall.AF_INET6)
