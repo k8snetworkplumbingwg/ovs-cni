@@ -57,7 +57,7 @@ build-host-local-plugin:
 	if [ ! -f $(BIN_DIR)/host-local -a `uname` = 'Linux' ]; then\
 		cd $(BIN_DIR) && \
 		git clone https://github.com/containernetworking/plugins && \
-		cd plugins && git checkout v0.9.1 && cd .. && \
+		cd plugins && git checkout v1.0.1 && cd .. && \
 		./plugins/build_linux.sh && \
 		cp ./plugins/bin/host-local . && \
 		rm -rf plugins; \

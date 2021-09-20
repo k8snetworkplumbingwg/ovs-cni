@@ -20,12 +20,12 @@ RUN mkdir -p /opt/cni/bin
 
 ENV PATH="/opt/cni/bin:$PATH"
 
-ADD https://github.com/containernetworking/plugins/releases/download/v0.9.1/cni-plugins-linux-amd64-v0.9.1.tgz /opt/cni/bin
+ADD https://github.com/containernetworking/plugins/releases/download/v1.0.1/cni-plugins-linux-amd64-v1.0.1.tgz /opt/cni/bin
 
 RUN \
     cd  /opt/cni/bin && \
-    tar -xzf cni-plugins-linux-amd64-v0.9.1.tgz && \
-    rm -f cni-plugins-linux-amd64-v0.9.1.tgz
+    tar -xzf cni-plugins-linux-amd64-v1.0.1.tgz && \
+    rm -f cni-plugins-linux-amd64-v1.0.1.tgz
 
 RUN go get -u github.com/onsi/ginkgo/ginkgo
 
