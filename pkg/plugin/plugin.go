@@ -89,8 +89,8 @@ func getHardwareAddr(ifName string) string {
 }
 
 func generateRandomMac() net.HardwareAddr {
-	prefix := []byte{0x02, 0x00, 0x00} // local unicast prefix
-	suffix := make([]byte, 3)
+	prefix := []byte{0x0A, 0x58} // use private MAC prefix 0A:58
+	suffix := make([]byte, 4)
 	_, err := rand.Read(suffix)
 	if err != nil {
 		panic(err)
