@@ -20,7 +20,6 @@
 package plugin
 
 import (
-	"crypto/rand"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -32,7 +31,7 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
-	"github.com/containernetworking/cni/pkg/types/current"
+	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -88,16 +87,6 @@ func getHardwareAddr(ifName string) string {
 
 }
 
-func generateRandomMac() net.HardwareAddr {
-	prefix := []byte{0x0A, 0x58} // use private MAC prefix 0A:58
-	suffix := make([]byte, 4)
-	_, err := rand.Read(suffix)
-	if err != nil {
-		panic(err)
-	}
-	return net.HardwareAddr(append(prefix, suffix...))
-}
-
 // IPAddrToHWAddr takes the four octets of IPv4 address (aa.bb.cc.dd, for example) and uses them in creating
 // a MAC address (0A:58:AA:BB:CC:DD).  For IPv6, create a hash from the IPv6 string and use that for MAC Address.
 // Assumption: the caller will ensure that an empty net.IP{} will NOT be passed.
@@ -122,39 +111,13 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mt
 	// this we will make sure that both ends of the veth pair will be removed
 	// when the container is gone.
 	err := contNetns.Do(func(hostNetns ns.NetNS) error {
-		hostVeth, containerVeth, err := ip.SetupVeth(contIfaceName, mtu, hostNetns)
+		hostVeth, containerVeth, err := ip.SetupVeth(contIfaceName, mtu, requestedMac, hostNetns)
 		if err != nil {
 			return err
 		}
 
-		containerLink, err := netlink.LinkByName(containerVeth.Name)
-		if err != nil {
-			return fmt.Errorf("failed to lookup %q: %v", containerVeth.Name, err)
-		}
-
-		var containerMac net.HardwareAddr
-		if requestedMac != "" {
-			containerMac, err = net.ParseMAC(requestedMac)
-			if err != nil {
-				return fmt.Errorf("failed to parse requested MAC  %q: %v", requestedMac, err)
-			}
-			err = assignMacToLink(containerLink, containerMac, containerVeth.Name)
-			if err != nil {
-				return err
-			}
-		} else {
-			// In case the MAC address is already assigned to another interface, retry
-			for i := 1; i <= macSetupRetries; i++ {
-				containerMac = generateRandomMac()
-				err = assignMacToLink(containerLink, containerMac, containerVeth.Name)
-				if err != nil && i == macSetupRetries {
-					return err
-				}
-			}
-		}
-
 		contIface.Name = containerVeth.Name
-		contIface.Mac = containerMac.String()
+		contIface.Mac = containerVeth.HardwareAddr.String()
 		contIface.Sandbox = contNetns.Path()
 		hostIface.Name = hostVeth.Name
 		return nil
@@ -404,7 +367,8 @@ func CmdAdd(args *skel.CmdArgs) error {
 				return fmt.Errorf("failed to look up %q: %v", args.IfName, err)
 			}
 			for _, ipc := range newResult.IPs {
-				if ipc.Version == "4" {
+				// if ip address version is 4
+				if ipc.Address.IP.To4() != nil {
 					// send gratuitous arp for other ends to refresh its arp cache
 					err = arping.GratuitousArpOverIface(ipc.Address.IP, *contVeth)
 					if err != nil {

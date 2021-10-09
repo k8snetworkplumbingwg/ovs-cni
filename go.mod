@@ -2,22 +2,21 @@ module github.com/k8snetworkplumbingwg/ovs-cni
 
 require (
 	github.com/Mellanox/sriovnet v1.0.2
-	github.com/containernetworking/cni v0.8.1
-	github.com/containernetworking/plugins v0.9.1-0.20210203133829-74a6b28a2c27
+	github.com/containernetworking/cni v1.0.1
+	github.com/containernetworking/plugins v1.0.1
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/imdario/mergo v0.3.12
-	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
+	github.com/j-keck/arping v1.0.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
-	github.com/onsi/ginkgo v1.12.1
-	github.com/onsi/gomega v1.10.3
+	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/gomega v1.15.0
 	github.com/ovn-org/libovsdb v0.6.0
 	github.com/pkg/errors v0.9.1
-	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
+	github.com/vishvananda/netlink v1.1.1-0.20210330154013-f5de75959ad5
 	golang.org/x/net v0.0.0-20210805182204-aaa1db679c0d // indirect
-	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e // indirect
-	k8s.io/api v0.19.1
-	k8s.io/apimachinery v0.19.1
-	k8s.io/client-go v0.18.3
+	k8s.io/api v0.20.6
+	k8s.io/apimachinery v0.20.6
+	k8s.io/client-go v0.20.6
 	kubevirt.io/qe-tools v0.1.6
 )
 
@@ -47,9 +46,6 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.1
 )
 
-replace (
-	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
-	github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
-)
+replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
 
 go 1.16
