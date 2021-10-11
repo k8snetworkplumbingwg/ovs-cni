@@ -19,7 +19,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/containernetworking/cni/pkg/types/current"
+	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 
@@ -27,7 +27,8 @@ import (
 )
 
 const (
-	DisableIPv6SysctlTemplate = "net.ipv6.conf.%s.disable_ipv6"
+	// Note: use slash as separator so we can have dots in interface name (VLANs)
+	DisableIPv6SysctlTemplate = "net/ipv6/conf/%s/disable_ipv6"
 )
 
 // ConfigureIface takes the result of IPAM plugin and
@@ -60,7 +61,7 @@ func ConfigureIface(ifName string, res *current.Result) error {
 
 		// Make sure sysctl "disable_ipv6" is 0 if we are about to add
 		// an IPv6 address to the interface
-		if !has_enabled_ipv6 && ipc.Version == "6" {
+		if !has_enabled_ipv6 && ipc.Address.IP.To4() == nil {
 			// Enabled IPv6 for loopback "lo" and the interface
 			// being configured
 			for _, iface := range [2]string{"lo", ifName} {
@@ -68,8 +69,11 @@ func ConfigureIface(ifName string, res *current.Result) error {
 
 				// Read current sysctl value
 				value, err := sysctl.Sysctl(ipv6SysctlValueName)
-				if err != nil || value == "0" {
-					// FIXME: log warning if unable to read sysctl value
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "ipam_linux: failed to read sysctl %q: %v\n", ipv6SysctlValueName, err)
+					continue
+				}
+				if value == "0" {
 					continue
 				}
 
@@ -109,11 +113,14 @@ func ConfigureIface(ifName string, res *current.Result) error {
 				gw = v6gw
 			}
 		}
-		if err = ip.AddRoute(&r.Dst, gw, link); err != nil {
-			// we skip over duplicate routes as we assume the first one wins
-			if !os.IsExist(err) {
-				return fmt.Errorf("failed to add route '%v via %v dev %v': %v", r.Dst, gw, ifName, err)
-			}
+		route := netlink.Route{
+			Dst:       &r.Dst,
+			LinkIndex: link.Attrs().Index,
+			Gw:        gw,
+		}
+
+		if err = netlink.RouteAddEcmp(&route); err != nil {
+			return fmt.Errorf("failed to add route '%v via %v dev %v': %v", r.Dst, gw, ifName, err)
 		}
 	}
 
