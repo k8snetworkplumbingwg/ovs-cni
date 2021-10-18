@@ -32,6 +32,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -566,9 +567,242 @@ func CmdDel(args *skel.CmdArgs) error {
 	return err
 }
 
-// CmdCheck check handler to make sure networking is as expected. yet to be implemented.
+// CmdCheck check handler to make sure networking is as expected.
 func CmdCheck(args *skel.CmdArgs) error {
 	logCall("CHECK", args)
-	log.Print("CHECK is not yet implemented, pretending everything is fine")
+
+	netconf, err := config.LoadConf(args.StdinData)
+	if err != nil {
+		return err
+	}
+
+	// run the IPAM plugin
+	if netconf.NetConf.IPAM.Type != "" {
+		err = ipam.ExecCheck(netconf.NetConf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return fmt.Errorf("failed to check with IPAM plugin type %q: %v", netconf.NetConf.IPAM.Type, err)
+		}
+	}
+
+	// check cache
+	cRef := config.GetCRef(args.ContainerID, args.IfName)
+	cache, err := config.LoadConfFromCache(cRef)
+	if err != nil {
+		return err
+	}
+	if err := validateCache(cache, netconf); err != nil {
+		return err
+	}
+
+	// Parse previous result.
+	if netconf.NetConf.RawPrevResult == nil {
+		return fmt.Errorf("Required prevResult missing")
+	}
+	if err := version.ParsePrevResult(&netconf.NetConf); err != nil {
+		return err
+	}
+	result, err := current.NewResultFromResult(netconf.NetConf.PrevResult)
+	if err != nil {
+		return err
+	}
+
+	var contIntf, hostIntf current.Interface
+	// Find interfaces
+	for _, intf := range result.Interfaces {
+		if args.IfName == intf.Name {
+			if args.Netns == intf.Sandbox {
+				contIntf = *intf
+			}
+		} else {
+			// Check prevResults for ips against values found in the host
+			if err := validateInterface(*intf, true); err != nil {
+				return err
+			}
+			hostIntf = *intf
+		}
+	}
+
+	// The namespace must be the same as what was configured
+	if args.Netns != contIntf.Sandbox {
+		return fmt.Errorf("Sandbox in prevResult %s doesn't match configured netns: %s",
+			contIntf.Sandbox, args.Netns)
+	}
+
+	netns, err := ns.GetNS(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+	}
+	defer netns.Close()
+
+	// Check prevResults for ips and routes against values found in the container
+	if err := netns.Do(func(_ ns.NetNS) error {
+
+		// Check interface against values found in the container
+		err := validateInterface(contIntf, false)
+		if err != nil {
+			return err
+		}
+
+		err = ip.ValidateExpectedInterfaceIPs(args.IfName, result.IPs)
+		if err != nil {
+			return err
+		}
+
+		err = ip.ValidateExpectedRoute(result.Routes)
+		if err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// ovs specific check
+	if err := validateOvs(args, netconf, hostIntf.Name); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
+	if cache.Netconf.BrName != netconf.BrName {
+		return fmt.Errorf("BrName mismatch. cache=%s,netconf=%s",
+			cache.Netconf.BrName, netconf.BrName)
+	}
+
+	if cache.Netconf.SocketFile != netconf.SocketFile {
+		return fmt.Errorf("SocketFile mismatch. cache=%s,netconf=%s",
+			cache.Netconf.SocketFile, netconf.SocketFile)
+	}
+
+	if cache.Netconf.IPAM.Type != netconf.IPAM.Type {
+		return fmt.Errorf("IPAM mismatch. cache=%s,netconf=%s",
+			cache.Netconf.IPAM.Type, netconf.IPAM.Type)
+	}
+
+	if cache.Netconf.DeviceID != netconf.DeviceID {
+		return fmt.Errorf("DeviceID mismatch. cache=%s,netconf=%s",
+			cache.Netconf.DeviceID, netconf.DeviceID)
+	}
+
+	return nil
+}
+
+func validateInterface(intf current.Interface, isHost bool) error {
+	var link netlink.Link
+	var err error
+	var iftype string
+	if isHost {
+		iftype = "Host"
+	} else {
+		iftype = "Container"
+	}
+
+	if intf.Name == "" {
+		return fmt.Errorf("%s interface name missing in prevResult: %v", iftype, intf.Name)
+	}
+	link, err = netlink.LinkByName(intf.Name)
+	if err != nil {
+		return fmt.Errorf("Error: %s Interface name in prevResult: %s not found", iftype, intf.Name)
+	}
+	if !isHost && intf.Sandbox == "" {
+		return fmt.Errorf("Error: %s interface %s should not be in host namespace", iftype, link.Attrs().Name)
+	}
+
+	_, isVeth := link.(*netlink.Veth)
+	if !isVeth {
+		return fmt.Errorf("Error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
+	}
+
+	if intf.Mac != "" && intf.Mac != link.Attrs().HardwareAddr.String() {
+		return fmt.Errorf("Error: Interface %s Mac %s doesn't match %s Mac: %s", intf.Name, intf.Mac, iftype, link.Attrs().HardwareAddr)
+	}
+
+	return nil
+}
+
+func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) error {
+	envArgs, err := getEnvArgs(args.Args)
+	if err != nil {
+		return err
+	}
+	var ovnPort string
+	if envArgs != nil {
+		ovnPort = string(envArgs.OvnPort)
+	}
+
+	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	if err != nil {
+		return err
+	}
+
+	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
+	if err != nil {
+		return err
+	}
+
+	found, err := ovsDriver.IsBridgePresent(netconf.BrName)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return fmt.Errorf("Error: bridge %s is not found in OVS", netconf.BrName)
+	}
+
+	ifaces, err := ovsDriver.FindInterfacesWithError()
+	if err != nil {
+		return err
+	}
+	if len(ifaces) > 0 {
+		return fmt.Errorf("Error: There are some interfaces in error state: %v", ifaces)
+	}
+
+	vlanMode, tag, trunk, err := ovsDriver.GetOFPortVlanState(hostIfname)
+	if err != nil {
+		return fmt.Errorf("Error: Failed to retrieve port %s state: %v", hostIfname, err)
+	}
+
+	// check vlan tag
+	if netconf.VlanTag == nil {
+		if tag != nil {
+			return fmt.Errorf("vlan tag mismatch. ovs=%d,netconf=nil", *tag)
+		}
+	} else {
+		if tag == nil {
+			return fmt.Errorf("vlan tag mismatch. ovs=nil,netconf=%d", *netconf.VlanTag)
+		}
+		if *tag != *netconf.VlanTag {
+			return fmt.Errorf("vlan tag mismatch. ovs=%d,netconf=%d", *tag, *netconf.VlanTag)
+		}
+		if vlanMode != "access" {
+			return fmt.Errorf("vlan mode mismatch. expected=access,real=%s", vlanMode)
+		}
+	}
+
+	// check trunk
+	netconfTrunks := make([]uint, 0)
+	if len(netconf.Trunk) > 0 {
+		trunkVlanIds, err := splitVlanIds(netconf.Trunk)
+		if err != nil {
+			return err
+		}
+		netconfTrunks = append(netconfTrunks, trunkVlanIds...)
+	}
+	if len(trunk) != len(netconfTrunks) {
+		return fmt.Errorf("trunk mismatch. ovs=%v,netconf=%v", trunk, netconfTrunks)
+	}
+	if len(netconfTrunks) > 0 {
+		for i := 0; i < len(trunk); i++ {
+			if trunk[i] != netconfTrunks[i] {
+				return fmt.Errorf("trunk mismatch. ovs=%v,netconf=%v", trunk, netconfTrunks)
+			}
+		}
+
+		if vlanMode != "trunk" {
+			return fmt.Errorf("vlan mode mismatch. expected=trunk,real=%s", vlanMode)
+		}
+	}
+
 	return nil
 }

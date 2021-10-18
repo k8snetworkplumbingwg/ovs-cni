@@ -275,6 +275,60 @@ func (ovsd *OvsDriver) GetOFPortOpState(portName string) (string, error) {
 	return fmt.Sprintf("%v", operationResult.Rows[0]["link_state"]), nil
 }
 
+// GetOFPortVlanState retrieves port vlan state of the OF port
+func (ovsd *OvsDriver) GetOFPortVlanState(portName string) (string, *uint, []uint, error) {
+	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, portName)
+	selectOp := []ovsdb.Operation{{
+		Op:      "select",
+		Table:   "Port",
+		Columns: []string{"vlan_mode", "tag", "trunks"},
+		Where:   []ovsdb.Condition{condition},
+	}}
+	var vlanMode = ""
+	var tag *uint = nil
+	var trunks []uint
+
+	transactionResult, err := ovsd.ovsdbTransact(selectOp)
+	if err != nil {
+		return vlanMode, tag, trunks, err
+	}
+
+	if len(transactionResult) != 1 {
+		return vlanMode, tag, trunks, fmt.Errorf("transactionResult length is not one")
+	}
+
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return vlanMode, tag, trunks, fmt.Errorf("%s - %s", operationResult.Error, operationResult.Details)
+	}
+
+	if len(operationResult.Rows) != 1 {
+		return vlanMode, tag, trunks, fmt.Errorf("operationResult.Rows length is not one")
+	}
+
+	vlanModeCol := operationResult.Rows[0]["vlan_mode"]
+	switch vlanModeCol.(type) {
+	case string:
+		vlanMode = operationResult.Rows[0]["vlan_mode"].(string)
+	}
+
+	tagCol := operationResult.Rows[0]["tag"]
+	switch tagCol.(type) {
+	case float64:
+		tagValue := uint(operationResult.Rows[0]["tag"].(float64))
+		tag = &tagValue
+	}
+
+	trunksCol := operationResult.Rows[0]["trunks"].(ovsdb.OvsSet).GoSet
+	if len(trunksCol) > 0 {
+		for i := range trunksCol {
+			trunks = append(trunks, uint(trunksCol[i].(float64)))
+		}
+	}
+
+	return vlanMode, tag, trunks, nil
+}
+
 // IsBridgePresent Check if the bridge entry already exists
 func (ovsd *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, bridgeName)

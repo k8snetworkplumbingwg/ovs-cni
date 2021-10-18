@@ -96,7 +96,7 @@ metadata:
     k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
 spec:
   config: '{
-      "cniVersion": "0.3.1",
+      "cniVersion": "0.4.0",
       "type": "ovs",
       "bridge": "br1"
     }'
@@ -116,7 +116,7 @@ metadata:
     k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
 spec:
   config: '{
-      "cniVersion": "0.3.1",
+      "cniVersion": "0.4.0",
       "type": "ovs",
       "bridge": "br1",
       "vlan": 100
@@ -167,7 +167,7 @@ metadata:
     k8s.v1.cni.cncf.io/resourceName: ovs-cni.network.kubevirt.io/br1
 spec:
   config: '{
-      "cniVersion": "0.3.1",
+      "cniVersion": "0.4.0",
       "type": "ovs",
       "bridge": "br1",
       "vlan": 100,
