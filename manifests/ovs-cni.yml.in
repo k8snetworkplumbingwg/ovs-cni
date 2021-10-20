@@ -26,6 +26,7 @@ spec:
       hostNetwork: true
       nodeSelector:
         kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
