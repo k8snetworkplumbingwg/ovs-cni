@@ -15,6 +15,7 @@
 package plugin
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,7 +28,9 @@ import (
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
+	types040 "github.com/containernetworking/cni/pkg/types/040"
 	current "github.com/containernetworking/cni/pkg/types/100"
+	cniversion "github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/containernetworking/plugins/pkg/testutils"
@@ -38,6 +41,50 @@ import (
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
+
+type Range struct {
+	RangeStart net.IP         `json:"rangeStart,omitempty"` // The first ip, inclusive
+	RangeEnd   net.IP         `json:"rangeEnd,omitempty"`   // The last ip, inclusive
+	Subnet     cnitypes.IPNet `json:"subnet"`
+	Gateway    net.IP         `json:"gateway,omitempty"`
+}
+
+type RangeSet []Range
+
+type IPAMConfig struct {
+	*Range
+	Name       string
+	Type       string            `json:"type"`
+	Routes     []*cnitypes.Route `json:"routes"`
+	DataDir    string            `json:"dataDir"`
+	ResolvConf string            `json:"resolvConf"`
+	Ranges     []RangeSet        `json:"ranges"`
+	IPArgs     []net.IP          `json:"-"` // Requested IPs from CNI_ARGS, args and capabilities
+}
+
+type Net040 struct {
+	CNIVersion    string                 `json:"cniVersion"`
+	Name          string                 `json:"name"`
+	Type          string                 `json:"type"`
+	Bridge        string                 `json:"bridge"`
+	IPAM          *IPAMConfig            `json:"ipam"`
+	VlanTag       *uint                  `json:"vlan"`
+	Trunk         []*types.Trunk         `json:"trunk,omitempty"`
+	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
+	PrevResult    types040.Result        `json:"-"`
+}
+
+type NetCurrent struct {
+	CNIVersion    string                 `json:"cniVersion"`
+	Name          string                 `json:"name"`
+	Type          string                 `json:"type"`
+	Bridge        string                 `json:"bridge"`
+	IPAM          *IPAMConfig            `json:"ipam"`
+	VlanTag       *uint                  `json:"vlan"`
+	Trunk         []*types.Trunk         `json:"trunk,omitempty"`
+	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
+	PrevResult    current.Result         `json:"-"`
+}
 
 const bridgeName = "test-bridge"
 const vlanID = 100
@@ -54,8 +101,12 @@ var _ = AfterSuite(func() {
 	exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).Run()
 })
 
-var _ = Describe("CNI Plugin", func() {
+var _ = Describe("CNI Plugin 0.3.0", func() { testFunc("0.3.0") })
+var _ = Describe("CNI Plugin 0.3.1", func() { testFunc("0.3.1") })
+var _ = Describe("CNI Plugin 0.4.0", func() { testFunc("0.4.0") })
+var _ = Describe("CNI Plugin 1.0.0", func() { testFunc("1.0.0") })
 
+var testFunc = func(version string) {
 	BeforeEach(func() {
 		output, err := exec.Command("ovs-vsctl", "add-br", bridgeName).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
@@ -89,6 +140,70 @@ var _ = Describe("CNI Plugin", func() {
 			By("Checking vlanIds are same as trunk vlans")
 			Expect(vlanIds).To(Equal(expTrunks))
 		}
+	}
+
+	testCheck := func(conf string, r cnitypes.Result, targetNs ns.NetNS) {
+		if checkSupported, _ := cniversion.GreaterThanOrEqualTo(version, "0.4.0"); !checkSupported {
+			return
+		}
+
+		args := &skel.CmdArgs{
+			ContainerID: "dummy",
+			Netns:       targetNs.Path(),
+			IfName:      IFNAME,
+			StdinData:   []byte(conf),
+		}
+
+		By("Calling Check command")
+		moreThan100, err := cniversion.GreaterThanOrEqualTo(version, "1.0.0")
+		Expect(err).NotTo(HaveOccurred())
+		var confString []byte
+		if moreThan100 {
+			netconf := &NetCurrent{}
+			err = json.Unmarshal([]byte(conf), &netconf)
+			Expect(err).NotTo(HaveOccurred())
+			result, err := current.GetResult(r)
+			Expect(err).NotTo(HaveOccurred())
+			netconf.PrevResult = *result
+
+			var data bytes.Buffer
+			err = result.PrintTo(&data)
+			Expect(err).NotTo(HaveOccurred())
+
+			var raw map[string]interface{}
+			err = json.Unmarshal(data.Bytes(), &raw)
+			Expect(err).NotTo(HaveOccurred())
+			netconf.RawPrevResult = raw
+
+			confString, err = json.Marshal(netconf)
+			Expect(err).NotTo(HaveOccurred())
+		} else {
+			netconf := &Net040{}
+			err = json.Unmarshal([]byte(conf), &netconf)
+			Expect(err).NotTo(HaveOccurred())
+			result, err := types040.GetResult(r)
+			Expect(err).NotTo(HaveOccurred())
+			netconf.PrevResult = *result
+
+			var data bytes.Buffer
+			err = result.PrintTo(&data)
+			Expect(err).NotTo(HaveOccurred())
+
+			var raw map[string]interface{}
+			err = json.Unmarshal(data.Bytes(), &raw)
+			Expect(err).NotTo(HaveOccurred())
+			netconf.RawPrevResult = raw
+
+			confString, err = json.Marshal(netconf)
+			Expect(err).NotTo(HaveOccurred())
+		}
+
+		args.StdinData = confString
+
+		err = cmdCheckWithArgs(args, func() error {
+			return CmdCheck(args)
+		})
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	testIPAM := func(conf string, isDual bool, ipPrefix, ip6Prefix string) {
@@ -157,6 +272,9 @@ var _ = Describe("CNI Plugin", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
+		By("Calling CHECK command")
+		testCheck(conf, r, targetNs)
+
 		By("Calling DEL command to cleanup assigned ip address")
 		err = cmdDelWithArgs(args, func() error {
 			return CmdDel(args)
@@ -204,7 +322,7 @@ var _ = Describe("CNI Plugin", func() {
 		Expect(len(brPorts)).To(Equal(0))
 	}
 
-	testAdd := func(conf string, setVlan, setMtu bool, Trunk string, targetNs ns.NetNS) string {
+	testAdd := func(conf string, setVlan, setMtu bool, Trunk string, targetNs ns.NetNS) (string, cnitypes.Result) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
@@ -299,63 +417,84 @@ var _ = Describe("CNI Plugin", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		return hostIface.Name
+		return hostIface.Name, r
 	}
 
 	Context("connecting container to a bridge", func() {
 		Context("with VLAN ID set on port", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-			}`, bridgeName, vlanID)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName, vlanID)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName := testAdd(conf, true, false, "", targetNs)
+				hostIfName, result := testAdd(conf, true, false, "", targetNs)
+				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("without a VLAN ID set on port", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, bridgeName)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("with specific VLAN ID ranges set (via both range and id) for the port", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
 				"trunk": [ {"minID": 10, "maxID": 12}, {"id": 15}, {"minID": 17, "maxID": 18}  ]
-			}`, bridgeName)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName := testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
+				hostIfName, result := testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
+				testCheck(conf, result, targetNs)
+				testDel(conf, hostIfName, targetNs, true)
+			})
+		})
+		Context("with specific VLAN ID ranges set (via both range and id) for the port (not sorted)", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"trunk": [ {"minID": 17, "maxID": 18}, {"id": 15}, {"minID": 10, "maxID": 12}  ]
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+				hostIfName, result := testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
+				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("with specific IPAM set for container interface", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
@@ -364,14 +503,14 @@ var _ = Describe("CNI Plugin", func() {
 					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ]],
 					"dataDir": "/tmp/ovs-cni/conf"
 				}
-			}`, bridgeName)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				testIPAM(conf, false, "10.1.2", "")
 			})
 		})
 		Context("with dual stack ip addresses set for container interface", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
@@ -380,43 +519,45 @@ var _ = Describe("CNI Plugin", func() {
 					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ], [{"subnet": "3ffe:ffff:0:1ff::/64", "rangeStart": "3ffe:ffff:0:1ff::10", "rangeEnd": "3ffe:ffff:0:1ff::20"}]],
 					"dataDir": "/tmp/ovs-cni/conf"
 				}
-			}`, bridgeName)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				testIPAM(conf, true, "10.1.2", "3ffe:ffff:0:1ff")
 			})
 		})
 		Context("with MTU set on port", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
 				"mtu": %d
-			}`, bridgeName, mtu)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName, mtu)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName := testAdd(conf, false, true, "", targetNs)
+				hostIfName, result := testAdd(conf, false, true, "", targetNs)
+				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("invoke DEL action after deleting container net namespace", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, bridgeName)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
 					// clean up targetNs in case of testAdd failure
 					targetNs.Close()
 					testutils.UnmountNS(targetNs)
 				}()
-				hostIfName := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				testCheck(conf, result, targetNs)
 				Expect(targetNs.Close()).To(Succeed())
 				Expect(testutils.UnmountNS(targetNs)).To(Succeed())
 				testDel(conf, hostIfName, targetNs, false)
@@ -424,17 +565,18 @@ var _ = Describe("CNI Plugin", func() {
 		})
 		Context("invoke DEL action after deleting container interface", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, bridgeName)
-			It("should successfully complete ADD and DEL commands", func() {
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				testCheck(conf, result, targetNs)
 				err := targetNs.Do(func(ns.NetNS) error {
 					defer GinkgoRecover()
 					return ip.DelLinkByName(IFNAME)
@@ -446,12 +588,12 @@ var _ = Describe("CNI Plugin", func() {
 		Context("random mac address on container interface", func() {
 			It("should create eth0 on two different namespace with different mac addresses", func() {
 				conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-				}`, bridgeName, vlanID)
+				}`, version, bridgeName, vlanID)
 
 				By("Creating two temporary target namespace to simulate two containers")
 				targetNsOne := newNS()
@@ -476,12 +618,12 @@ var _ = Describe("CNI Plugin", func() {
 		Context("specified mac address on container interface", func() {
 			It("should create eth0 with the specified mac address", func() {
 				conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-				}`, bridgeName, vlanID)
+				}`, version, bridgeName, vlanID)
 
 				By("Creating temporary target namespace to simulate a container")
 				targetNs := newNS()
@@ -502,11 +644,11 @@ var _ = Describe("CNI Plugin", func() {
 				const ovsOutput = "external_ids        : {iface-id=test-port}"
 
 				conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"OvnPort": "test-port",
-				"bridge": "%s"}`, bridgeName)
+				"bridge": "%s"}`, version, bridgeName)
 
 				targetNs := newNS()
 				defer func() {
@@ -560,11 +702,11 @@ var _ = Describe("CNI Plugin", func() {
 
 		Context("purge ports with failed interfaces", func() {
 			conf := fmt.Sprintf(`{
-				"cniVersion": "0.3.1",
+				"cniVersion": "%s",
 				"name": "mynet",
 				"type": "ovs",
 				"OvnPort": "test-port",
-				"bridge": "%s"}`, bridgeName)
+				"bridge": "%s"}`, version, bridgeName)
 
 			It("DEL removes ports without network namespace", func() {
 				firstTargetNs := newNS()
@@ -625,7 +767,7 @@ var _ = Describe("CNI Plugin", func() {
 			})
 		})
 	})
-})
+}
 
 func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Result {
 	extraArgs := ""
@@ -675,6 +817,10 @@ func closeNS(targetNs ns.NetNS) {
 
 func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (cnitypes.Result, []byte, error) {
 	return testutils.CmdAdd(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
+}
+
+func cmdCheckWithArgs(args *skel.CmdArgs, f func() error) error {
+	return testutils.CmdCheck(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
 }
 
 func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {

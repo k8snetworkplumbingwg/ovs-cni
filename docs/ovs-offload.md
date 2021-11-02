@@ -118,7 +118,7 @@ metadata:
     k8s.v1.cni.cncf.io/resourceName: intel.com/mellanox_snic0
 spec:
   config: '{
-      "cniVersion": "0.3.1",
+      "cniVersion": "0.4.0",
       "type": "ovs",
       "bridge": "br-snic0",
       "trunk": [ {"minID": 1050, "maxID": 1059} ]

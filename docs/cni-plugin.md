@@ -102,7 +102,7 @@ ovs-vsctl add-br br1
 # Run ADD command connecting the namespace to the bridge
 cat <<EOF | CNI_COMMAND=ADD CNI_CONTAINERID=ns1 CNI_NETNS=/var/run/netns/ns1 CNI_IFNAME=eth2 CNI_PATH=`pwd` ./cmd/plugin/plugin
 {
-    "cniVersion": "0.3.1",
+    "cniVersion": "0.4.0",
     "name": "mynet",
     "type": "ovs",
     "bridge": "br1",
@@ -119,7 +119,7 @@ ovs-vsctl show
 # Run DEL command removing the veth pair and OVS port
 cat <<EOF | CNI_COMMAND=DEL CNI_CONTAINERID=ns1 CNI_NETNS=/var/run/netns/ns1 CNI_IFNAME=eth2 CNI_PATH=/opt/cni/bin ./cmd/plugin/plugin
 {
-    "cniVersion": "0.3.1",
+    "cniVersion": "0.4.0",
     "name": "mynet",
     "type": "ovs",
     "bridge": "br1",

@@ -28,7 +28,11 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
 )
 
-var _ = Describe("ovs-cni", func() {
+var _ = Describe("ovs-cni 0.3.0", func() { testFunc("0.3.0") })
+var _ = Describe("ovs-cni 0.3.1", func() { testFunc("0.3.1") })
+var _ = Describe("ovs-cni 0.4.0", func() { testFunc("0.4.0") })
+
+var testFunc = func(version string) {
 	Describe("pod availability tests", func() {
 		Context("When ovs-cni is deployed on the cluster", func() {
 			Specify("ovs-cni pod should be up and running", func() {
@@ -51,7 +55,7 @@ var _ = Describe("ovs-cni", func() {
 			Context("and a network attachment definition is defined", func() {
 				const nadName = "ovs-net"
 				BeforeEach(func() {
-					clusterApi.CreateNetworkAttachmentDefinition(nadName, bridgeName, `{ "cniVersion": "0.3.1", "type": "ovs", "bridge": "`+bridgeName+`", "vlan": 100 }`)
+					clusterApi.CreateNetworkAttachmentDefinition(nadName, bridgeName, `{ "cniVersion": "`+version+`", "type": "ovs", "bridge": "`+bridgeName+`", "vlan": 100 }`)
 				})
 				AfterEach(func() {
 					clusterApi.RemoveNetworkAttachmentDefinition(nadName)
@@ -86,4 +90,4 @@ var _ = Describe("ovs-cni", func() {
 			})
 		})
 	})
-})
+}
