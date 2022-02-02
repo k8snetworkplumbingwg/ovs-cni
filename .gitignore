@@ -17,3 +17,6 @@ _out
 
 # temp files
 cluster/multus-daemonset.yml
+
+# installed go toolchain
+.gopath

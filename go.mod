@@ -16,6 +16,10 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/socketplane/libovsdb v0.0.0-20170116174820-4de3618546de
 	github.com/vishvananda/netlink v1.1.1-0.20201029203352-d40f9887b852
+	golang.org/x/net v0.0.0-20211015210444-4f30a5c0130f // indirect
+	golang.org/x/sys v0.0.0-20211019181941-9d821ace8654 // indirect
+	golang.org/x/text v0.3.7 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	k8s.io/api v0.19.1
 	k8s.io/apimachinery v0.19.1
 	k8s.io/client-go v0.18.3
@@ -50,4 +54,4 @@ replace (
 
 replace github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 
-go 1.13
+go 1.16
