@@ -17,31 +17,27 @@ PACKAGE = ovs-cni
 REPO_PATH = $(ORG_PATH)/$(PACKAGE)
 PKGS = $(or $(PKG),$(shell $(GO) list ./... | grep -v "$(PACKAGE)/vendor/" | grep -v "$(PACKAGE)/tests/cluster" | grep -v "$(PACKAGE)/tests/node"))
 
-all: lint build
+all: build
 
 GO := $(GOBIN)/go
 
 $(GO):
 	hack/install-go.sh $(BIN_DIR)
 
-GOLINT = $(GOBIN)/golint
-$(GOBIN)/golint: ; $(info  building golint...)
-	$(GO) get -u golang.org/x/lint/golint
-
 build: format $(patsubst %, build-%, $(COMPONENTS))
-
-lint: $(GO) $(GOLINT)
-	 for pkg in $(PKGS); do \
-		$(GOLINT) $$pkg; \
-	 done
 
 build-%: $(GO)
 	hack/version.sh > ./cmd/$(subst -,/,$*)/.version
 	cd cmd/$(subst -,/,$*) && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
 
-format: $(GO)
+format: $(GO) vet
 	$(GO) fmt ./pkg/... ./cmd/...
+
+vet: $(GO)
 	$(GO) vet ./pkg/... ./cmd/...
+
+check: $(GO) vet
+	test -z "$(shell $(GO)fmt -l pkg/ cmd/)"
 
 test: $(GO)
 	$(GO) test ./cmd/... ./pkg/... -v --ginkgo.v
@@ -81,4 +77,4 @@ cluster-down:
 cluster-sync: build
 	./cluster/sync.sh
 
-.PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync lint
+.PHONY: build format check test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync
