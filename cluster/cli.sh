@@ -14,7 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-source ./cluster/kubevirtci.sh
-kubevirtci::install
+SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
+source ${SCRIPTS_PATH}/cluster.sh
+cluster::install
 
-$(kubevirtci::path)/cluster-up/cli.sh "$@"
+$(cluster::path)/cluster-up/cli.sh "$@"
