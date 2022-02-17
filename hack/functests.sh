@@ -18,7 +18,7 @@
 
 set -e
 
-source ./cluster/kubevirtci.sh
+source ./cluster/cluster.sh
 
-KUBECONFIG=${KUBECONFIG:-$(kubevirtci::kubeconfig)}
+KUBECONFIG=${KUBECONFIG:-$(cluster::kubeconfig)}
 ${GO} test ./tests/... $E2E_TEST_ARGS --kubeconfig ${KUBECONFIG}

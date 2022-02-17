@@ -16,7 +16,8 @@
 
 set -ex
 
-source ./cluster/kubevirtci.sh
-kubevirtci::install
+SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
+source ${SCRIPTS_PATH}/cluster.sh
+cluster::install
 
-$(kubevirtci::path)/cluster-up/down.sh
+$(cluster::path)/cluster-up/down.sh

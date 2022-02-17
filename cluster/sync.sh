@@ -16,8 +16,8 @@
 
 set -ex
 
-source ./cluster/kubevirtci.sh
-kubevirtci::install
+source ./cluster/cluster.sh
+cluster::install
 
 function check_deleted() {
     OUTPUT=$(./cluster/kubectl.sh get --ignore-not-found $1)
