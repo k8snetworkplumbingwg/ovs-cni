@@ -12,6 +12,7 @@
 
 // Go version 1.10 or greater is required. Before that, switching namespaces in
 // long running processes in go did not work in a reliable way.
+//go:build go1.10
 // +build go1.10
 
 package sriov

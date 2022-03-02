@@ -6,7 +6,7 @@ RUN dnf -y install make git sudo gcc rsync-daemon rsync openvswitch hostname && 
 ENV GOPATH="/go"
 RUN \
     DESTINATION=/opt && \
-    VERSION=1.16.8 && \
+    VERSION=1.17.7 && \
     TARBALL=go${VERSION}.linux-amd64.tar.gz && \
     URL=https://dl.google.com/go && \
     mkdir -p ${DESTINATION} && \
