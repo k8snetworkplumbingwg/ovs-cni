@@ -48,7 +48,7 @@ github.com/fsnotify/fsnotify
 # github.com/go-logr/logr v0.2.0
 ## explicit; go 1.14
 github.com/go-logr/logr
-# github.com/gogo/protobuf v1.3.2 => github.com/gogo/protobuf v1.3.2
+# github.com/gogo/protobuf v1.3.2
 ## explicit; go 1.15
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
@@ -464,4 +464,3 @@ sigs.k8s.io/yaml
 # k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.19.1
 # k8s.io/metrics => k8s.io/metrics v0.19.1
 # k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.1
-# github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2

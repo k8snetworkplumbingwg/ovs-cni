@@ -88,6 +88,4 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.19.1
 )
 
-replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
-
 go 1.17
