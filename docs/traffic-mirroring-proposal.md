@@ -1056,3 +1056,227 @@ spec:
             }
           ]
 ```
+
+### Pros and Cons - NAD approach VS cni-args approach
+
+NAD approach requires a NAD for every VLAN and, when multiple mirrors are present, if two pods on the same VLAN requires to produce to two different mirrors, you have to define two NADs with the same VLAN ID but different mirror configuration (ref. test-case 2. NAD approach vs cni-args approach). This will result in a high number of NADs (as you can see in the test-cases above).
+
+Instead, in cni-args approach, you can pass mirror configuration via Deployment and use NADs only to define OVS ports and VLANs. Anyway, in most of the cases, pods in the same VLAN ID will produce to one set of mirrors. From a developer perspective, cni-args is much more flexible with respect to NAD approach. 
+
+From an isolation point of view, NAD seems more secure: it limits the resources (the mirrors in this case) a pod can create/use. While with cni-args any pod may potentially request to produce/consume to/from any mirror without constraints. Although, we are not expert in kubernetes resources security/isolation, so the disadvantage we highlighted above may not be a real issue.
+
+It's also possible to create 2 different plugins:
+
+- `ovs-mirror-producer`: it only adds input ports (previously created by `ovs` plugin) into `select_*` columns of `Mirror` table
+- `ovs-mirror-consumer`: it only adds the output into `output_port` and `output_vlan` columns of `Mirror` table
+
+The advantage of having 2 different plugins is an easier input validation, in fact we can define specific JSON keys for a better developer experience. 
+However, there will be many common functions (in particular to interact with `ovsdb`) that should be moved into a dedicated common package to reduce boiler-plate. One benefit is that you can restrict the user to interact either with `mirror-prod` or `mirror-cons` by declaring one or the other into the NAD.
+
+## Implementation highlights
+
+We studied a little bit the source code of `ovs-cni` to understand the general idea of how a CNI plugin should be written and how `ovs-cni` communicate with `ovsdb`.
+
+We saw that inputs are parsed from json to a Go struct called `NetConf`. So, we should add additional params to this struct with the new `Mirrors` array in `types.go` :
+
+```go
+type NetConf struct {
+	types.NetConf
+	BrName  string    `json:"bridge,omitempty"`
+	Mirrors []*Mirror `json:"mirrors"`
+  (...)
+}
+
+type Mirror struct {
+	Name      string   `json:"name"`
+	Selection []string `json:"selection,omitempty"`
+	Output    string   `json:"output,omitempty"`
+}
+```
+
+Then we should define some utility functions in `ovsdb.go` to interact with `ovsdb`, in particular to select/insert/update/delete from `Mirror` table.
+
+Before implementing this, it’s important to fully understand how `select_*` columns are managed by `ovsdb`, because, we don’t know if they have a sort of priority or if they are mutually exclusive.
+
+From page 2 of [DB Schema 7.10.1 PDF of Open vSwitch 2.3.90](http://www.openvswitch.org//ovs-vswitchd.conf.db.5.pdf) there is the Table Relationship of `ovsdb`. As you can see a `Bridge` could have 0 or more `Mirrors` and every `Mirror`:
+
+- 0 or 1 `Port` in `output_port` (`output_port?`)
+- 0 or more `Ports` in `select_src_port` (`select_src_port*`)
+- 0 or more `Ports` in `select_dst_port` (`select_dst_port*`)
+
+but no details about using more `select_*` at the same time.
+
+```go
+portUUIDStr := fmt.Sprintf("Mir%s", intfName)
+portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
+
+mirror := make(map[string]interface{})
+mirror["name"] = mirrorName
+mirror["select_all"] = // boolean true/false
+mirror["select_dst_port"] = // Set of Ports
+mirror["select_src_port"] = // Set of Ports
+mirror["select_vlan"] = // Set of integers
+mirror["output_port"] = selectPortUUID
+// mirror["output_vlan"] = ???
+
+oMap, err := ovsdb.NewOvsMap(map[string]string{
+	"contNetns": contNetnsPath,
+	"contIface": contIfaceName,
+	"owner":     ovsPortOwner,
+})
+mirror["external_ids"] = oMap
+
+// Add an entry in Mirror table
+mirrorOp := ovsdb.Operation{
+	Op:       "insert",
+	Table:    "Mirror",
+	Row:      mirror,
+	UUIDName: portUUIDStr,
+}
+```
+
+We also need to add the `Mirror` row to the `Bridge` in this way:
+
+```go
+mutateSet, _ := ovsdb.NewOvsSet(mirrorPortUUID)
+mutation := ovsdb.NewMutation("mirrors", ovsdb.MutateOperationInsert, mutateSet)
+condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, bridgeName)
+mutateOp := ovsdb.Operation{
+	Op:        "mutate",
+	Table:     "Bridge",
+	Mutations: []ovsdb.Mutation{*mutation},
+	Where:     []ovsdb.Condition{condition},
+}
+```
+
+Obviously, we have to add functions and utilities to implement `cmdDel` and `cmdCheck`. What we discussed here is only a general idea.
+
+In case of a dedicated plugin called `ovs-mirror`, we need to parse results from the previous plugin `ovs` (defined in the plugins array), because CNI specs 0.4.0 says that previous plugins adds results in a `prevResult` json object. So, `ovs-mirror` will receive as json input (StdinData) something like this:
+
+```json
+{
+    "cniVersion": "0.4.0"
+	"type":"ovs-mirror"
+	"name": "mirror-1",
+	"bridge": "br0",
+	"args": {
+        "cni": {
+            "mirrors": [
+                {
+                    "name": "mirror-1",
+                    "output": "port"
+                }
+            ]
+        }
+    },
+    "prevResult": {
+        "cniVersion": "0.4.0", 
+        "interfaces": [
+            {
+                "name":"veth83a30e96",
+                "mac":"b2:36:b0:4f:e1:b5"
+            },
+            {
+                "name":"eth1",
+                "mac":"7a:65:b5:f7:2a:89",
+                "sandbox":"/var/run/netns/cni-d79b657b-b118-9c8c-7bff-4cb58c36fdd2"
+            }
+        ],
+        "dns":{}
+    }
+}
+```
+
+## Questions
+
+- Who is responsible for the mirror creation?
+    - both producer and consumer could operate in INSERT OR UPDATE mode
+- Who is responsible for the mirror deletion?
+- How does OVSDB handles concurrency? E.g. a producer and a consumer (or 2 producers) try to insert the same row in the `Mirrors` table at the same time
+- Are `select_*` columns in `Mirror` table of OVS mutually exclusive or not? If not, is there a specific priority? [http://www.openvswitch.org//ovs-vswitchd.conf.db.5.pdf](http://www.openvswitch.org//ovs-vswitchd.conf.db.5.pdf) (page 41)
+- Which is the best approach to define `mirrors`?
+    - A single key called `mirrors` with a similar syntax for both producer and consumer
+        
+        ```json
+        # Producer NAD. List is needed only to produce
+        "mirrors": [
+            {
+                "name": "mirror-1",
+                "selection": ["src-port"]
+            },
+            {
+                "name": "mirror-2",
+                "selection": ["src-port", "dst-port"]
+            }
+        ]
+        
+        # Consumer NAD
+        "mirrors": [
+            {
+                "name": "mirror-1",
+                "output": "port"
+            }
+        ]
+        ```
+        
+        Not valid cases:
+        
+        ```json
+        
+        # NAD cannot set one port both as a input and as an output at the same time
+        "mirrors": [
+            {
+                "name": "mirror-1",
+                "selection": ["src-port", "dst-port"],
+                "output": "port"
+            }
+        ]
+        # or
+        "mirrors": [
+            {
+                "name": "mirror-1",
+                "selection": ["src-port", "dst-port"]
+            },
+            {
+                "name": "mirror-2",
+                "output": "port"
+            }
+        ]
+        
+        # NAD cannot set same port as output for two different mirrors: pod must request two distintic interfaces related to two NADs pointing to two different mirrors
+        "mirrors": [
+            {
+                "name": "mirror-1",
+                "output": "port"
+            },
+            {
+                "name": "mirror-2",
+                "output": "port"
+            }
+        ]
+        ```
+        
+    - 2 keys: `producers`  and `consumer` (singular, not an array)
+        
+        ```json
+        # Producer NAD
+        "producers": [
+        	{
+                "name": "mirror-1",
+                "selection": ["src-port"]
+            },
+            {
+                "name": "mirror-2",
+                "selection": ["src-port", "dst-port"]
+            }
+        ]
+        
+        # Consumer NAD
+        "consumer": {
+            "name": "mirror-1",
+            "output": "port"
+        }
+        
+        # Not valid cases
+        # when 'producers' and 'consumer' are both defined --> must be mutually exclusive
+        ```
