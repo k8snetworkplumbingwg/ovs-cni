@@ -30,11 +30,11 @@ import (
 var _ = Describe("ovs-cni-marker", func() {
 	Describe("bridge resource reporting", func() {
 		It("should be reported only when available on node", func() {
-			out, err := node.RunOnNode("node01", "sudo ovs-vsctl add-br br-test")
+			out, err := node.RunAtNode("node01", "sudo ovs-vsctl add-br br-test")
 			if err != nil {
 				panic(fmt.Errorf("%v: %s", err, out))
 			}
-			defer node.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			defer node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
 
 			Eventually(func() bool {
 				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
@@ -50,7 +50,7 @@ var _ = Describe("ovs-cni-marker", func() {
 				return true
 			}, 20*time.Second, 5*time.Second).Should(Equal(true))
 
-			out, err = node.RunOnNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			out, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
 			if err != nil {
 				panic(fmt.Errorf("%v: %s", err, out))
 			}

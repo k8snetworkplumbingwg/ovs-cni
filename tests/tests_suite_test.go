@@ -17,6 +17,7 @@ package tests_test
 
 import (
 	"flag"
+	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -40,6 +41,9 @@ func TestPlugin(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	flag.Parse()
+
+	// Change to root directory some test expect that
+	os.Chdir("../")
 
 	clusterApi = clusterapi.NewClusterAPI(*kubeconfig)
 	clusterApi.RemoveTestNamespace()
