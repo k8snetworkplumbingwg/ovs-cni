@@ -11,6 +11,7 @@ require (
 	github.com/imdario/mergo v0.3.8
 	github.com/j-keck/arping v0.0.0-20160618110441-2cf9dc699c56
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
+	github.com/k8snetworkplumbingwg/ovs-cni v0.26.1
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.3
 	github.com/pkg/errors v0.9.1
