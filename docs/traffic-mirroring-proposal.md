@@ -1,5 +1,5 @@
-`# Open vSwitch CNI Plugin - Traffic Mirroring Proposal
-`
+# Open vSwitch CNI Plugin - Traffic Mirroring Proposal
+
 ## Overview
 
 This is a proposal for supporting the traffic mirroring feature of OVS into ovs-cni plugin.
@@ -31,7 +31,7 @@ Initially we consider only `dst_port` and `src_port`, since with these two optio
 For simplicity, we ignore `output_vlan` as mirror output.
 
 
-### ** NAD approach**
+### NAD approach
 
 In this approach the complexity is shifted toward the NAD configuration side. The more the scenario is complex (e.g. a lot of vlans, multiple mirrors and different behaviour between pods) the more a greater number of NADs must be defined prior to the pods deployment (could become a little bit messy in complex cases). However, since security is the highest priority, this solution is preferred.
 
@@ -80,7 +80,7 @@ In this approach the complexity is shifted toward the NAD configuration side. Th
 `MIRROR_NAME`: string that represents the unique name of the mirror in ovs database
 
 
-#### **Test case 1**
+#### Test case 1
 
 ![ovs-cni-mirror-1A.png](images/ovs-cni-mirror-1A.png)
 
@@ -166,7 +166,7 @@ spec:
             }
           ]
 ```
-#### **Test case 2**
+#### Test case 2
 
 ![ovs-cni-mirror-2A.png](images/ovs-cni-mirror-2A.png)
 
@@ -395,7 +395,7 @@ spec:
           ]
 ```
 
-#### **Test case 3**
+#### Test case 3
 
 ![ovs-cni-mirror-3A.png](images/ovs-cni-mirror-3A.png)
 
