@@ -15,11 +15,13 @@ export PATH := $(GOBIN):$(PATH):$(BIN_DIR)
 GOPATH = $(CURDIR)/.gopath
 ORG_PATH = github.com/k8snetworkplumbingwg
 PACKAGE = ovs-cni
+OCI_BIN ?= docker
 REPO_PATH = $(ORG_PATH)/$(PACKAGE)
 BASE = $(GOPATH)/src/$(REPO_PATH)
 PKGS = $(or $(PKG),$(shell cd $(BASE) && env GOPATH=$(GOPATH) $(GO) list ./... | grep -v "$(PACKAGE)/vendor/" | grep -v "$(PACKAGE)/tests/cluster" | grep -v "$(PACKAGE)/tests/node"))
 V = 0
 Q = $(if $(filter 1,$V),,@)
+TLS_SETTING := $(if $(filter $(OCI_BIN),podman),--tls-verify=false,)
 
 all: lint build
 
@@ -78,14 +80,14 @@ functest: $(GO)
 docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
 
 docker-build-%: build-%
-	docker build -t ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ./cmd/$(subst -,/,$*)
+	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ./cmd/$(subst -,/,$*)
 
 docker-push: $(patsubst %, docker-push-%, $(COMPONENTS))
 
 docker-push-%:
-	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
-	docker tag ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
-	docker push ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
+	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
+	$(OCI_BIN) tag ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
+	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
 
 dep: $(GO)
 	$(GO) mod tidy
