@@ -61,3 +61,13 @@ function kubevirt_version() {
     fi
 }
 KUBEVIRT_VERSION="$(kubevirt_version)"
+
+determine_cri_bin() {
+    if podman ps >/dev/null 2>&1; then
+        echo podman
+    elif docker ps >/dev/null 2>&1; then
+        echo docker
+    else
+        echo ""
+    fi
+}

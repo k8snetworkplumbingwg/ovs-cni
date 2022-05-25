@@ -4,6 +4,7 @@ set -e
 source $(dirname "$0")/common.sh
 
 DOCKER_DIR=${KUBEVIRT_DIR}/hack/docker-builder
+OCI_BIN=${OCI_BIN:-$(determine_cri_bin)}
 
 SYNC_OUT=${SYNC_OUT:-true}
 
@@ -20,26 +21,26 @@ if [ -n "$JOB_NAME" -o -n "$TRAVIS_BUILD_ID" ]; then
 fi
 
 # Build the build container
-(cd ${DOCKER_DIR} && docker build . ${BUILD_QUIET} -t ${BUILDER})
+(cd ${DOCKER_DIR} && ${OCI_BIN} build . ${BUILD_QUIET} -t ${BUILDER})
 
 # Create the persistent docker volume
-if [ -z "$(docker volume list | grep ${BUILDER})" ]; then
-    docker volume create --name ${BUILDER}
+if [ -z "$($OCI_BIN volume list | grep ${BUILDER})" ]; then
+    ${OCI_BIN} volume create ${BUILDER}
 fi
 
 # Make sure that the output directory exists
-docker run -v "${BUILDER}:/root:rw,z" --security-opt label:disable --rm ${BUILDER} mkdir -p /root/go/src/github.com/k8snetworkplumbingwg/ovs-cni/_out
+${OCI_BIN} run -v "${BUILDER}:/root:rw,z" --security-opt label=disable --rm ${BUILDER} mkdir -p /root/go/src/github.com/k8snetworkplumbingwg/ovs-cni/_out
 
 # Start an rsyncd instance and make sure it gets stopped after the script exits
-RSYNC_CID=$(docker run -d -v "${BUILDER}:/root:rw,z" --security-opt label:disable --expose 873 -P ${BUILDER} /usr/bin/rsync --no-detach --daemon --verbose)
+RSYNC_CID=$($OCI_BIN run -d -v "${BUILDER}:/root:rw,z" --security-opt label=disable --expose 873 -P ${BUILDER} /usr/bin/rsync --no-detach --daemon --verbose)
 
 function finish() {
-    docker stop ${RSYNC_CID} >/dev/null 2>&1 &
-    docker rm -f ${RSYNC_CID} >/dev/null 2>&1 &
+    ${OCI_BIN} stop ${RSYNC_CID} >/dev/null 2>&1 &
+    ${OCI_BIN} rm -f ${RSYNC_CID} >/dev/null 2>&1 &
 }
 trap finish EXIT
 
-RSYNCD_PORT=$(docker port $RSYNC_CID 873 | cut -d':' -f2)
+RSYNCD_PORT=$($OCI_BIN port $RSYNC_CID 873 | cut -d':' -f2)
 
 rsynch_fail_count=0
 
@@ -70,7 +71,7 @@ _rsync --delete --exclude 'cluster/**/.kubectl' --exclude 'cluster/**/.oc' --exc
 
 # Run the command
 test -t 1 && USE_TTY="-it"
-docker run --rm -v "${BUILDER}:/root:rw,z" --security-opt label:disable ${USE_TTY} -w "/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni" ${BUILDER} "$@"
+${OCI_BIN} run --rm -v "${BUILDER}:/root:rw,z" --security-opt label=disable ${USE_TTY} -w "/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni" ${BUILDER} "$@"
 
 # Copy the whole kubevirt data out to get generated sources and formatting changes
 _rsync --exclude 'cluster/**/.kubectl' --exclude 'cluster/**/.oc' --exclude 'cluster/**/.kubeconfig' --exclude "_out" --exclude "vendor" --exclude ".git" "rsync://root@127.0.0.1:${RSYNCD_PORT}/build" ${KUBEVIRT_DIR}/

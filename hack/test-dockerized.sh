@@ -21,6 +21,7 @@ set -e
 source $(dirname "$0")/common.sh
 
 DOCKER_DIR=${KUBEVIRT_DIR}/hack/docker-builder
+OCI_BIN=${OCI_BIN:-$(determine_cri_bin)}
 
 SYNC_OUT=${SYNC_OUT:-true}
 
@@ -37,6 +38,6 @@ if [ -n "$JOB_NAME" -o -n "$TRAVIS_BUILD_ID" ]; then
 fi
 
 # Build the build container
-(cd ${DOCKER_DIR} && docker build . ${BUILD_QUIET} -t ${BUILDER})
+(cd ${DOCKER_DIR} && ${OCI_BIN} build . ${BUILD_QUIET} -t ${BUILDER})
 
-docker run --rm --privileged --network host --cap-add ALL -v /lib/modules:/lib/modules -v `pwd`:/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni -w "/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni" ${BUILDER} make test
+${OCI_BIN} run --rm --privileged --network host -v /lib/modules:/lib/modules -v `pwd`:/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni -w "/root/go/src/github.com/k8snetworkplumbingwg/ovs-cni" ${BUILDER} make test
