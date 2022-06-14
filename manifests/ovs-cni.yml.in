@@ -57,6 +57,7 @@ spec:
           - $(NODE_NAME)
           - -ovs-socket
           - unix:/host/var/run/openvswitch/db.sock
+          - -healthcheck-interval=${OVS_CNI_MARKER_HEALTHCHECK_INTERVAL}
         volumeMounts:
           - name: ovs-var-run
             mountPath: /host/var/run/openvswitch
@@ -69,6 +70,15 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+        livenessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - >-
+                find /tmp/healthy -mmin -2 | grep -q '/tmp/healthy'
+          initialDelaySeconds: ${OVS_CNI_MARKER_HEALTHCHECK_INTERVAL}
+          periodSeconds: ${OVS_CNI_MARKER_HEALTHCHECK_INTERVAL}
       volumes:
         - name: cnibin
           hostPath:

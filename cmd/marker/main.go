@@ -39,6 +39,12 @@ func main() {
 	const defaultReconcileInterval = 10 * time.Minute
 	reconcileInterval := flag.Int("reconcile-interval", int(defaultReconcileInterval.Minutes()), fmt.Sprintf("interval between node bridges reconcile in minutes, %d by default", int(defaultReconcileInterval.Minutes())))
 
+	const healthCheckFile = "/tmp/healthy"
+
+	const defaultHealthCheckInterval = 60 * time.Second
+	healthCheckInterval := flag.Int("healthcheck-interval", int(defaultHealthCheckInterval.Seconds()),
+		fmt.Sprintf("health check interval in seconds, %d by default", int(defaultHealthCheckInterval.Seconds())))
+
 	flag.Parse()
 
 	if *nodeName == "" {
@@ -84,6 +90,8 @@ func main() {
 		glog.Fatalf("Failed to create a new marker object: %v", err)
 	}
 
+	go keepAlive(healthCheckFile, *healthCheckInterval)
+
 	markerCache := cache.Cache{}
 	wait.JitterUntil(func() {
 		jitteredReconcileInterval := wait.Jitter(time.Duration(*reconcileInterval)*time.Minute, 1.2)
@@ -107,4 +115,25 @@ func main() {
 		}
 
 	}, time.Duration(*updateInterval)*time.Second, 1.2, true, wait.NeverStop)
+}
+
+func keepAlive(healthCheckFile string, healthCheckInterval int) {
+	wait.Forever(func() {
+		_, err := os.Stat(healthCheckFile)
+		if os.IsNotExist(err) {
+			file, err := os.Create(healthCheckFile)
+			if err != nil {
+				glog.Fatalf("failed to create file: %s, err: %v", healthCheckFile, err)
+			}
+			defer file.Close()
+		} else {
+			currentTime := time.Now().Local()
+			err = os.Chtimes(healthCheckFile, currentTime, currentTime)
+			if err != nil {
+				glog.Errorf("failed to change modification time of file: %s, err: %v",
+					healthCheckFile, err)
+			}
+		}
+
+	}, time.Duration(healthCheckInterval)*time.Second)
 }
