@@ -26,6 +26,7 @@ spec:
       hostNetwork: true
       nodeSelector:
         kubernetes.io/arch: amd64
+        kubernetes.io/os: linux
       tolerations:
       - key: node-role.kubernetes.io/master
         operator: Exists
@@ -56,6 +57,7 @@ spec:
           - $(NODE_NAME)
           - -ovs-socket
           - unix:/host/var/run/openvswitch/db.sock
+          - -healthcheck-interval=60
         volumeMounts:
           - name: ovs-var-run
             mountPath: /host/var/run/openvswitch
@@ -68,6 +70,15 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+        livenessProbe:
+          exec:
+            command:
+              - sh
+              - -c
+              - >-
+                find /tmp/healthy -mmin -2 | grep -q '/tmp/healthy'
+          initialDelaySeconds: 60
+          periodSeconds: 60
       volumes:
         - name: cnibin
           hostPath:

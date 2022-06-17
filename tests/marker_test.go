@@ -64,4 +64,23 @@ var _ = Describe("ovs-cni-marker", func() {
 			}, 180*time.Second, 5*time.Second).Should(Equal(false))
 		})
 	})
+
+	Describe("Health Check", func() {
+		It("Should not restart ovs-cni-marker container", func() {
+			Consistently(func() bool {
+				pods, err := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(),
+					metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				Expect(err).ToNot(HaveOccurred(), "should fetch ovs-cni pods successfully")
+				Expect(pods.Items).ToNot(BeEmpty(), "ovs-cni pods should be running")
+
+				for _, pod := range pods.Items {
+					restartCount := pod.Status.ContainerStatuses[0].RestartCount
+					if restartCount > 0 {
+						return false
+					}
+				}
+				return true
+			}, 240*time.Second, 60*time.Second).Should(Equal(true))
+		})
+	})
 })
