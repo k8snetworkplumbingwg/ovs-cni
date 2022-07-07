@@ -90,4 +90,4 @@ replace (
 
 replace github.com/gogo/protobuf => github.com/gogo/protobuf v1.3.2
 
-go 1.17
+go 1.18

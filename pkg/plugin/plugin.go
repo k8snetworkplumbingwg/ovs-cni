@@ -269,6 +269,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	// removes all ports whose interfaces have an error
+	if err := cleanPorts(ovsDriver); err != nil {
+		return err
+	}
+
 	contNetns, err := ns.GetNS(args.Netns)
 	if err != nil {
 		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
@@ -514,11 +519,6 @@ func CmdDel(args *skel.CmdArgs) error {
 			if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 				return err
 			}
-		} else {
-			// In accordance with the spec we clean up as many resources as possible.
-			if err := cleanPorts(ovsDriver); err != nil {
-				return err
-			}
 		}
 		return nil
 	}
@@ -548,10 +548,6 @@ func CmdDel(args *skel.CmdArgs) error {
 	} else {
 		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
 			err = ip.DelLinkByName(args.IfName)
-			if err != nil {
-				// clean up as many stale ovs resources as possible.
-				cleanPorts(ovsDriver)
-			}
 			return err
 		})
 		// do the following as per cni spec (i.e. Plugins should generally complete a DEL action
@@ -560,9 +556,13 @@ func CmdDel(args *skel.CmdArgs) error {
 			if portFound {
 				ip.DelLinkByName(portName)
 			}
-			cleanPorts(ovsDriver)
 			return nil
 		}
+	}
+
+	// removes all ports whose interfaces have an error
+	if err := cleanPorts(ovsDriver); err != nil {
+		return err
 	}
 
 	return err

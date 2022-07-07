@@ -1,23 +1,19 @@
-# Open vSwitch CNI Plugin - Traffic Mirroring Proposal
+# Open vSwitch CNI Plugin - Traffic Mirroring
 
 ## Overview
 
-This is a proposal for supporting the traffic mirroring feature of OVS into ovs-cni plugin.
+This is the documentation of ovs-cni plugin to support the OVS traffic mirroring feature.
 The topic has been initially discussed in [issue 219](https://github.com/k8snetworkplumbingwg/ovs-cni/issues/219).
 
-## Use case
+The main idea is to create and manage multiple mirror ports (SPAN) through ovs-cni in Network Configuration List (Multus) as defined in CNI spec 0.4.0.
 
-Our project has the requirement of monitoring the network traffic via an IDS/IPS solution included within a dedicated pod. The standard approach is to have an OVS switch capable of mirroring the traffic of specific ports/VLANs into an output SPAN/RSPAN port.
-
-## Goal
-
-Create and manage multiple mirror ports through either ovs-cni or a dedicated cni-plugin in Network Configuration List (Multus) as defined in CNI spec 0.4.0.
-
-## Requirements
+## Supported features
 
 - Create multiple mirror ports in a specific bridge
 - Select source ports
 - Select output port (SPAN)
+
+**RSPAN mirrors is not supported**
 
 ## API and test-cases
 
@@ -25,15 +21,11 @@ Create and manage multiple mirror ports through either ovs-cni or a dedicated cn
 
 1. The approach relies first on the current `ovs` plugins to create the requested port via pod annotation. Afterwards, the output of the plugin execution is cascaded as input to the plugin that is responsible for managing the mirrors  (e.g. `ovs-mirror-producer` and `ovs-mirror-consumer` plugins). This is possible thanks to [Multus chaining capability](https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md#network-configuration-lists).
 2. In all diagrams below we used different colors to represent the logical relation between different entities. In case of OVS they are real DB relations, in case of Pods they represent network connections. Instead, NADs are represented with random colors without a real meaning.
-3. In all diagrams below we focused on OVS Mirror `src_port` and `dst_port` to consider the representation with the finest granularity. In this way, we can specify single ports one by one.
-However, we are not expert in OVS and its database. In the official [DB Schema 7.10.1 PDF of Open vSwitch 2.3.90](http://www.openvswitch.org//ovs-vswitchd.conf.db.5.pdf) there is a detailed documentation about database relations and columns. Page 41 explains the *Mirror* table, but the *Selecting Packets for Mirroring* paragraph seems a little bit confusing.
-Initially we consider only `dst_port` and `src_port`, since with these two options you can build the most fine grained configuration for the mirrors. The only important aspect is to allow the users to set both src and dst at the same time.
-For simplicity, we ignore `output_vlan` as mirror output.
+3. In all diagrams below we focused on OVS Mirror `src_port` and `dst_port` to consider the representation with the finest granularity. In this way, we can specify single ports one by one. The only important aspect is to allow the users to set both src and dst at the same time.
+For simplicity, we ignore `output_vlan` (used for RSPAN) as mirror output.
 
 
-### NAD approach
-
-In this approach the complexity is shifted toward the NAD configuration side. The more the scenario is complex (e.g. a lot of vlans, multiple mirrors and different behaviour between pods) the more a greater number of NADs must be defined prior to the pods deployment (could become a little bit messy in complex cases). However, since security is the highest priority, this solution is preferred.
+### Examples
 
 **Producer NAD**
 
@@ -585,13 +577,3 @@ spec:
             }
           ]
 ```
-
-
-## Questions
-
-- Who is responsible for the mirror creation?
-    - both producer and consumer could operate in INSERT OR UPDATE mode
-- Who is responsible for the mirror deletion? Would it be viable to simply delete a mirror when it has no other producers or consumers attached to it on the host?
-    - if yes, we could use the same strategy of ovs-cni plugin introduced here https://github.com/k8snetworkplumbingwg/ovs-cni/pull/109/files, otherwise we need to implement a new logic
-- How does OVSDB handles concurrency? E.g. a producer and a consumer (or 2 producers) try to insert the same row in the `Mirrors` table at the same time
-    - OVSDB should offers transaction objects. If we model the whole mirror operation as a single transaction, they should not race.

@@ -16,7 +16,14 @@
 
 package types
 
-import "github.com/containernetworking/cni/pkg/types"
+import (
+	"github.com/containernetworking/cni/pkg/types"
+	current "github.com/containernetworking/cni/pkg/types/100"
+)
+
+type NetConfs interface {
+	NetConf | MirrorNetConf
+}
 
 // NetConf extends types.NetConf for ovs-cni
 type NetConf struct {
@@ -30,6 +37,27 @@ type NetConf struct {
 	SocketFile             string   `json:"socket_file"`
 	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
+}
+
+// NetConf extends types.NetConf for ovs-cni-mirrors
+type MirrorNetConf struct {
+	types.NetConf
+
+	// support chaining for master interface and IP decisions
+	// occurring prior to running ipvlan plugin
+	RawPrevResult *map[string]interface{} `json:"prevResult"`
+	PrevResult    *current.Result         `json:"-"`
+
+	BrName            string    `json:"bridge,omitempty"`
+	ConfigurationPath string    `json:"configuration_path"`
+	SocketFile        string    `json:"socket_file"`
+	Mirrors           []*Mirror `json:"mirrors"`
+}
+
+type Mirror struct {
+	Name    string `json:"name"`
+	Ingress bool   `json:"ingress,omitempty"`
+	Egress  bool   `json:"egress,omitempty"`
 }
 
 // Trunk containing selective vlan IDs
