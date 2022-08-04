@@ -519,6 +519,11 @@ func CmdDel(args *skel.CmdArgs) error {
 			if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 				return err
 			}
+		} else {
+			// In accordance with the spec we clean up as many resources as possible.
+			if err := cleanPorts(ovsDriver); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
