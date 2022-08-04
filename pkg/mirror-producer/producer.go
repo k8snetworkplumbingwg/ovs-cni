@@ -182,8 +182,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	}
 
 	for _, mirror := range netconf.Mirrors {
-
-		mirrorExist, err := ovsDriver.CheckMirrorProducerWithPorts(mirror.Name, mirror.Egress, mirror.Ingress, portUUID)
+		mirrorExist, err := ovsDriver.CheckMirrorProducerWithPorts(mirror.Name, mirror.Ingress, mirror.Egress, portUUID)
 		if err != nil {
 			return err
 		}
