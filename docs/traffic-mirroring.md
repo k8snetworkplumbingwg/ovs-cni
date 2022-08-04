@@ -5,7 +5,7 @@
 This is the documentation of ovs-cni plugin to support the OVS traffic mirroring feature.
 The topic has been initially discussed in [issue 219](https://github.com/k8snetworkplumbingwg/ovs-cni/issues/219).
 
-The main idea is to create and manage multiple mirror ports (SPAN) through ovs-cni in Network Configuration List (Multus) as defined in CNI spec 0.4.0.
+The main idea is creating and managing multiple mirror ports (SPAN) through ovs-cni in Network Configuration List (Multus) as defined in CNI spec.
 
 ## Supported features
 
@@ -21,7 +21,7 @@ The main idea is to create and manage multiple mirror ports (SPAN) through ovs-c
 
 1. The approach relies first on the current `ovs` plugins to create the requested port via pod annotation. Afterwards, the output of the plugin execution is cascaded as input to the plugin that is responsible for managing the mirrors  (e.g. `ovs-mirror-producer` and `ovs-mirror-consumer` plugins). This is possible thanks to [Multus chaining capability](https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md#network-configuration-lists).
 2. In all diagrams below we used different colors to represent the logical relation between different entities. In case of OVS they are real DB relations, in case of Pods they represent network connections. Instead, NADs are represented with random colors without a real meaning.
-3. In all diagrams below we focused on OVS Mirror `src_port` and `dst_port` to consider the representation with the finest granularity. In this way, we can specify single ports one by one. The only important aspect is to allow the users to set both src and dst at the same time.
+3. In all diagrams below we focused on OVS Mirror `src_port` and `dst_port` to consider the representation with the finest granularity. In this way, we can specify single ports one by one.
 For simplicity, we ignore `output_vlan` (used for RSPAN) as mirror output.
 
 
