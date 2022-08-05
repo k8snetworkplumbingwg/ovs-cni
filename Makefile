@@ -36,9 +36,7 @@ $(BASE): ; $(info  setting GOPATH...)
 
 GOLINT = $(GOBIN)/golint
 $(GOBIN)/golint: | $(BASE) ; $(info  building golint...)
-	$Q go get -u golang.org/x/lint/golint
-	# golint installation modifies go.mod and it causes golint failure so run mod tidy here
-	$(GO) mod tidy
+	$Q go install -mod=mod golang.org/x/lint/golint@v0.0.0-20210508222113-6edffad5e616
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
@@ -66,7 +64,7 @@ build-host-local-plugin:
 	fi
 
 test: $(GO) build-host-local-plugin
-	$(GO) test ./cmd/... ./pkg/... -v --ginkgo.v
+	$(GO) test -mod=readonly ./cmd/... ./pkg/... -v --ginkgo.v
 
 docker-test:
 	hack/test-dockerized.sh
