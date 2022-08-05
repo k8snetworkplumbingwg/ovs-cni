@@ -553,48 +553,6 @@ var testFunc = func(version string) {
 			})
 		})
 	})
-
-	Context("adding a mirror with both producer and consumer configuration defined", func() {
-		Context("('output_port', 'select_src_port' and 'select_dst_port' defined with valid portUUIDs)", func() {
-			mirrors := []types.Mirror{
-				{
-					Name:    "mirror-prod",
-					Ingress: true,
-					Egress:  true,
-				},
-			}
-			mirrorsJSONStr, err := toJSONString(mirrors)
-			Expect(err).NotTo(HaveOccurred())
-
-			conf := fmt.Sprintf(`{
-				"cniVersion": "%s",
-				"name": "mynet",
-				"type": "ovs-cni-mirror-producer",
-				"bridge": "%s",
-				"mirrors": %s
-			}`, version, bridgeName, mirrorsJSONStr)
-
-			It("shouldn't be removed calling cmdDel by this plugin, because it contains 'output_port' configured by a consumer", func() {
-				// This is very important!
-				// cmdDel of both mirror-producer and mirror-consumer plugins is able to cleanup a mirror
-				// without a useful configuration (all traffic outputs and inputs are undefined).
-				// However, they can remove a mirror only if both
-				// 'output_port', 'select_src_port' and 'select_dst_port' are empty.
-				targetNs := newNS()
-				defer func() {
-					closeNS(targetNs)
-				}()
-
-				By("1) create interfaces using ovs-cni plugin")
-				prevResult := createInterfaces(IFNAME1, targetNs)
-
-				By("2) run ovs-cni-mirror-producer passing prevResult")
-				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
-				testCheck(confMirror, result, IFNAME1, targetNs)
-				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
-			})
-		})
-	})
 }
 
 func newNS() ns.NetNS {
