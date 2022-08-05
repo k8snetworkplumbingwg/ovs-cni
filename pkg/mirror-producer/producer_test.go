@@ -58,7 +58,7 @@ type MirrorNetCurrent struct {
 	PrevResult    current.Result         `json:"-"`
 }
 
-const bridgeName = "test-bridge"
+const bridgeName = "bridge-mir-prod"
 const vlanID = 100
 const IFNAME1 = "eth0"
 const IFNAME2 = "eth1"
@@ -103,7 +103,7 @@ var testFunc = func(version string) {
 			"vlan": %d
 		}`, version, bridgeName, vlanID)
 		args := &skel.CmdArgs{
-			ContainerID: "dummy",
+			ContainerID: "dummy-mir-prod",
 			Netns:       targetNs.Path(),
 			IfName:      ifName,
 			StdinData:   []byte(confplugin),
@@ -130,7 +130,7 @@ var testFunc = func(version string) {
 		}
 
 		args := &skel.CmdArgs{
-			ContainerID: "dummy",
+			ContainerID: "dummy-mir-prod",
 			Netns:       targetNs.Path(),
 			IfName:      ifName,
 			StdinData:   []byte(conf),
@@ -197,7 +197,7 @@ var testFunc = func(version string) {
 		}
 
 		args := &skel.CmdArgs{
-			ContainerID: "dummy",
+			ContainerID: "dummy-mir-prod",
 			Netns:       targetNs.Path(),
 			IfName:      ifName,
 			StdinData:   []byte(conf),
@@ -270,7 +270,7 @@ var testFunc = func(version string) {
 		confMirror := conf[:len(conf)-1] + ", \"prevResult\": " + prevResult + "\n}"
 
 		argsMirror := &skel.CmdArgs{
-			ContainerID: "dummy",
+			ContainerID: "dummy-mir-prod",
 			Netns:       targetNs.Path(),
 			IfName:      ifName,
 			StdinData:   []byte(confMirror),
@@ -292,7 +292,7 @@ var testFunc = func(version string) {
 		Context("as both ingress and egress (select_src_port and select_dst_port in ovsdb)", func() {
 			mirrors := []types.Mirror{
 				{
-					Name:    "test-mirror",
+					Name:    "mirror-prod",
 					Ingress: true,
 					Egress:  true,
 				},
@@ -327,7 +327,7 @@ var testFunc = func(version string) {
 		Context("as ingress, but not egress (only select_src_port in ovsdb)", func() {
 			mirrors := []types.Mirror{
 				{
-					Name:    "test-mirror",
+					Name:    "mirror-prod",
 					Ingress: true,
 					// Egress:  false (if omitted, 'Egress' is false by default)
 				},
@@ -362,7 +362,7 @@ var testFunc = func(version string) {
 		Context("as egress, but not ingress (only select_dst_port in ovsdb)", func() {
 			mirrors := []types.Mirror{
 				{
-					Name:    "test-mirror",
+					Name:    "mirror-prod",
 					Ingress: false, // (if omitted, 'Ingress' is false by default)
 					Egress:  true,
 				},
@@ -550,6 +550,48 @@ var testFunc = func(version string) {
 				By("4) run ovs-cni-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
 				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
+			})
+		})
+	})
+
+	Context("adding a mirror with both producer and consumer configuration defined", func() {
+		Context("('output_port', 'select_src_port' and 'select_dst_port' defined with valid portUUIDs)", func() {
+			mirrors := []types.Mirror{
+				{
+					Name:    "mirror-prod",
+					Ingress: true,
+					Egress:  true,
+				},
+			}
+			mirrorsJSONStr, err := toJSONString(mirrors)
+			Expect(err).NotTo(HaveOccurred())
+
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs-cni-mirror-producer",
+				"bridge": "%s",
+				"mirrors": %s
+			}`, version, bridgeName, mirrorsJSONStr)
+
+			It("shouldn't be removed calling cmdDel by this plugin, because it contains 'output_port' configured by a consumer", func() {
+				// This is very important!
+				// cmdDel of both mirror-producer and mirror-consumer plugins is able to cleanup a mirror
+				// without a useful configuration (all traffic outputs and inputs are undefined).
+				// However, they can remove a mirror only if both
+				// 'output_port', 'select_src_port' and 'select_dst_port' are empty.
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				By("1) create interfaces using ovs-cni plugin")
+				prevResult := createInterfaces(IFNAME1, targetNs)
+
+				By("2) run ovs-cni-mirror-producer passing prevResult")
+				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
+				testCheck(confMirror, result, IFNAME1, targetNs)
+				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
 			})
 		})
 	})
