@@ -336,6 +336,7 @@ func (ovsd *OvsDriver) GetOFPortVlanState(portName string) (string, *uint, []uin
 	return vlanMode, tag, trunks, nil
 }
 
+// CreateMirror Creates a new mirror to a specific bridge
 func (ovsd *OvsBridgeDriver) CreateMirror(bridgeName, mirrorName string) error {
 	mirrorExist, err := ovsd.IsMirrorPresent(mirrorName)
 	if err != nil {
@@ -359,6 +360,7 @@ func (ovsd *OvsBridgeDriver) CreateMirror(bridgeName, mirrorName string) error {
 	return nil
 }
 
+// DeleteMirror Removes a mirror of a specific bridge
 func (ovsd *OvsBridgeDriver) DeleteMirror(bridgeName, mirrorName string) error {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
 	row, err := ovsd.findByCondition("Mirror", condition, nil)
@@ -401,6 +403,8 @@ func (ovsd *OvsBridgeDriver) DeleteMirror(bridgeName, mirrorName string) error {
 	return nil
 }
 
+// AttachPortToMirrorProducer Adds a portUUID as 'select_src_port' or 'select_dst_port' to an existing mirror
+// based on ingress and egress values
 func (ovsd *OvsBridgeDriver) AttachPortToMirrorProducer(portUUIDStr, mirrorName string, ingress, egress bool) error {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -417,6 +421,7 @@ func (ovsd *OvsBridgeDriver) AttachPortToMirrorProducer(portUUIDStr, mirrorName 
 	return err
 }
 
+// AttachPortToMirrorConsumer Adds portUUID as 'output_port' to an existing mirror
 func (ovsd *OvsBridgeDriver) AttachPortToMirrorConsumer(portUUIDStr, mirrorName string) error {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -429,6 +434,7 @@ func (ovsd *OvsBridgeDriver) AttachPortToMirrorConsumer(portUUIDStr, mirrorName 
 	return err
 }
 
+// DetachPortFromMirrorProducer Removes portUUID as both 'select_src_port' and 'select_dst_port' from an existing mirror
 func (ovsd *OvsBridgeDriver) DetachPortFromMirrorProducer(portUUIDStr, mirrorName string) error {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -441,6 +447,7 @@ func (ovsd *OvsBridgeDriver) DetachPortFromMirrorProducer(portUUIDStr, mirrorNam
 	return err
 }
 
+// DetachPortFromMirrorConsumer Removes portUUID as 'output_port' from an existing mirror
 func (ovsd *OvsBridgeDriver) DetachPortFromMirrorConsumer(portUUIDStr, mirrorName string) error {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -453,6 +460,7 @@ func (ovsd *OvsBridgeDriver) DetachPortFromMirrorConsumer(portUUIDStr, mirrorNam
 	return err
 }
 
+// GetMirrorUUID Retrieves the UUID of a mirror from its name
 func (ovsd *OvsBridgeDriver) GetMirrorUUID(mirrorName string) (ovsdb.UUID, error) {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
 	row, err := ovsd.findByCondition("Mirror", condition, nil)
@@ -467,6 +475,7 @@ func (ovsd *OvsBridgeDriver) GetMirrorUUID(mirrorName string) (ovsdb.UUID, error
 	return mirrorUUID, nil
 }
 
+// GetPortUUID Retrieves the UUID of a port from its name
 func (ovsd *OvsBridgeDriver) GetPortUUID(portName string) (ovsdb.UUID, error) {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, portName)
 	row, err := ovsd.findByCondition("Port", condition, nil)
@@ -481,6 +490,7 @@ func (ovsd *OvsBridgeDriver) GetPortUUID(portName string) (ovsdb.UUID, error) {
 	return portUUID, nil
 }
 
+// IsMirrorConsumerAlreadyAttached Checks if the 'output_port' column of a mirror consumer contains a port UUID
 func (ovsd *OvsDriver) IsMirrorConsumerAlreadyAttached(mirrorName string) (bool, error) {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
 	row, err := ovsd.findByCondition("Mirror", condition, nil)
@@ -499,6 +509,7 @@ func (ovsd *OvsDriver) IsMirrorConsumerAlreadyAttached(mirrorName string) (bool,
 	return true, nil
 }
 
+// CheckMirrorProducerWithPorts Checks the configuration of a mirror producer based on ingress and egress values
 func (ovsd *OvsDriver) CheckMirrorProducerWithPorts(mirrorName string, ingress, egress bool, portUUIDStr string) (bool, error) {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -546,6 +557,7 @@ func (ovsd *OvsDriver) CheckMirrorProducerWithPorts(mirrorName string, ingress, 
 	return true, nil
 }
 
+// CheckMirrorConsumerWithPorts Checks the configuration of a mirror consumer
 func (ovsd *OvsDriver) CheckMirrorConsumerWithPorts(mirrorName string, portUUIDStr string) (bool, error) {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -560,7 +572,7 @@ func (ovsd *OvsDriver) CheckMirrorConsumerWithPorts(mirrorName string, portUUIDS
 	return true, nil
 }
 
-// IsMirrorPresent Check if the Mirror entry already exists
+// IsMirrorPresent Checks if the Mirror entry already exists
 func (ovsd *OvsDriver) IsMirrorPresent(mirrorName string) (bool, error) {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
 	selectOp := []ovsdb.Operation{{
@@ -591,7 +603,7 @@ func (ovsd *OvsDriver) IsMirrorPresent(mirrorName string) (bool, error) {
 	return true, nil
 }
 
-// IsBridgePresent Check if the bridge entry already exists
+// IsBridgePresent Checks if the bridge entry already exists
 func (ovsd *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, bridgeName)
 	selectOp := []ovsdb.Operation{{
@@ -1008,7 +1020,6 @@ func convertToArray(elem interface{}) ([]interface{}, error) {
 			return elem.(ovsdb.OvsSet).GoSet, nil
 		}
 		return nil, errors.New("struct with unknown types")
-	} else {
-		return nil, errors.New("unknown type")
 	}
+	return nil, errors.New("unknown type")
 }

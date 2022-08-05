@@ -21,6 +21,7 @@ import (
 	current "github.com/containernetworking/cni/pkg/types/100"
 )
 
+// NetConfs can be either NetConf or MirrorNetConf
 type NetConfs interface {
 	NetConf | MirrorNetConf
 }
@@ -39,7 +40,7 @@ type NetConf struct {
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
 }
 
-// NetConf extends types.NetConf for ovs-cni-mirrors
+// MirrorNetConf extends types.NetConf for ovs-cni-mirrors
 type MirrorNetConf struct {
 	types.NetConf
 
@@ -54,6 +55,7 @@ type MirrorNetConf struct {
 	Mirrors           []*Mirror `json:"mirrors"`
 }
 
+// Mirror configuration
 type Mirror struct {
 	Name    string `json:"name"`
 	Ingress bool   `json:"ingress,omitempty"`
