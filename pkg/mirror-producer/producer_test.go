@@ -188,8 +188,8 @@ var testFunc = func(version string) {
 		Expect(err).NotTo(HaveOccurred())
 	}
 
-	testDel := func(conf string, mirrors []types.Mirror, ifName string, targetNs ns.NetNS) {
-		By("Checking that mirrors are in ovsdb")
+	testDel := func(conf string, mirrors []types.Mirror, r cnitypes.Result, ifName string, targetNs ns.NetNS) {
+		By("Checking that mirrors are still in ovsdb")
 		for _, mirror := range mirrors {
 			mirrorDb, err := getMirrorAttribute(mirror.Name, "name")
 			Expect(err).NotTo(HaveOccurred())
@@ -203,17 +203,56 @@ var testFunc = func(version string) {
 			StdinData:   []byte(conf),
 		}
 
+		// get portUuid from result
+		portUuid := getPortUuidFromResult(r)
+
+		// if both 'srcPorts' and 'dstPorts' contains only 'portUuid',
+		// cmdDel will remove the entire mirror, otherwise it will be simply remove that specific uuid
+		var removableMirrors []string
+
+		By("Creating a list with all mirrors that should be removed by cmdDel")
+		for _, mirror := range mirrors {
+			// Obtaining 'select_*' ports of 'mirror'
+			srcPorts, _ := getMirrorSrcPorts(mirror.Name)
+			dstPorts, _ := getMirrorDstPorts(mirror.Name)
+
+			if onlyContainsOrEmpty(srcPorts, portUuid) && onlyContainsOrEmpty(dstPorts, portUuid) {
+				// this mirror will be removed by cmdDel
+				removableMirrors = append(removableMirrors, mirror.Name)
+			}
+
+		}
+
 		By("Calling DEL command")
 		err := cmdDelWithArgs(args, func() error {
 			return CmdDel(args)
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Checking that mirrors are no longer in ovsdb")
-		mirrorsDb, err := getMirrors()
-		Expect(err).NotTo(HaveOccurred())
-		// Mirror table must be empty
-		Expect(len(mirrorsDb)).To(Equal(0))
+		By("Checking mirrors after DEL command")
+		for _, mirror := range mirrors {
+			if containsElement(removableMirrors, mirror.Name) {
+				By(fmt.Sprintf("Checking that mirror %s is no longer in ovsdb", mirror.Name))
+				exists, err := isMirrorExists(mirror.Name)
+				Expect(err).NotTo(HaveOccurred())
+				// mirror must be removed by cmdDel
+				Expect(exists).To(Equal(false))
+			} else {
+				if mirror.Ingress {
+					By(fmt.Sprintf("Checking that mirror %s doesn't have portUuid %s in its 'select_src_port'", mirror.Name, portUuid))
+					srcPorts, err := getMirrorSrcPorts(mirror.Name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(srcPorts).NotTo(ContainElement(portUuid))
+				}
+
+				if mirror.Egress {
+					By(fmt.Sprintf("Checking that mirror %s doesn't have portUuid %s in its 'select_dst_port'", mirror.Name, portUuid))
+					dstPorts, err := getMirrorDstPorts(mirror.Name)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(dstPorts).NotTo(ContainElement(portUuid))
+				}
+			}
+		}
 	}
 
 	testAdd := func(conf string, mirrors []types.Mirror, pluginPrevResult *current.Result, ifName string, targetNs ns.NetNS) (string, cnitypes.Result) {
@@ -227,10 +266,8 @@ var testFunc = func(version string) {
 		}`, version, interfacesJsonStr)
 
 		// add prevResult to conf (first we need to remove the last character "}"
-		// and then concatenare the rest
+		// and then concatenate the rest
 		confMirror := conf[:len(conf)-1] + ", \"prevResult\": " + prevResult + "\n}"
-
-		fmt.Println(confMirror)
 
 		argsMirror := &skel.CmdArgs{
 			ContainerID: "dummy",
@@ -245,43 +282,8 @@ var testFunc = func(version string) {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		resultMirror, err := current.GetResult(r)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(len(resultMirror.Interfaces)).To(Equal(2))
-
-		// ovs-cni-mirror-producer must return the same interfaces of ovs-cni plugin,
-		// because it doesn't modify interfaces, but it updates only ovsdb.
-		By("Checking that result interfaces are equal to those returned by ovs-cni plugin")
-		hostIface := pluginPrevResult.Interfaces[0]
-		contIface := pluginPrevResult.Interfaces[1]
-		Expect(resultMirror.Interfaces[0]).To(Equal(hostIface))
-		Expect(resultMirror.Interfaces[1]).To(Equal(contIface))
-
-		By("Getting port uuid for the hostIface")
-		portUuid, _ := getPortUuidByName(hostIface.Name)
-		fmt.Printf("\n\n\n====================== port %#v\n\n\n", portUuid)
-
-		for _, mirror := range mirrors {
-			By(fmt.Sprintf("Checking that mirror with name = %s is in ovsdb", mirror.Name))
-			mirrorNameOvsdb, err := getMirrorAttribute(mirror.Name, "name")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(mirrorNameOvsdb).To(Equal(mirror.Name))
-
-			// check if port _uuid is in mirror
-			if mirror.Ingress {
-				By(fmt.Sprintf("Checking that mirror with name = %s has the port created by ovs-cni plugin in select_src_port column", mirror.Name))
-				srcPorts, err := getMirrorSrcPorts(mirror.Name)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(srcPorts).To(ContainElement(portUuid))
-			}
-
-			if mirror.Egress {
-				By(fmt.Sprintf("Checking that mirror with name = %s has the port created by ovs-cni plugin in select_dst_port column", mirror.Name))
-				dstPorts, err := getMirrorDstPorts(mirror.Name)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(dstPorts).To(ContainElement(portUuid))
-			}
-		}
+		By("Checking mirror ports")
+		checkPortsInMirrors(mirrors, r)
 
 		return confMirror, r
 	}
@@ -318,7 +320,7 @@ var testFunc = func(version string) {
 				By("2) run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
-				testDel(confMirror, mirrors, IFNAME1, targetNs)
+				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
 			})
 		})
 
@@ -353,7 +355,7 @@ var testFunc = func(version string) {
 				By("2) run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
-				testDel(confMirror, mirrors, IFNAME1, targetNs)
+				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
 			})
 		})
 
@@ -388,7 +390,7 @@ var testFunc = func(version string) {
 				By("2) run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
-				testDel(confMirror, mirrors, IFNAME1, targetNs)
+				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
 			})
 		})
 	})
@@ -439,7 +441,54 @@ var testFunc = func(version string) {
 				By("2) run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
-				testDel(confMirror, mirrors, IFNAME1, targetNs)
+				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
+			})
+		})
+	})
+
+	Context("adding multiple ports to a single mirror", func() {
+		Context("as both ingress and egress (select_src_port and select_dst_port in ovsdb)", func() {
+			mirrors := []types.Mirror{
+				{
+					Name:    "test-mirror1",
+					Ingress: true,
+					Egress:  true,
+				},
+			}
+			mirrorsJsonStr, err := toJsonString(mirrors)
+			Expect(err).NotTo(HaveOccurred())
+
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs-cni-mirror-producer",
+				"bridge": "%s",
+				"mirrors": %s
+			}`, version, bridgeName, mirrorsJsonStr)
+
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				By("1) create interfaces using ovs-cni plugin")
+				prevResult1 := createInterfaces(IFNAME1, targetNs)
+				prevResult2 := createInterfaces(IFNAME2, targetNs)
+
+				By("2) run ovs-cni-mirror-producer passing prevResult")
+				confMirror1, result1 := testAdd(conf, mirrors, prevResult1, IFNAME1, targetNs)
+				confMirror2, result2 := testAdd(conf, mirrors, prevResult2, IFNAME2, targetNs)
+				testCheck(confMirror1, result1, IFNAME1, targetNs)
+				testCheck(confMirror2, result2, IFNAME2, targetNs)
+
+				// mirror must have both ports (hostIfaces obtained from 'prevResult1' and 'prevResult2')
+				By("3) verify that mirrors have all ports")
+				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
+
+				By("4) run ovs-cni-mirror-producer to delete mirrors")
+				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
+				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
 			})
 		})
 	})
@@ -468,19 +517,75 @@ func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {
 	return testutils.CmdDel(args.Netns, args.ContainerID, args.IfName, f)
 }
 
-func getMirrors() (string, error) {
-	output, err := exec.Command("ovs-vsctl", "list", "Mirror").CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to get mirrors: %v", string(output[:]))
+func getPortUuidFromResult(r cnitypes.Result) string {
+	resultMirror, err := current.GetResult(r)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(len(resultMirror.Interfaces)).To(Equal(2))
+
+	// This plugin must return the same interfaces of the previous one in the chain (ovs-cni plugin),
+	// because it doesn't modify interfaces, but it only updates ovsdb.
+	By("Checking that result interfaces are equal to those returned by ovs-cni plugin")
+	hostIface := resultMirror.Interfaces[0]
+	contIface := resultMirror.Interfaces[1]
+	Expect(resultMirror.Interfaces[0]).To(Equal(hostIface))
+	Expect(resultMirror.Interfaces[1]).To(Equal(contIface))
+
+	By("Getting port uuid for the hostIface")
+	portUuid, err := getPortUuidByName(hostIface.Name)
+	Expect(err).NotTo(HaveOccurred())
+	return portUuid
+}
+
+// extracts ports from results and check if every mirror contains those port uuids
+// Since it's not possibile to have mirrors without both ingress and egress,
+// it's enough finding the port in either ingress or egress.
+func checkPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) bool {
+	// build an array of port uuids
+	var portUuids []string = []string{}
+	for _, r := range results {
+		portUuid := getPortUuidFromResult(r)
+		portUuids = append(portUuids, portUuid)
 	}
 
-	return strings.TrimSpace(string(output[:])), nil
+	for _, mirror := range mirrors {
+		By(fmt.Sprintf("Checking that mirror %s is in ovsdb", mirror.Name))
+		mirrorNameOvsdb, err := getMirrorAttribute(mirror.Name, "name")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(mirrorNameOvsdb).To(Equal(mirror.Name))
+
+		if mirror.Ingress {
+			By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_src_port column", mirror.Name))
+			srcPorts, err := getMirrorSrcPorts(mirror.Name)
+			Expect(err).NotTo(HaveOccurred())
+			for _, portUuid := range portUuids {
+				Expect(srcPorts).To(ContainElement(portUuid))
+			}
+		}
+
+		if mirror.Egress {
+			By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_dst_port column", mirror.Name))
+			dstPorts, err := getMirrorDstPorts(mirror.Name)
+			Expect(err).NotTo(HaveOccurred())
+			for _, portUuid := range portUuids {
+				Expect(dstPorts).To(ContainElement(portUuid))
+			}
+		}
+	}
+	return true
+}
+
+func isMirrorExists(name string) (bool, error) {
+	output, err := exec.Command("ovs-vsctl", "find", "Mirror", "name="+name).CombinedOutput()
+	if err != nil {
+		return false, fmt.Errorf("failed to check if mirror exists: %v", string(output[:]))
+	}
+	return len(output) > 0, nil
 }
 
 func getPortUuidByName(name string) (string, error) {
 	output, err := exec.Command("ovs-vsctl", "get", "Port", name, "_uuid").CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to get port by name: %v", string(output[:]))
+		return "", fmt.Errorf("failed to get port uuid by name: %v", string(output[:]))
 	}
 
 	return strings.TrimSpace(string(output[:])), nil
@@ -506,16 +611,20 @@ func getMirrorDstPorts(mirrorName string) ([]string, error) {
 func getMirrorPorts(mirrorName string, attributeName string) ([]string, error) {
 	output, err := exec.Command("ovs-vsctl", "get", "Mirror", mirrorName, attributeName).CombinedOutput()
 	if err != nil {
-		return make([]string, 0), fmt.Errorf("failed to get mirror ports: %v", string(output[:]))
+		return make([]string, 0), fmt.Errorf("failed to get mirror %s ports: %v", mirrorName, string(output[:]))
 	}
 
-	// convert into a string and remove "[", "]\n" characters
+	// convert into a string, then remove "[" and "]\n" characters
 	stringOutput := string(output[1 : len(output)-2])
 
-	// split the string by "," to get individual uuids in a []string
-	outputLines := strings.Split(stringOutput, ",")
+	if stringOutput == "" {
+		// if "stringOutput" is an empty strin,
+		// simply returns a new empty []string (in this way len == 0)
+		return make([]string, 0), nil
+	}
 
-	fmt.Printf("&&&&&&&& getMirrorPorts - extracted port uuids: %#v\n", outputLines)
+	// split the string by ", " to get individual uuids in a []string
+	outputLines := strings.Split(stringOutput, ", ")
 	return outputLines, nil
 }
 
@@ -525,4 +634,27 @@ func toJsonString(input interface{}) (string, error) {
 		return "", err
 	}
 	return string(b), nil
+}
+
+// function to check if a list of strings contains only 'el' element or is empty
+func onlyContainsOrEmpty(list []string, el string) bool {
+	if len(list) > 1 {
+		// because it has more elements, so 'el' cannot be the only one
+		return false
+	}
+	if len(list) == 0 {
+		// in empty
+		return true
+	}
+	// otherwise check if the only element in 'list' is equals to 'el'
+	return containsElement(list, el)
+}
+
+func containsElement(list []string, el string) bool {
+	for _, l := range list {
+		if l == el {
+			return true
+		}
+	}
+	return false
 }
