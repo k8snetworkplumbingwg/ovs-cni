@@ -79,10 +79,10 @@ var _ = AfterSuite(func() {
 	exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).Run()
 })
 
-var _ = Describe("CNI Plugin 0.3.0", func() { testFunc("0.3.0") })
-var _ = Describe("CNI Plugin 0.3.1", func() { testFunc("0.3.1") })
-var _ = Describe("CNI Plugin 0.4.0", func() { testFunc("0.4.0") })
-var _ = Describe("CNI Plugin 1.0.0", func() { testFunc("1.0.0") })
+var _ = Describe("CNI mirror-consumer 0.3.0", func() { testFunc("0.3.0") })
+var _ = Describe("CNI mirror-consumer 0.3.1", func() { testFunc("0.3.1") })
+var _ = Describe("CNI mirror-consumer 0.4.0", func() { testFunc("0.4.0") })
+var _ = Describe("CNI mirror-consumer 1.0.0", func() { testFunc("1.0.0") })
 
 var testFunc = func(version string) {
 	BeforeEach(func() {
