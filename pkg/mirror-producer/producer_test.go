@@ -385,7 +385,7 @@ var testFunc = func(version string) {
 		})
 
 		Context("without both ingress and egress (select_src_port and select_dst_port in ovsdb)", func() {
-			mirrorName := "test-mirror1"
+			mirrorName := "mir-prod1"
 			mirrors := []types.Mirror{
 				{
 					Name:    mirrorName,
@@ -431,22 +431,22 @@ var testFunc = func(version string) {
 		Context("with different ingress and egress configurations", func() {
 			mirrors := []types.Mirror{
 				{
-					Name:    "test-mirror1",
+					Name:    "mir-prod1",
 					Ingress: true,
 					Egress:  true,
 				},
 				{
-					Name:    "test-mirror2",
+					Name:    "mir-prod2",
 					Ingress: false,
 					Egress:  true,
 				},
 				{
-					Name:    "test-mirror3",
+					Name:    "mir-prod3",
 					Ingress: true,
 					Egress:  false,
 				},
 				{
-					Name:    "test-mirror4",
+					Name:    "mir-prod4",
 					Ingress: true,
 				},
 			}
@@ -482,7 +482,7 @@ var testFunc = func(version string) {
 		Context("as both ingress and egress (select_src_port and select_dst_port in ovsdb)", func() {
 			mirrors := []types.Mirror{
 				{
-					Name:    "test-mirror1",
+					Name:    "mir-prod1",
 					Ingress: true,
 					Egress:  true,
 				},
@@ -529,22 +529,22 @@ var testFunc = func(version string) {
 		Context("with different ingress and egress configurations", func() {
 			mirrors := []types.Mirror{
 				{
-					Name:    "test-mirror1",
+					Name:    "mir-prod1",
 					Ingress: true,
 					Egress:  true,
 				},
 				{
-					Name:    "test-mirror2",
+					Name:    "mir-prod2",
 					Ingress: false,
 					Egress:  true,
 				},
 				{
-					Name:    "test-mirror3",
+					Name:    "mir-prod3",
 					Ingress: true,
 					Egress:  false,
 				},
 				{
-					Name:    "test-mirror4",
+					Name:    "mir-prod4",
 					Ingress: true,
 				},
 			}

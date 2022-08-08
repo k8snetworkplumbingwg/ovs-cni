@@ -307,10 +307,10 @@ var testFunc = func(version string) {
 		Context("as consumer (output_port in ovsdb)", func() {
 			mirrors := []types.Mirror{
 				{
-					Name: "test-mirror1",
+					Name: "mir-cons1",
 				},
 				{
-					Name: "test-mirror2",
+					Name: "mir-cons2",
 				},
 			}
 			mirrorsJSONStr, err := toJSONString(mirrors)
@@ -345,7 +345,7 @@ var testFunc = func(version string) {
 		Context("as consumer (output_port in ovsdb)", func() {
 			mirrors := []types.Mirror{
 				{
-					Name: "test-mirror1",
+					Name: "mir-cons1",
 				},
 			}
 			mirrorsJSONStr, err := toJSONString(mirrors)
@@ -383,7 +383,7 @@ var testFunc = func(version string) {
 				Expect(err.Error()).To(ContainSubstring(errorMessage))
 
 				// cleanup IFNAME2
-				
+
 			})
 		})
 	})
