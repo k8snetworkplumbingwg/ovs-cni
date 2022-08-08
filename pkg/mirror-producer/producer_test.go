@@ -419,7 +419,7 @@ var testFunc = func(version string) {
 				_, _, err := add(version, conf, prevResult1, IFNAME1, targetNs)
 				Expect(err).To(HaveOccurred())
 
-				By("verifiy the error message")
+				By("verify the error message")
 				errorMessage := fmt.Sprintf("cannot attach port %s to mirror %s: "+
 					"a mirror producer must have either a ingress or an egress or both", portUUID, mirrorName)
 				Expect(err.Error()).To(Equal(errorMessage))
