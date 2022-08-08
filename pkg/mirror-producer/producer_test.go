@@ -225,6 +225,7 @@ var testFunc = func(version string) {
 			Expect(err).NotTo(HaveOccurred())
 			dstPorts, err := getMirrorDstPorts(mirror.Name)
 			Expect(err).NotTo(HaveOccurred())
+			// Obtaining 'output_port' of 'mirror'
 			outputPorts, err := getMirrorOutputPorts(mirror.Name)
 			Expect(err).NotTo(HaveOccurred())
 
