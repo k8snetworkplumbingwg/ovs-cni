@@ -304,10 +304,10 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces using ovs-cni plugin")
+				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -339,10 +339,10 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces using ovs-cni plugin")
+				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -374,10 +374,10 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces using ovs-cni plugin")
+				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -410,16 +410,16 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces/ports using ovs-cni plugin")
+				By("create interfaces/ports using ovs-cni plugin")
 				prevResult1 := createInterfaces(IFNAME1, targetNs)
 				portUUID := getPortUUIDFromResult(prevResult1)
 
-				By("2) run ovs-cni-mirror-producer ADD command")
+				By("run ovs-cni-mirror-producer ADD command")
 				// call 'add' instead of 'testAdd' because we want the result of cmdAdd without additional check
 				_, _, err := add(version, conf, prevResult1, IFNAME1, targetNs)
 				Expect(err).To(HaveOccurred())
 
-				By("3) verifiy the error message")
+				By("verifiy the error message")
 				errorMessage := fmt.Sprintf("cannot attach port %s to mirror %s: "+
 					"a mirror producer must have either a ingress or an egress or both", portUUID, mirrorName)
 				Expect(err.Error()).To(Equal(errorMessage))
@@ -467,10 +467,10 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces using ovs-cni plugin")
+				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -504,21 +504,21 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces/ports using ovs-cni plugin")
+				By("create interfaces/ports using ovs-cni plugin")
 				prevResult1 := createInterfaces(IFNAME1, targetNs)
 				prevResult2 := createInterfaces(IFNAME2, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror1, result1 := testAdd(conf, mirrors, prevResult1, IFNAME1, targetNs)
 				confMirror2, result2 := testAdd(conf, mirrors, prevResult2, IFNAME2, targetNs)
 				testCheck(confMirror1, result1, IFNAME1, targetNs)
 				testCheck(confMirror2, result2, IFNAME2, targetNs)
 
 				// mirror must have both ports (hostIfaces obtained from 'prevResult1' and 'prevResult2')
-				By("3) verify that mirrors have all ports")
+				By("verify that mirrors have all ports")
 				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
 
-				By("4) run ovs-cni-mirror-producer to delete mirrors")
+				By("run ovs-cni-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
 				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
 			})
@@ -565,21 +565,21 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces/ports using ovs-cni plugin")
+				By("create interfaces/ports using ovs-cni plugin")
 				prevResult1 := createInterfaces(IFNAME1, targetNs)
 				prevResult2 := createInterfaces(IFNAME2, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror1, result1 := testAdd(conf, mirrors, prevResult1, IFNAME1, targetNs)
 				confMirror2, result2 := testAdd(conf, mirrors, prevResult2, IFNAME2, targetNs)
 				testCheck(confMirror1, result1, IFNAME1, targetNs)
 				testCheck(confMirror2, result2, IFNAME2, targetNs)
 
 				// mirror must have both ports (hostIfaces obtained from 'prevResult1' and 'prevResult2')
-				By("3) verify that mirrors have all ports")
+				By("verify that mirrors have all ports")
 				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
 
-				By("4) run ovs-cni-mirror-producer to delete mirrors")
+				By("run ovs-cni-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
 				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
 			})
@@ -617,33 +617,33 @@ var testFunc = func(version string) {
 					closeNS(targetNs)
 				}()
 
-				By("1) create interfaces using ovs-cni plugin")
+				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("2) run ovs-cni-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 
-				By("3) create a consumer interface and add its port via 'ovs-vsctl' to fill mirror 'output_port'")
+				By("create a consumer interface and add its port via 'ovs-vsctl' to fill mirror 'output_port'")
 				r2 := createInterfaces(IFNAME2, targetNs)
 				portUUID := getPortUUIDFromResult(r2)
 				addOutputPortToMirror(portUUID, mirrors[0].Name)
 
-				By("4) run DEL command of ovs-cni-mirror-producer")
+				By("run DEL command of ovs-cni-mirror-producer")
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
 
-				By("5) check results: mirror still exists")
+				By("check results: mirror still exists")
 				exists, err := isMirrorExists(mirrors[0].Name)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(exists).To(Equal(true))
-				By("6) check results: 'select_src_port*' and 'select_dst_port' must be empty")
+				By("check results: 'select_src_port*' and 'select_dst_port' must be empty")
 				srcPorts, err := getMirrorSrcPorts(mirrors[0].Name)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(srcPorts).To(BeEmpty())
 				dstPorts, err := getMirrorDstPorts(mirrors[0].Name)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(dstPorts).To(BeEmpty())
-				By("7) check results: 'output_port' must be unchanged")
+				By("check results: 'output_port' must be unchanged")
 				outputs, err := getMirrorOutputPorts(mirrors[0].Name)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(outputs).To(ContainElement(portUUID))
@@ -675,6 +675,7 @@ func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {
 	return testutils.CmdDel(args.Netns, args.ContainerID, args.IfName, f)
 }
 
+// function to call cmdAdd with the right input
 func add(version string, conf string, pluginPrevResult *current.Result, ifName string, targetNs ns.NetNS) (string, cnitypes.Result, error) {
 	By("Building prevResult to pass it as input to mirror-producer plugin")
 	interfacesJSONStr, err := toJSONString(pluginPrevResult.Interfaces)
@@ -704,6 +705,7 @@ func add(version string, conf string, pluginPrevResult *current.Result, ifName s
 	return confMirror, r, err
 }
 
+// function to get portUUID from a cnitypes.Result object
 func getPortUUIDFromResult(r cnitypes.Result) string {
 	resultMirror, err := current.GetResult(r)
 	Expect(err).NotTo(HaveOccurred())
@@ -723,7 +725,7 @@ func getPortUUIDFromResult(r cnitypes.Result) string {
 	return portUUID
 }
 
-// extracts ports from results and check if every mirror contains those port uuids
+// function that extracts ports from results and check if every mirror contains those port UUIDs.
 // Since it's not possibile to have mirrors without both ingress and egress,
 // it's enough finding the port in either ingress or egress.
 func checkPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) bool {
@@ -761,6 +763,7 @@ func checkPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) boo
 	return true
 }
 
+// function to check if a mirror exists by its name
 func isMirrorExists(name string) (bool, error) {
 	output, err := exec.Command("ovs-vsctl", "find", "Mirror", "name="+name).CombinedOutput()
 	if err != nil {
@@ -769,6 +772,7 @@ func isMirrorExists(name string) (bool, error) {
 	return len(output) > 0, nil
 }
 
+// function to get a portUUID by its name
 func getPortUUIDByName(name string) (string, error) {
 	output, err := exec.Command("ovs-vsctl", "get", "Port", name, "_uuid").CombinedOutput()
 	if err != nil {
@@ -778,6 +782,7 @@ func getPortUUIDByName(name string) (string, error) {
 	return strings.TrimSpace(string(output[:])), nil
 }
 
+// function to get a mirror attribute
 func getMirrorAttribute(mirrorName, attributeName string) (string, error) {
 	output, err := exec.Command("ovs-vsctl", "get", "Mirror", mirrorName, attributeName).CombinedOutput()
 	if err != nil {
@@ -787,6 +792,7 @@ func getMirrorAttribute(mirrorName, attributeName string) (string, error) {
 	return strings.TrimSpace(string(output[:])), nil
 }
 
+// utility function to get either 'select_src_port' or 'select_dst_port of a mirror
 func getMirrorPorts(mirrorName string, attributeName SelectPort) ([]string, error) {
 	output, err := getMirrorAttribute(mirrorName, string(attributeName))
 	if err != nil {
@@ -807,14 +813,17 @@ func getMirrorPorts(mirrorName string, attributeName SelectPort) ([]string, erro
 	return outputLines, nil
 }
 
+// function to get 'select_src_port' of a mirror as a string slice
 func getMirrorSrcPorts(mirrorName string) ([]string, error) {
 	return getMirrorPorts(mirrorName, "select_src_port")
 }
 
+// function to get 'select_dst_port' of a mirror as a string slice
 func getMirrorDstPorts(mirrorName string) ([]string, error) {
 	return getMirrorPorts(mirrorName, "select_dst_port")
 }
 
+// function to get 'output_port' of a mirror as a string slice
 func getMirrorOutputPorts(mirrorName string) ([]string, error) {
 	output, err := exec.Command("ovs-vsctl", "get", "Mirror", mirrorName, "output_port").CombinedOutput()
 	if err != nil {
@@ -835,6 +844,7 @@ func getMirrorOutputPorts(mirrorName string) ([]string, error) {
 	return []string{stringOutput}, nil
 }
 
+// function to add portUUID as 'output_port' to a specific mirror via 'ovs-vsctl'
 func addOutputPortToMirror(portUUID, mirrorName string) (string, error) {
 	output, err := exec.Command("ovs-vsctl", "set", "Mirror", mirrorName, "output_port="+portUUID).CombinedOutput()
 	if err != nil {
@@ -844,6 +854,7 @@ func addOutputPortToMirror(portUUID, mirrorName string) (string, error) {
 	return strings.TrimSpace(string(output[:])), nil
 }
 
+// convert input into a JSON string
 func toJSONString(input interface{}) (string, error) {
 	b, err := json.Marshal(input)
 	if err != nil {
@@ -866,6 +877,7 @@ func onlyContainsOrEmpty(list []string, el string) bool {
 	return containsElement(list, el)
 }
 
+// function that returns true if a list of strings contains a string element
 func containsElement(list []string, el string) bool {
 	for _, l := range list {
 		if l == el {
