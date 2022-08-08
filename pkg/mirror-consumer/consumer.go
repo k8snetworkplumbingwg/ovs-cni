@@ -108,7 +108,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 			return fmt.Errorf("cannot check if mirror %s has already an output port with error: %v ", mirror.Name, err)
 		}
 		if alreadyAttached {
-			return fmt.Errorf("cannot attach port %s to mirror %s because there is already another port: %v", portUUID, mirror.Name, err)
+			return fmt.Errorf("cannot attach port %s to mirror %s because there is already another port. Error: %v", portUUID, mirror.Name, err)
 		}
 
 		if err = attachPortToMirror(ovsDriver, portUUID, mirror); err != nil {
