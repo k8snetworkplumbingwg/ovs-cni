@@ -58,6 +58,13 @@ type MirrorNetCurrent struct {
 	PrevResult    current.Result         `json:"-"`
 }
 
+type SelectPort string
+
+const (
+	SelectSrcPort SelectPort = "select_src_port"
+	SelectDstPort SelectPort = "select_dst_port"
+)
+
 const bridgeName = "bridge-mir-prod"
 const vlanID = 100
 const IFNAME1 = "eth0"
@@ -260,30 +267,8 @@ var testFunc = func(version string) {
 	}
 
 	testAdd := func(conf string, mirrors []types.Mirror, pluginPrevResult *current.Result, ifName string, targetNs ns.NetNS) (string, cnitypes.Result) {
-		By("Building prevResult to pass it as input to mirror-producer plugin")
-		interfacesJSONStr, err := toJSONString(pluginPrevResult.Interfaces)
-		Expect(err).NotTo(HaveOccurred())
+		confMirror, r, err := add(version, conf, pluginPrevResult, ifName, targetNs)
 
-		prevResult := fmt.Sprintf(`{
-			"cniVersion": "%s",
-			"interfaces": %s
-		}`, version, interfacesJSONStr)
-
-		// add prevResult to conf (first we need to remove the last character "}"
-		// and then concatenate the rest
-		confMirror := conf[:len(conf)-1] + ", \"prevResult\": " + prevResult + "\n}"
-
-		argsMirror := &skel.CmdArgs{
-			ContainerID: "dummy-mir-prod",
-			Netns:       targetNs.Path(),
-			IfName:      ifName,
-			StdinData:   []byte(confMirror),
-		}
-
-		By("Calling ADD command for mirror-producer plugin")
-		r, _, err := cmdAddWithArgs(argsMirror, func() error {
-			return CmdAdd(argsMirror)
-		})
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Checking mirror ports")
@@ -395,6 +380,48 @@ var testFunc = func(version string) {
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
+			})
+		})
+
+		Context("without both ingress and egress (select_src_port and select_dst_port in ovsdb)", func() {
+			mirrorName := "test-mirror1"
+			mirrors := []types.Mirror{
+				{
+					Name:    mirrorName,
+					Ingress: false,
+					// Egress omitted, but false by default
+				},
+			}
+			mirrorsJSONStr, err := toJSONString(mirrors)
+			Expect(err).NotTo(HaveOccurred())
+
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs-cni-mirror-producer",
+				"bridge": "%s",
+				"mirrors": %s
+			}`, version, bridgeName, mirrorsJSONStr)
+
+			It("should FAIL with ADD command", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				By("1) create interfaces/ports using ovs-cni plugin")
+				prevResult1 := createInterfaces(IFNAME1, targetNs)
+				portUUID := getPortUUIDFromResult(prevResult1)
+
+				By("2) run ovs-cni-mirror-producer ADD command")
+				// call 'add' instead of 'testAdd' because we want the result of cmdAdd without additional check
+				_, _, err := add(version, conf, prevResult1, IFNAME1, targetNs)
+				Expect(err).To(HaveOccurred())
+
+				By("3) verifiy the error message")
+				errorMessage := fmt.Sprintf("cannot attach port %s to mirror %s: "+
+					"a mirror producer must have either a ingress or an egress or both", portUUID, mirrorName)
+				Expect(err.Error()).To(Equal(errorMessage))
 			})
 		})
 	})
@@ -647,6 +674,35 @@ func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {
 	return testutils.CmdDel(args.Netns, args.ContainerID, args.IfName, f)
 }
 
+func add(version string, conf string, pluginPrevResult *current.Result, ifName string, targetNs ns.NetNS) (string, cnitypes.Result, error) {
+	By("Building prevResult to pass it as input to mirror-producer plugin")
+	interfacesJSONStr, err := toJSONString(pluginPrevResult.Interfaces)
+	Expect(err).NotTo(HaveOccurred())
+
+	prevResult := fmt.Sprintf(`{
+		"cniVersion": "%s",
+		"interfaces": %s
+	}`, version, interfacesJSONStr)
+
+	// add prevResult to conf (first we need to remove the last character "}"
+	// and then concatenate the rest
+	confMirror := conf[:len(conf)-1] + ", \"prevResult\": " + prevResult + "\n}"
+
+	argsMirror := &skel.CmdArgs{
+		ContainerID: "dummy-mir-prod",
+		Netns:       targetNs.Path(),
+		IfName:      ifName,
+		StdinData:   []byte(confMirror),
+	}
+
+	By("Calling ADD command for mirror-producer plugin")
+	r, _, err := cmdAddWithArgs(argsMirror, func() error {
+		return CmdAdd(argsMirror)
+	})
+
+	return confMirror, r, err
+}
+
 func getPortUUIDFromResult(r cnitypes.Result) string {
 	resultMirror, err := current.GetResult(r)
 	Expect(err).NotTo(HaveOccurred())
@@ -670,7 +726,7 @@ func getPortUUIDFromResult(r cnitypes.Result) string {
 // Since it's not possibile to have mirrors without both ingress and egress,
 // it's enough finding the port in either ingress or egress.
 func checkPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) bool {
-	// build an empty array of port UUIDs
+	// build an empty slice of port UUIDs
 	var portUUIDs = make([]string, 0)
 	for _, r := range results {
 		portUUID := getPortUUIDFromResult(r)
@@ -730,6 +786,26 @@ func getMirrorAttribute(mirrorName, attributeName string) (string, error) {
 	return strings.TrimSpace(string(output[:])), nil
 }
 
+func getMirrorPorts(mirrorName string, attributeName SelectPort) ([]string, error) {
+	output, err := getMirrorAttribute(mirrorName, string(attributeName))
+	if err != nil {
+		return make([]string, 0), fmt.Errorf("failed to get mirror %s ports: %v", mirrorName, string(output[:]))
+	}
+
+	// convert into a string, then remove "[" and "]" characters
+	stringOutput := output[1 : len(output)-1]
+
+	if stringOutput == "" {
+		// if "stringOutput" is an empty string,
+		// simply returns a new empty []string (in this way len == 0)
+		return make([]string, 0), nil
+	}
+
+	// split the string by ", " to get individual uuids in a []string
+	outputLines := strings.Split(stringOutput, ", ")
+	return outputLines, nil
+}
+
 func getMirrorSrcPorts(mirrorName string) ([]string, error) {
 	return getMirrorPorts(mirrorName, "select_src_port")
 }
@@ -748,7 +824,7 @@ func getMirrorOutputPorts(mirrorName string) ([]string, error) {
 	stringOutput := string(output[0 : len(output)-1])
 
 	// outport_port field behaviour is quite inconsistent, because:
-	// - if in empty, it returns an empty array "[]" with a "\n" character at the end,
+	// - if in empty, it returns an empty slice "[]" with a "\n" character at the end,
 	// - otherwise, it returns a string with a "\n" character at the end
 	if stringOutput == "[]" {
 		// if "stringOutput" is an empty string,
@@ -756,26 +832,6 @@ func getMirrorOutputPorts(mirrorName string) ([]string, error) {
 		return make([]string, 0), nil
 	}
 	return []string{stringOutput}, nil
-}
-
-func getMirrorPorts(mirrorName string, attributeName string) ([]string, error) {
-	output, err := exec.Command("ovs-vsctl", "get", "Mirror", mirrorName, attributeName).CombinedOutput()
-	if err != nil {
-		return make([]string, 0), fmt.Errorf("failed to get mirror %s ports: %v", mirrorName, string(output[:]))
-	}
-
-	// convert into a string, then remove "[" and "]\n" characters
-	stringOutput := string(output[1 : len(output)-2])
-
-	if stringOutput == "" {
-		// if "stringOutput" is an empty string,
-		// simply returns a new empty []string (in this way len == 0)
-		return make([]string, 0), nil
-	}
-
-	// split the string by ", " to get individual uuids in a []string
-	outputLines := strings.Split(stringOutput, ", ")
-	return outputLines, nil
 }
 
 func addOutputPortToMirror(portUUID, mirrorName string) (string, error) {
