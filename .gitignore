@@ -1,6 +1,8 @@
 # built binaries
 cmd/marker/marker
 cmd/plugin/plugin
+cmd/consumer/consumer
+cmd/producer/producer
 
 # Temporary build files
 build/_output
@@ -8,6 +10,8 @@ build/_output
 # used in build
 cmd/marker/.version
 cmd/plugin/.version
+cmd/consumer/.version
+cmd/producer/.version
 
 # local cluster
 _kubevirtci/
