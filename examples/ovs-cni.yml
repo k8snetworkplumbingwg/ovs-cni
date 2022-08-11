@@ -45,9 +45,9 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin
-      - name: ovs-mirror-producer
-        image: quay.io/kubevirt/ovs-mirror-producer:latest
-        command: ['cp', '/ovs-mirror-producer', '/host/opt/cni/bin/ovs-mirror-producer']
+      - name: ovs-cni-mirror-producer
+        image: quay.io/kubevirt/ovs-cni-mirror-producer:latest
+        command: ['cp', '/ovs-cni-mirror-producer', '/host/opt/cni/bin/ovs-cni-mirror-producer']
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
@@ -58,9 +58,9 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin
-      - name: ovs-mirror-consumer
-        image: quay.io/kubevirt/ovs-mirror-consumer:latest
-        command: ['cp', '/ovs-mirror-consumer', '/host/opt/cni/bin/ovs-mirror-consumer']
+      - name: ovs-cni-mirror-consumer
+        image: quay.io/kubevirt/ovs-cni-mirror-consumer:latest
+        command: ['cp', '/ovs-cni-mirror-consumer', '/host/opt/cni/bin/ovs-cni-mirror-consumer']
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true

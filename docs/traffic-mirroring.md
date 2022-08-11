@@ -19,7 +19,7 @@ The main idea is creating and managing multiple mirror ports (SPAN) through ovs-
 
 ### Premises
 
-1. The approach relies first on the current `ovs` plugins to create the requested port via pod annotation. Afterwards, the output of the plugin execution is cascaded as input to the plugin that is responsible for managing the mirrors  (e.g. `ovs-mirror-producer` and `ovs-mirror-consumer` plugins). This is possible thanks to [Multus chaining capability](https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md#network-configuration-lists).
+1. The approach relies first on the current `ovs` plugins to create the requested port via pod annotation. Afterwards, the output of the plugin execution is cascaded as input to the plugin that is responsible for managing the mirrors  (e.g. `ovs-cni-mirror-producer` and `ovs-cni-mirror-consumer` plugins). This is possible thanks to [Multus chaining capability](https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md#network-configuration-lists).
 2. In all diagrams below we used different colors to represent the logical relation between different entities. In case of OVS they are real DB relations, in case of Pods they represent network connections. Instead, NADs are represented with random colors without a real meaning.
 3. In all diagrams below we focused on OVS Mirror `src_port` and `dst_port` to consider the representation with the finest granularity. In this way, we can specify single ports one by one.
 For simplicity, we ignore `output_vlan` (used for RSPAN) as mirror output.
@@ -31,7 +31,7 @@ For simplicity, we ignore `output_vlan` (used for RSPAN) as mirror output.
 
 ```json
 {
-    "type": "ovs-mirror-producer",
+    "type": "ovs-cni-mirror-producer",
     "bridge": BRIDGE_NAME,
     "mirrors": [
         {
@@ -57,7 +57,7 @@ For simplicity, we ignore `output_vlan` (used for RSPAN) as mirror output.
 
 ```json
 {
-    "type": "ovs-mirror-consumer",
+    "type": "ovs-cni-mirror-consumer",
     "bridge": BRIDGE_NAME,
     "mirrors": [
         {
@@ -93,7 +93,7 @@ spec:
                 "vlan": 100
             },
             {
-                "type": "ovs-mirror-producer",
+                "type": "ovs-cni-mirror-producer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -125,7 +125,7 @@ spec:
                 "bridge": "br1"
             },
             {
-                "type": "ovs-mirror-consumer",
+                "type": "ovs-cni-mirror-consumer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -178,7 +178,7 @@ spec:
                 "vlan": 100
             },
             {
-                "type": "ovs-mirror-producer",
+                "type": "ovs-cni-mirror-producer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -211,7 +211,7 @@ spec:
                 "vlan": 100
             },
             {
-                "type": "ovs-mirror-producer",
+                "type": "ovs-cni-mirror-producer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -238,7 +238,7 @@ spec:
                 "bridge": "br1"
             },
             {
-                "type": "ovs-mirror-consumer",
+                "type": "ovs-cni-mirror-consumer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -263,7 +263,7 @@ spec:
                 "bridge": "br1"
             },
             {
-                "type": "ovs-mirror-consumer",
+                "type": "ovs-cni-mirror-consumer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -408,7 +408,7 @@ spec:
                 "vlan": 100
             },
             {
-                "type": "ovs-mirror-producer",
+                "type": "ovs-cni-mirror-producer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -436,7 +436,7 @@ spec:
                 "vlan": 200
             },
             {
-                "type": "ovs-mirror-producer",
+                "type": "ovs-cni-mirror-producer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -480,7 +480,7 @@ spec:
                 "bridge": "br1"
             },
             {
-                "type": "ovs-mirror-consumer",
+                "type": "ovs-cni-mirror-consumer",
                 "bridge": "br1",
                 "mirrors": [
                     {
@@ -505,7 +505,7 @@ spec:
                 "bridge": "br1"
             },
             {
-                "type": "ovs-mirror-consumer",
+                "type": "ovs-cni-mirror-consumer",
                 "bridge": "br1",
                 "mirrors": [
                     {

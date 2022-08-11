@@ -293,7 +293,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -307,7 +307,7 @@ var testFunc = func(version string) {
 				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -328,7 +328,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -342,7 +342,7 @@ var testFunc = func(version string) {
 				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -363,7 +363,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -377,7 +377,7 @@ var testFunc = func(version string) {
 				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -399,7 +399,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -414,7 +414,7 @@ var testFunc = func(version string) {
 				prevResult1 := createInterfaces(IFNAME1, targetNs)
 				portUUID := getPortUUIDFromResult(prevResult1)
 
-				By("run ovs-mirror-producer ADD command")
+				By("run ovs-cni-mirror-producer ADD command")
 				// call 'add' instead of 'testAdd' because we want the result of cmdAdd without additional check
 				_, _, err := add(version, conf, prevResult1, IFNAME1, targetNs)
 				Expect(err).To(HaveOccurred())
@@ -456,7 +456,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -470,7 +470,7 @@ var testFunc = func(version string) {
 				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -493,7 +493,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -508,7 +508,7 @@ var testFunc = func(version string) {
 				prevResult1 := createInterfaces(IFNAME1, targetNs)
 				prevResult2 := createInterfaces(IFNAME2, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror1, result1 := testAdd(conf, mirrors, prevResult1, IFNAME1, targetNs)
 				confMirror2, result2 := testAdd(conf, mirrors, prevResult2, IFNAME2, targetNs)
 				testCheck(confMirror1, result1, IFNAME1, targetNs)
@@ -518,7 +518,7 @@ var testFunc = func(version string) {
 				By("verify that mirrors have all ports")
 				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
 
-				By("run ovs-mirror-producer to delete mirrors")
+				By("run ovs-cni-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
 				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
 			})
@@ -554,7 +554,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -569,7 +569,7 @@ var testFunc = func(version string) {
 				prevResult1 := createInterfaces(IFNAME1, targetNs)
 				prevResult2 := createInterfaces(IFNAME2, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror1, result1 := testAdd(conf, mirrors, prevResult1, IFNAME1, targetNs)
 				confMirror2, result2 := testAdd(conf, mirrors, prevResult2, IFNAME2, targetNs)
 				testCheck(confMirror1, result1, IFNAME1, targetNs)
@@ -579,7 +579,7 @@ var testFunc = func(version string) {
 				By("verify that mirrors have all ports")
 				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
 
-				By("run ovs-mirror-producer to delete mirrors")
+				By("run ovs-cni-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
 				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
 			})
@@ -601,7 +601,7 @@ var testFunc = func(version string) {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
 				"name": "mynet",
-				"type": "ovs-mirror-producer",
+				"type": "ovs-cni-mirror-producer",
 				"bridge": "%s",
 				"mirrors": %s
 			}`, version, bridgeName, mirrorsJSONStr)
@@ -620,7 +620,7 @@ var testFunc = func(version string) {
 				By("create interfaces using ovs-cni plugin")
 				prevResult := createInterfaces(IFNAME1, targetNs)
 
-				By("run ovs-mirror-producer passing prevResult")
+				By("run ovs-cni-mirror-producer passing prevResult")
 				confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
 				testCheck(confMirror, result, IFNAME1, targetNs)
 
@@ -629,7 +629,7 @@ var testFunc = func(version string) {
 				portUUID := getPortUUIDFromResult(r2)
 				addOutputPortToMirror(portUUID, mirrors[0].Name)
 
-				By("run DEL command of ovs-mirror-producer")
+				By("run DEL command of ovs-cni-mirror-producer")
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
 
 				By("check results: mirror still exists")

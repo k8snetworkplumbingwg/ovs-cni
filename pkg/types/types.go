@@ -40,7 +40,7 @@ type NetConf struct {
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
 }
 
-// MirrorNetConf extends types.NetConf for ovs-mirrors
+// MirrorNetConf extends types.NetConf for ovs-cni-mirrors
 type MirrorNetConf struct {
 	types.NetConf
 

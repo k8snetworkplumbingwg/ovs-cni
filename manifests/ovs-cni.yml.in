@@ -45,10 +45,10 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host${CNI_MOUNT_PATH}
-      - name: ovs-mirror-producer
-        image: ${OVS_MIRROR_PRODUCER_IMAGE_REPO}/${OVS_MIRROR_PRODUCER_IMAGE_NAME}:${OVS_MIRROR_PRODUCER_IMAGE_VERSION}
-        command: ['cp', '/ovs-mirror-producer', '/host${CNI_MOUNT_PATH}/ovs-mirror-producer']
-        imagePullPolicy: ${OVS_MIRROR_PRODUCER_IMAGE_PULL_POLICY}
+      - name: ovs-cni-mirror-producer
+        image: ${OVS_CNI_MIRROR_PRODUCER_IMAGE_REPO}/${OVS_CNI_MIRROR_PRODUCER_IMAGE_NAME}:${OVS_CNI_MIRROR_PRODUCER_IMAGE_VERSION}
+        command: ['cp', '/ovs-cni-mirror-producer', '/host${CNI_MOUNT_PATH}/ovs-cni-mirror-producer']
+        imagePullPolicy: ${OVS_CNI_MIRROR_PRODUCER_IMAGE_PULL_POLICY}
         securityContext:
           privileged: true
         resources:
@@ -58,10 +58,10 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host${CNI_MOUNT_PATH}
-      - name: ovs-mirror-consumer
-        image: ${OVS_MIRROR_CONSUMER_IMAGE_REPO}/${OVS_MIRROR_CONSUMER_IMAGE_NAME}:${OVS_MIRROR_CONSUMER_IMAGE_VERSION}
-        command: ['cp', '/ovs-mirror-consumer', '/host${CNI_MOUNT_PATH}/ovs-mirror-consumer']
-        imagePullPolicy: ${OVS_MIRROR_CONSUMER_IMAGE_PULL_POLICY}
+      - name: ovs-cni-mirror-consumer
+        image: ${OVS_CNI_MIRROR_CONSUMER_IMAGE_REPO}/${OVS_CNI_MIRROR_CONSUMER_IMAGE_NAME}:${OVS_CNI_MIRROR_CONSUMER_IMAGE_VERSION}
+        command: ['cp', '/ovs-cni-mirror-consumer', '/host${CNI_MOUNT_PATH}/ovs-cni-mirror-consumer']
+        imagePullPolicy: ${OVS_CNI_MIRROR_CONSUMER_IMAGE_PULL_POLICY}
         securityContext:
           privileged: true
         resources:
