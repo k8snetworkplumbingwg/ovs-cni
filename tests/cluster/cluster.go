@@ -189,7 +189,7 @@ func (api *ClusterAPI) PingFromPod(podName, containerName, targetIP string) erro
 
 // InstallOnPod run the 'apk add' command on the pod container passing a string with a list of packages names
 func (api *ClusterAPI) InstallOnPod(podName, containerName, packagesNames string) error {
-	_, _, err := api.execOnPod(podName, containerName, testNamespace, "apk update && apk add "+packagesNames)
+	_, _, err := api.execOnPod(podName, containerName, testNamespace, "apk add "+packagesNames)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to run exec on pod %s", podName)
 	}
@@ -198,7 +198,7 @@ func (api *ClusterAPI) InstallOnPod(podName, containerName, packagesNames string
 
 // TcpdumpOnPod run the tcpdump command on the pod container and store its result on a file
 func (api *ClusterAPI) TcpdumpOnPod(podName, containerName string) error {
-	_, _, err := api.execOnPod(podName, containerName, testNamespace, "timeout 60 tcpdump -i eth0 -w /tcpdump.log")
+	_, _, err := api.execOnPod(podName, containerName, testNamespace, "timeout 60 tcpdump -i net1 -w /tcpdump.log")
 	if err != nil {
 		return errors.Wrapf(err, "Failed to run exec on pod %s", podName)
 	}
