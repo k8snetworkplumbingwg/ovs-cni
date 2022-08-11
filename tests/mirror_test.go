@@ -16,31 +16,19 @@
 package tests_test
 
 import (
-	"context"
 	"fmt"
 	"net"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var _ = Describe("ovs-cni 0.3.0", func() { testFunc("0.3.0") })
-var _ = Describe("ovs-cni 0.3.1", func() { testFunc("0.3.1") })
-
-var _ = Describe("ovs-cni 0.4.0", func() { testFunc("0.4.0") })
+var _ = Describe("ovs-cni-mirror 0.3.0", func() { testFunc("0.3.0") })
+var _ = Describe("ovs-cni-mirror 0.3.1", func() { testFunc("0.3.1") })
+var _ = Describe("ovs-cni-mirror 0.4.0", func() { testFunc("0.4.0") })
 
 var testFunc = func(version string) {
-	Describe("pod availability tests", func() {
-		Context("When ovs-cni is deployed on the cluster", func() {
-			Specify("ovs-cni pod should be up and running", func() {
-				pods, _ := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
-				Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
-			})
-		})
-	})
-
 	Describe("pod ovs-bridge connectivity tests", func() {
 		Context("when an OVS bridge is configured on a node", func() {
 			const bridgeName = "br-test"
@@ -51,7 +39,7 @@ var testFunc = func(version string) {
 				node.RemoveOvsBridgeOnNode(bridgeName)
 			})
 
-			Context("and a network attachment definition is defined", func() {
+			Context("and both consumer and producer network attachment definitions are defined with a mirror configuration", func() {
 				const nadProducerName = "ovs-net-prod"
 				const nadConsumerName = "ovs-net-cons"
 
@@ -69,11 +57,12 @@ var testFunc = func(version string) {
 					clusterApi.CreateNetworkAttachmentDefinition(nadConsumerName, bridgeName, `{ "cniVersion": "`+version+`", "plugins": `+pluginsConsumer+`}`)
 				})
 
-				// AfterEach(func() {
-				// 	clusterApi.RemoveNetworkAttachmentDefinition(nadName)
-				// })
+				AfterEach(func() {
+					clusterApi.RemoveNetworkAttachmentDefinition(nadProducerName)
+					clusterApi.RemoveNetworkAttachmentDefinition(nadConsumerName)
+				})
 
-				Context("and two pods are connected through it", func() {
+				Context("and 3 pods (2 producers and 1 consumer) are connected through it", func() {
 					const (
 						podProd1Name = "pod-prod-1"
 						podProd2Name = "pod-prod-2"
@@ -85,24 +74,20 @@ var testFunc = func(version string) {
 					BeforeEach(func() {
 						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
 						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
-						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, "tcpdump -c 10 -i net1 > /tcpdump.log;")
-					})
-					// AfterEach(func() {
-					// 	clusterApi.DeletePodsInTestNamespace()
-					// })
 
-					Specify("they should be able to communicate over the network", func() {
-						By("Checking pods connectivity by pinging from one to the other")
+						consAdditionalCommands := "apk add tcpdump; tcpdump -c 10 -i net1 > /tcpdump.log;"
+						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
+					})
+					AfterEach(func() {
+						clusterApi.DeletePodsInTestNamespace()
+					})
+
+					Specify("consumer pod should be able to monitor network traffic between producer pods", func() {
+						By("Running and parsing tcpdump result")
 						ipPodProd1, _, err := net.ParseCIDR(cidrPodProd1)
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing podProd1's cidr: %s", cidrPodProd1))
 						ipPodProd2, _, err := net.ParseCIDR(cidrPodProd2)
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing podProd2's cidr: %s", cidrPodProd2))
-
-						err = clusterApi.InstallOnPod(podConsName, "test", "tcpdump")
-						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to install 'tcpdump' on pod '%s'", podConsName))
-
-						// err = clusterApi.TcpdumpOnPod(podConsName, "test")
-						// Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to run tcpdump on pod '%s'", podConsName))
 
 						err = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
