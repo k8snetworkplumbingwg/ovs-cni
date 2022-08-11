@@ -13,7 +13,7 @@ The main idea is creating and managing multiple mirror ports (SPAN) through ovs-
 - Select source ports
 - Select output port (SPAN)
 
-**RSPAN mirrors is not supported**
+**RSPAN mirrors are not supported**
 
 ## API and test-cases
 
