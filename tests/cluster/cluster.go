@@ -187,6 +187,34 @@ func (api *ClusterAPI) PingFromPod(podName, containerName, targetIP string) erro
 	return nil
 }
 
+// InstallOnPod run the 'apk add' command on the pod container passing a string with a list of packages names
+func (api *ClusterAPI) InstallOnPod(podName, containerName, packagesNames string) error {
+	_, _, err := api.execOnPod(podName, containerName, testNamespace, "apk update && apk add "+packagesNames)
+	if err != nil {
+		return errors.Wrapf(err, "Failed to run exec on pod %s", podName)
+	}
+	return nil
+}
+
+// TcpdumpOnPod run the tcpdump command on the pod container and store its result on a file
+func (api *ClusterAPI) TcpdumpOnPod(podName, containerName string) error {
+	_, _, err := api.execOnPod(podName, containerName, testNamespace, "timeout 60 tcpdump -i eth0 -w /tcpdump.log")
+	if err != nil {
+		return errors.Wrapf(err, "Failed to run exec on pod %s", podName)
+	}
+	return nil
+}
+
+// ReadTCPDumpFromPod run the cat command on the pod container to read the content of /tcpdump.log
+func (api *ClusterAPI) ReadTCPDumpFromPod(podName, containerName string) (string, error) {
+	out, _, err := api.execOnPod(podName, containerName, testNamespace, "cat /tcpdump.log")
+	if err != nil {
+		return "", errors.Wrapf(err, "Failed to run exec on pod %s", podName)
+	}
+
+	return out, nil
+}
+
 func (api *ClusterAPI) execOnPod(podName, containerName, namespace, command string) (string, string, error) {
 	req := api.Clientset.CoreV1().RESTClient().
 		Post().
