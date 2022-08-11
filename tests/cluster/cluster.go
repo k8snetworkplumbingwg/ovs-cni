@@ -88,7 +88,7 @@ func (api *ClusterAPI) RemoveTestNamespace() {
 }
 
 // CreatePrivilegedPodWithIP creates a pod attached with ovs via secondary network
-func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, cidr string) {
+func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, cidr, additionalCommands string) {
 	By(fmt.Sprintf("Creating pod %s with priviliged premission and ip %s", podName, cidr))
 	privileged := true
 	resourceList := make(corev1.ResourceList)
@@ -102,7 +102,7 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 	},
 		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "test",
 			Image:           "quay.io/jitesoft/alpine",
-			Command:         []string{"sh", "-c", fmt.Sprintf("ip address add %s dev net1; sleep 99999", cidr)},
+			Command:         []string{"sh", "-c", fmt.Sprintf("ip address add %s dev net1; "+additionalCommands+" sleep 99999", cidr)},
 			Resources:       corev1.ResourceRequirements{Limits: resourceList},
 			SecurityContext: &corev1.SecurityContext{Privileged: &privileged}}}}}
 
@@ -198,7 +198,7 @@ func (api *ClusterAPI) InstallOnPod(podName, containerName, packagesNames string
 
 // TcpdumpOnPod run the tcpdump command on the pod container and store its result on a file
 func (api *ClusterAPI) TcpdumpOnPod(podName, containerName string) error {
-	_, _, err := api.execOnPod(podName, containerName, testNamespace, "timeout 60 tcpdump -i net1 > /tcpdump.log")
+	_, _, err := api.execOnPod(podName, containerName, testNamespace, "tcpdump -i net1 -w /tcpdump.log &")
 	if err != nil {
 		return errors.Wrapf(err, "Failed to run exec on pod %s", podName)
 	}

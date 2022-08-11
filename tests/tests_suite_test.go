@@ -50,9 +50,9 @@ var _ = BeforeSuite(func() {
 	clusterApi.CreateTestNamespace()
 })
 
-var _ = AfterSuite(func() {
-	clusterApi.RemoveTestNamespace()
-})
+// var _ = AfterSuite(func() {
+// 	clusterApi.RemoveTestNamespace()
+// })
 
 func init() {
 	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")

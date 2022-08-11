@@ -16,28 +16,30 @@
 package tests_test
 
 import (
+	"context"
 	"fmt"
 	"net"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// var _ = Describe("ovs-cni 0.3.0", func() { testFunc("0.3.0") })
+var _ = Describe("ovs-cni 0.3.0", func() { testFunc("0.3.0") })
 var _ = Describe("ovs-cni 0.3.1", func() { testFunc("0.3.1") })
 
-// var _ = Describe("ovs-cni 0.4.0", func() { testFunc("0.4.0") })
+var _ = Describe("ovs-cni 0.4.0", func() { testFunc("0.4.0") })
 
 var testFunc = func(version string) {
-	// Describe("pod availability tests", func() {
-	// 	Context("When ovs-cni is deployed on the cluster", func() {
-	// 		Specify("ovs-cni pod should be up and running", func() {
-	// 			pods, _ := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
-	// 			Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
-	// 		})
-	// 	})
-	// })
+	Describe("pod availability tests", func() {
+		Context("When ovs-cni is deployed on the cluster", func() {
+			Specify("ovs-cni pod should be up and running", func() {
+				pods, _ := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
+			})
+		})
+	})
 
 	Describe("pod ovs-bridge connectivity tests", func() {
 		Context("when an OVS bridge is configured on a node", func() {
@@ -81,9 +83,9 @@ var testFunc = func(version string) {
 						cidrCons     = "10.1.0.1/24"
 					)
 					BeforeEach(func() {
-						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1)
-						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2)
-						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons)
+						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
+						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
+						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, "tcpdump -c 10 -i net1 > /tcpdump.log;")
 					})
 					// AfterEach(func() {
 					// 	clusterApi.DeletePodsInTestNamespace()
@@ -99,15 +101,16 @@ var testFunc = func(version string) {
 						err = clusterApi.InstallOnPod(podConsName, "test", "tcpdump")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to install 'tcpdump' on pod '%s'", podConsName))
 
-						err = clusterApi.TcpdumpOnPod(podConsName, "test")
-						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to run tcpdump on pod '%s'", podConsName))
+						// err = clusterApi.TcpdumpOnPod(podConsName, "test")
+						// Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to run tcpdump on pod '%s'", podConsName))
 
 						err = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
 
 						result, err := clusterApi.ReadTCPDumpFromPod(podConsName, "test")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
-						Expect(result).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String()))
+						Expect(result).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
+						Expect(result).To(ContainSubstring("IP " + ipPodProd2.String() + " > " + ipPodProd1.String() + ": ICMP echo reply"))
 					})
 				})
 			})
