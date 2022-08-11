@@ -22,7 +22,7 @@ import (
 	plugin "github.com/k8snetworkplumbingwg/ovs-cni/pkg/mirror-consumer"
 )
 
-// ovs-cni-mirror-consumer
+// mirror-consumer
 func main() {
 	skel.PluginMain(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.PluginSupports("0.3.0", "0.3.1", "0.4.0"), buildversion.BuildString("OVS bridge"))
 }

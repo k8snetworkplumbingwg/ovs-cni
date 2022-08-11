@@ -14,7 +14,7 @@ spec:
           "bridge": "br-emu-cni"
         },
         {
-          "type": "ovs-cni-mirror-consumer",
+          "type": "ovs-mirror-consumer",
           "bridge": "br-emu-cni",
           "mirrors": [
             {
