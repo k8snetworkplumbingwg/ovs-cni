@@ -45,6 +45,7 @@ Another example with a trunk port and jumbo frames:
 * `mtu` (integer, optional): MTU.
 * `trunk` (optional): List of VLAN ID's and/or ranges of accepted VLAN
   ID's.
+* `ofport_request` (integer, optional): request a static OpenFlow port number in range 1 to 65,279
 * `configuration_path` (optional): configuration file containing ovsdb
   socket file path, etc.
 

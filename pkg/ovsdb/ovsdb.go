@@ -150,8 +150,8 @@ func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationRe
 // **************** OVS driver API ********************
 
 // CreatePort Create an internal port in OVS
-func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, vlanTag uint, trunks []uint, portType string) error {
-	intfUUID, intfOp, err := createInterfaceOperation(intfName, ovnPortName)
+func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string) error {
+	intfUUID, intfOp, err := createInterfaceOperation(intfName, ofportRequest, ovnPortName)
 	if err != nil {
 		return err
 	}
@@ -782,7 +782,7 @@ func (ovsd *OvsDriver) isMirrorExistsByConditions(conditions []ovsdb.Condition) 
 	return true, nil
 }
 
-func createInterfaceOperation(intfName, ovnPortName string) (ovsdb.UUID, *ovsdb.Operation, error) {
+func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName string) (ovsdb.UUID, *ovsdb.Operation, error) {
 	intfUUIDStr := fmt.Sprintf("Intf%s", intfName)
 	intfUUID := ovsdb.UUID{GoUUID: intfUUIDStr}
 
@@ -796,6 +796,11 @@ func createInterfaceOperation(intfName, ovnPortName string) (ovsdb.UUID, *ovsdb.
 			return ovsdb.UUID{}, nil, err
 		}
 		intf["external_ids"] = oMap
+	}
+
+	// Requested OpenFlow port number for this interface
+	if ofportRequest != 0 {
+		intf["ofport_request"] = ofportRequest
 	}
 
 	// Add an entry in Interface table
