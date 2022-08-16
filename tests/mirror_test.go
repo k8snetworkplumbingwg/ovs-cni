@@ -18,6 +18,7 @@ package tests_test
 import (
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
 	. "github.com/onsi/ginkgo"
@@ -92,6 +93,8 @@ var testMirrorFunc = func(version string) {
 						err = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
 
+						// wait a few seconds for the dump being written
+						time.Sleep(15 * time.Second)
 						result, err := clusterApi.ReadTCPDumpFromPod(podConsName, "test")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
 						Expect(result).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
