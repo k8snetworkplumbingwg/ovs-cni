@@ -30,5 +30,5 @@ for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); d
 done
 
 echo 'Deploying multus'
-./cluster/kubectl.sh create -f cluster/multus-daemonset.yml
+./cluster/kubectl.sh create -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
 ./cluster/kubectl.sh -n kube-system wait --for=condition=ready -l name=multus pod --timeout=300s
