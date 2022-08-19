@@ -14,3 +14,6 @@ _kubevirtci/
 
 # testing
 _out
+
+# temp files
+cluster/multus-daemonset.yml

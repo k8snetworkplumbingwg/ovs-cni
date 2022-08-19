@@ -30,5 +30,8 @@ for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); d
 done
 
 echo 'Deploying multus'
+curl https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/v3.9.1/deployments/multus-daemonset.yml -o cluster/multus-daemonset.yml
+MULTUS_IMAGE=ghcr.io/k8snetworkplumbingwg/multus-cni:v3.9
+sed -i "s#ghcr.io/k8snetworkplumbingwg/multus-cni:stable\$#$MULTUS_IMAGE#" cluster/multus-daemonset.yml
 ./cluster/kubectl.sh create -f cluster/multus-daemonset.yml
 ./cluster/kubectl.sh -n kube-system wait --for=condition=ready -l name=multus pod --timeout=300s
