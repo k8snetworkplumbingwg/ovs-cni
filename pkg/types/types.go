@@ -77,3 +77,12 @@ type CachedNetConf struct {
 	Netconf    *NetConf
 	OrigIfName string
 }
+
+// CachedPrevResultNetConf containing PrevResult.
+// this is intended to be used only for storing and retrieving config
+// to/from a data store (example file cache).
+// This is required with CNI spec < 0.4.0 (like 0.3.0 and 0.3.1),
+// because prevResult wasn't available in cmdDel on those versions.
+type CachedPrevResultNetConf struct {
+	PrevResult *current.Result
+}

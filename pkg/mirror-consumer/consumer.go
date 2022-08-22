@@ -27,6 +27,7 @@ import (
 	"runtime"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -91,6 +92,12 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	// Cache PrevResult for CmdDel
+	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName)+"_cons",
+		&types.CachedPrevResultNetConf{PrevResult: netconf.PrevResult}); err != nil {
+		return fmt.Errorf("error saving NetConf %q", err)
+	}
+
 	portUUID, err := getPortUUID(ovsDriver, netconf.PrevResult.Interfaces)
 	if err != nil {
 		return fmt.Errorf("cannot get existing portUuid from db %v", err)
@@ -127,10 +134,31 @@ func CmdAdd(args *skel.CmdArgs) error {
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
 
+	cRef := config.GetCRef(args.ContainerID, args.IfName)
+	cache, err := config.LoadPrevResultConfFromCache(cRef + "_cons")
+	if err != nil {
+		// If cmdDel() fails, cached prevResult is cleaned up by
+		// the followed defer call. However, subsequence calls
+		// of cmdDel() from kubelet fail in a dead loop due to
+		// cached prevResult doesn't exist.
+		// Return nil when LoadPrevResultConfFromCache fails since the rest
+		// of cmdDel() code relies on prevResult as input argument
+		// and there is no meaning to continue.
+		return nil
+	}
+
+	defer func() {
+		if err == nil {
+			utils.CleanCache(cRef + "_cons")
+		}
+	}()
+
 	netconf, err := config.LoadMirrorConf(args.StdinData)
 	if err != nil {
 		return err
 	}
+	// add prevResult, because missing in CNI spec < 0.4.0
+	netconf.PrevResult = cache.PrevResult
 
 	ovsDriver, err := ovsdb.NewOvsBridgeDriver(netconf.BrName, netconf.SocketFile)
 	if err != nil {
