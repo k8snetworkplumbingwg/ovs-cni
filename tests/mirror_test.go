@@ -73,11 +73,11 @@ var testMirrorFunc = func(version string) {
 						cidrCons     = "10.1.0.1/24"
 					)
 					BeforeEach(func() {
+						consAdditionalCommands := "apk add tcpdump; tcpdump -i net1 > /tcpdump.log;"
+						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
+
 						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
 						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
-
-						consAdditionalCommands := "apk add tcpdump; tcpdump -c 10 -i net1 > /tcpdump.log;"
-						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
 					})
 					AfterEach(func() {
 						clusterApi.DeletePodsInTestNamespace()
@@ -94,7 +94,8 @@ var testMirrorFunc = func(version string) {
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
 
 						// wait a few seconds for the dump being written
-						time.Sleep(15 * time.Second)
+						time.Sleep(10 * time.Second)
+
 						result, err := clusterApi.ReadTCPDumpFromPod(podConsName, "test")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
 						Expect(result).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
