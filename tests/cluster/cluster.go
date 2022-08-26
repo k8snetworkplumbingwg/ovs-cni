@@ -187,9 +187,9 @@ func (api *ClusterAPI) PingFromPod(podName, containerName, targetIP string) erro
 	return nil
 }
 
-// ReadTCPDumpFromPod run the cat command on the pod container to read the content of /tcpdump.log
-func (api *ClusterAPI) ReadTCPDumpFromPod(podName, containerName string) (string, error) {
-	out, _, err := api.execOnPod(podName, containerName, testNamespace, "cat /tcpdump.log")
+// ReadFileFromPod run the cat command on the pod container to read the content of a file
+func (api *ClusterAPI) ReadFileFromPod(podName, containerName, filePath string) (string, error) {
+	out, _, err := api.execOnPod(podName, containerName, testNamespace, "cat "+filePath)
 	if err != nil {
 		return "", errors.Wrapf(err, "Failed to run exec on pod %s", podName)
 	}

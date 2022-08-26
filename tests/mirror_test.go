@@ -96,10 +96,10 @@ var testMirrorFunc = func(version string) {
 						// wait a few seconds for the dump being written
 						time.Sleep(10 * time.Second)
 
-						result, err := clusterApi.ReadTCPDumpFromPod(podConsName, "test")
+						tcpDumpResult, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
-						Expect(result).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
-						Expect(result).To(ContainSubstring("IP " + ipPodProd2.String() + " > " + ipPodProd1.String() + ": ICMP echo reply"))
+						Expect(tcpDumpResult).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
+						Expect(tcpDumpResult).To(ContainSubstring("IP " + ipPodProd2.String() + " > " + ipPodProd1.String() + ": ICMP echo reply"))
 					})
 				})
 			})
