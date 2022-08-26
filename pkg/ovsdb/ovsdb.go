@@ -534,35 +534,10 @@ func (ovsd *OvsDriver) CheckMirrorProducerWithPorts(mirrorName string, ingress, 
 		conditionsEgress := ovsdb.NewCondition("select_dst_port", ovsdb.ConditionIncludes, portUUID)
 		conditions = append(conditions, conditionsEgress)
 	}
-	// We cannot call findByCondition because we need to pass an array of conditions
-	selectOp := []ovsdb.Operation{{
-		Op:      "select",
-		Table:   "Mirror",
-		Where:   conditions,
-		Columns: []string{"name"},
-	}}
 
-	transactionResult, err := ovsd.ovsdbTransact(selectOp)
-	if err != nil {
-		return false, err
-	}
-
-	if len(transactionResult) != 1 {
-		// there is no need to return an error, because we want to create
-		// a new mirror if not exists
-		return false, nil
-	}
-
-	operationResult := transactionResult[0]
-	if operationResult.Error != "" {
-		return false, fmt.Errorf("%s - %s", operationResult.Error, operationResult.Details)
-	}
-
-	if len(operationResult.Rows) != 1 {
-		return false, nil
-	}
-
-	return true, nil
+	// We cannot call findByCondition because we need to pass an array of conditions.
+	// Also, there is no need to return an error if mirror doesn't exist, because in that case we want to create a new one
+	return ovsd.isMirrorExistsByConditions(conditions)
 }
 
 // CheckMirrorConsumerWithPorts Checks the configuration of a mirror consumer
@@ -577,35 +552,9 @@ func (ovsd *OvsDriver) CheckMirrorConsumerWithPorts(mirrorName string, portUUIDS
 	conditionOutput := ovsdb.NewCondition("output_port", ovsdb.ConditionEqual, portUUID)
 	conditions = append(conditions, conditionOutput)
 
-	// We cannot call findByCondition because we need to pass an array of conditions
-	selectOp := []ovsdb.Operation{{
-		Op:      "select",
-		Table:   "Mirror",
-		Where:   conditions,
-		Columns: []string{"name"},
-	}}
-
-	transactionResult, err := ovsd.ovsdbTransact(selectOp)
-	if err != nil {
-		return false, err
-	}
-
-	if len(transactionResult) != 1 {
-		// there is no need to return an error, because we want to create
-		// a new mirror if not exists
-		return false, nil
-	}
-
-	operationResult := transactionResult[0]
-	if operationResult.Error != "" {
-		return false, fmt.Errorf("%s - %s", operationResult.Error, operationResult.Details)
-	}
-
-	if len(operationResult.Rows) != 1 {
-		return false, nil
-	}
-
-	return true, nil
+	// We cannot call findByCondition because we need to pass an array of conditions.
+	// Also, there is no need to return an error if mirror doesn't exist, because in that case we want to create a new one
+	return ovsd.isMirrorExistsByConditions(conditions)
 }
 
 // IsMirrorPresent Checks if the Mirror entry already exists
@@ -787,6 +736,37 @@ func (ovsd *OvsDriver) findByCondition(table string, condition ovsdb.Condition, 
 	}
 
 	return operationResult.Rows[0], nil
+}
+
+// isMirrorExistsByConditions find a mirror by a list conditions.
+// It returns true, only if there is a single row as result.
+func (ovsd *OvsDriver) isMirrorExistsByConditions(conditions []ovsdb.Condition) (bool, error) {
+	selectOp := []ovsdb.Operation{{
+		Op:      "select",
+		Table:   "Mirror",
+		Where:   conditions,
+		Columns: []string{"name"},
+	}}
+
+	transactionResult, err := ovsd.ovsdbTransact(selectOp)
+	if err != nil {
+		return false, err
+	}
+
+	if len(transactionResult) != 1 {
+		return false, nil
+	}
+
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return false, fmt.Errorf("%s - %s", operationResult.Error, operationResult.Details)
+	}
+
+	if len(operationResult.Rows) != 1 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 func createInterfaceOperation(intfName, ovnPortName string) (ovsdb.UUID, *ovsdb.Operation, error) {
