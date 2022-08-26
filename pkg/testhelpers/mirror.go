@@ -16,6 +16,7 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
 
+// MirrorNet040 struct that represent the network configuration for CNI spec 0.4.0
 type MirrorNet040 struct {
 	CNIVersion    string                 `json:"cniVersion"`
 	Name          string                 `json:"name"`
@@ -26,6 +27,7 @@ type MirrorNet040 struct {
 	PrevResult    types040.Result        `json:"-"`
 }
 
+// MirrorNetCurrent struct that represent the network configuration for CNI spec 1.0.0
 type MirrorNetCurrent struct {
 	CNIVersion    string                 `json:"cniVersion"`
 	Name          string                 `json:"name"`
@@ -36,10 +38,15 @@ type MirrorNetCurrent struct {
 	PrevResult    current.Result         `json:"-"`
 }
 
+// SelectPort type that represent the kind of select_*_port
 type SelectPort string
 
 const (
+	// SelectSrcPort const with value "select_src_port"
+	// (ports on which arriving packets are selected for mirroring)
 	SelectSrcPort SelectPort = "select_src_port"
+	// SelectDstPort const with value "select_dst_port"
+	// (ports on which departing packets are selected for mirroring)
 	SelectDstPort SelectPort = "select_dst_port"
 )
 
