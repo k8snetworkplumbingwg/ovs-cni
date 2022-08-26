@@ -360,6 +360,37 @@ func (ovsd *OvsBridgeDriver) CreateMirror(bridgeName, mirrorName string) error {
 	return nil
 }
 
+// IsMirrorUsed Checks if a mirror of a specific bridge is used (it contains at least a portUUID)
+func (ovsd *OvsBridgeDriver) IsMirrorUsed(bridgeName, mirrorName string) (bool, error) {
+	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
+	row, err := ovsd.findByCondition("Mirror", condition, nil)
+	if err != nil {
+		return false, err
+	}
+
+	// Workaround to check output_port, select_dst_port and select_src_port consistenly, processing all
+	// of them as array of UUIDs.
+	// This is useful because ovn-org/libovsdb:
+	// - when row["column"] is empty in ovsdb, it returns an empty ovsdb.OvsSet
+	// - when row["column"] contains an UUID reference, it returns a ovsdb.UUID (not ovsdb.OvsSet)
+	// - when row["column"] contains multiple UUID references, it returns an ovsdb.OvsSet with the elements
+	selectSrcPorts, err := convertToArray(row["select_src_port"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert select_src_port to an array error: %v", err)
+	}
+	selectDstPorts, err := convertToArray(row["select_dst_port"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert select_dst_port to an array error: %v", err)
+	}
+	outputPorts, err := convertToArray(row["output_port"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert output_port to an array error: %v", err)
+	}
+
+	isUsed := len(selectSrcPorts) != 0 || len(selectDstPorts) != 0 || len(outputPorts) != 0
+	return isUsed, nil
+}
+
 // DeleteMirror Removes a mirror of a specific bridge
 func (ovsd *OvsBridgeDriver) DeleteMirror(bridgeName, mirrorName string) error {
 	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
@@ -370,37 +401,14 @@ func (ovsd *OvsBridgeDriver) DeleteMirror(bridgeName, mirrorName string) error {
 
 	mirrorUUID := row["_uuid"].(ovsdb.UUID)
 
-	// Workaround to check output_port, select_dst_port and select_src_port consistenly, processing all
-	// of them as array of UUIDs.
-	// This is useful because ovn-org/libovsdb:
-	// - when row["column"] is empty in ovsdb, it returns an empty ovsdb.OvsSet
-	// - when row["column"] contains an UUID reference, it returns a ovsdb.UUID (not ovsdb.OvsSet)
-	// - when row["column"] contains multiple UUID references, it returns an ovsdb.OvsSet with the elements
-	selectSrcPorts, err := convertToArray(row["select_src_port"])
-	if err != nil {
-		return fmt.Errorf("cannot convert select_src_port to an array error: %v", err)
-	}
-	selectDstPorts, err := convertToArray(row["select_dst_port"])
-	if err != nil {
-		return fmt.Errorf("cannot convert select_dst_port to an array error: %v", err)
-	}
-	outputPorts, err := convertToArray(row["output_port"])
-	if err != nil {
-		return fmt.Errorf("cannot convert output_port to an array error: %v", err)
-	}
+	deleteOp := deleteMirrorOperation(mirrorName)
+	detachFromBridgeOp := detachMirrorFromBridgeOperation(mirrorUUID, bridgeName)
 
-	if len(selectSrcPorts) == 0 && len(selectDstPorts) == 0 && len(outputPorts) == 0 {
-		deleteOp := deleteMirrorOperation(mirrorName)
-		detachFromBridgeOp := detachMirrorFromBridgeOperation(mirrorUUID, bridgeName)
+	// Perform OVS transaction
+	operations := []ovsdb.Operation{*deleteOp, *detachFromBridgeOp}
 
-		// Perform OVS transaction
-		operations := []ovsdb.Operation{*deleteOp, *detachFromBridgeOp}
-
-		_, err = ovsd.ovsdbTransact(operations)
-		return err
-	}
-
-	return nil
+	_, err = ovsd.ovsdbTransact(operations)
+	return err
 }
 
 // AttachPortToMirrorProducer Adds a portUUID as 'select_src_port' or 'select_dst_port' to an existing mirror

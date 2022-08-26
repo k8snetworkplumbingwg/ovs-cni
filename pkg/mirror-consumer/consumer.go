@@ -185,9 +185,17 @@ func CmdDel(args *skel.CmdArgs) error {
 			return fmt.Errorf("cannot detach port %s from mirror %s: %v", portUUID, mirror.Name, err)
 		}
 
-		err = ovsDriver.DeleteMirror(netconf.BrName, mirror.Name)
+		used, err := ovsDriver.IsMirrorUsed(netconf.BrName, mirror.Name)
 		if err != nil {
-			return fmt.Errorf("cannot create mirror %s: %v ", mirror.Name, err)
+			return fmt.Errorf("cannot check if mirror %s is used: %v ", mirror.Name, err)
+		}
+
+		// if this mirror is not used we can remove it
+		if !used {
+			err = ovsDriver.DeleteMirror(netconf.BrName, mirror.Name)
+			if err != nil {
+				return fmt.Errorf("cannot delete mirror %s: %v ", mirror.Name, err)
+			}
 		}
 	}
 
