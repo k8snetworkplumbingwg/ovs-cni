@@ -30,7 +30,7 @@ var _ = Describe("ovs-mirror 0.3.1", func() { testMirrorFunc("0.3.1") })
 var _ = Describe("ovs-mirror 0.4.0", func() { testMirrorFunc("0.4.0") })
 
 var testMirrorFunc = func(version string) {
-	Describe("pod ovs-bridge connectivity tests", func() {
+	Describe("ovs traffic mirroring tests", func() {
 		Context("when an OVS bridge is configured on a node", func() {
 			const bridgeName = "br-test"
 			BeforeEach(func() {
