@@ -45,7 +45,7 @@ type MirrorNetConf struct {
 	types.NetConf
 
 	// support chaining for master interface and IP decisions
-	// occurring prior to running ipvlan plugin
+	// occurring prior to running mirror plugin
 	RawPrevResult *map[string]interface{} `json:"prevResult"`
 	PrevResult    *current.Result         `json:"-"`
 
