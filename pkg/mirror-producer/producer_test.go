@@ -514,10 +514,6 @@ var testFunc = func(version string) {
 				testCheck(confMirror1, result1, IFNAME1, targetNs)
 				testCheck(confMirror2, result2, IFNAME2, targetNs)
 
-				// mirror must have both ports (hostIfaces obtained from 'prevResult1' and 'prevResult2')
-				By("verify that mirrors have all ports")
-				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
-
 				By("run ovs-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
 				testDel(confMirror2, mirrors, result2, IFNAME2, targetNs)
@@ -574,10 +570,6 @@ var testFunc = func(version string) {
 				confMirror2, result2 := testAdd(conf, mirrors, prevResult2, IFNAME2, targetNs)
 				testCheck(confMirror1, result1, IFNAME1, targetNs)
 				testCheck(confMirror2, result2, IFNAME2, targetNs)
-
-				// mirror must have both ports (hostIfaces obtained from 'prevResult1' and 'prevResult2')
-				By("verify that mirrors have all ports")
-				checkPortsInMirrors(mirrors, prevResult1, prevResult2)
 
 				By("run ovs-mirror-producer to delete mirrors")
 				testDel(confMirror1, mirrors, result1, IFNAME1, targetNs)
