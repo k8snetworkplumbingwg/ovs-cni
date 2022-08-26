@@ -25,9 +25,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("ovs-cni-mirror 0.3.0", func() { testMirrorFunc("0.3.0") })
-var _ = Describe("ovs-cni-mirror 0.3.1", func() { testMirrorFunc("0.3.1") })
-var _ = Describe("ovs-cni-mirror 0.4.0", func() { testMirrorFunc("0.4.0") })
+var _ = Describe("ovs-mirror 0.3.0", func() { testMirrorFunc("0.3.0") })
+var _ = Describe("ovs-mirror 0.3.1", func() { testMirrorFunc("0.3.1") })
+var _ = Describe("ovs-mirror 0.4.0", func() { testMirrorFunc("0.4.0") })
 
 var testMirrorFunc = func(version string) {
 	Describe("pod ovs-bridge connectivity tests", func() {
@@ -47,13 +47,13 @@ var testMirrorFunc = func(version string) {
 				BeforeEach(func() {
 					ovsPluginProd := `{ "type": "ovs", "bridge": "` + bridgeName + `", "vlan": 100 }`
 					mirrorConfProd := `{ "name": "mirror-1", "ingress": true, "egress": true }`
-					mirrorProducer := `{ "type": "ovs-cni-mirror-producer", "bridge": "` + bridgeName + `", "mirrors": [` + mirrorConfProd + `] }`
+					mirrorProducer := `{ "type": "ovs-mirror-producer", "bridge": "` + bridgeName + `", "mirrors": [` + mirrorConfProd + `] }`
 					plugins := `[` + ovsPluginProd + `, ` + mirrorProducer + `]`
 					clusterApi.CreateNetworkAttachmentDefinition(nadProducerName, bridgeName, `{ "cniVersion": "`+version+`", "plugins": `+plugins+`}`)
 
 					ovsPluginCons := `{ "type": "ovs", "bridge": "` + bridgeName + `", "vlan": 0 }`
 					mirrorConfCons := `{ "name": "mirror-1" }`
-					mirrorConsumer := `{ "type": "ovs-cni-mirror-consumer", "bridge": "` + bridgeName + `", "mirrors": [` + mirrorConfCons + `] }`
+					mirrorConsumer := `{ "type": "ovs-mirror-consumer", "bridge": "` + bridgeName + `", "mirrors": [` + mirrorConfCons + `] }`
 					pluginsConsumer := `[` + ovsPluginCons + `, ` + mirrorConsumer + `]`
 					clusterApi.CreateNetworkAttachmentDefinition(nadConsumerName, bridgeName, `{ "cniVersion": "`+version+`", "plugins": `+pluginsConsumer+`}`)
 				})
