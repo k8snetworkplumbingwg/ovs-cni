@@ -10,8 +10,8 @@ import (
 	types040 "github.com/containernetworking/cni/pkg/types/040"
 	current "github.com/containernetworking/cni/pkg/types/100"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
+	ginko "github.com/onsi/ginkgo"
+	"github.com/onsi/gomega"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
@@ -53,20 +53,20 @@ const (
 // GetPortUUIDFromResult gets portUUID from a cnitypes.Result object
 func GetPortUUIDFromResult(r cnitypes.Result) string {
 	resultMirror, err := current.GetResult(r)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(len(resultMirror.Interfaces)).To(Equal(2))
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
+	gomega.Expect(len(resultMirror.Interfaces)).To(gomega.Equal(2))
 
 	// Both mirror-producer and mirror-consumer must return the same interfaces of the previous one in the chain (ovs-cni plugin),
 	// because they don't modify interfaces, but they only update ovsdb.
-	By("Checking that result interfaces are equal to those returned by ovs-cni plugin")
+	ginko.By("Checking that result interfaces are equal to those returned by ovs-cni plugin")
 	hostIface := resultMirror.Interfaces[0]
 	contIface := resultMirror.Interfaces[1]
-	Expect(resultMirror.Interfaces[0]).To(Equal(hostIface))
-	Expect(resultMirror.Interfaces[1]).To(Equal(contIface))
+	gomega.Expect(resultMirror.Interfaces[0]).To(gomega.Equal(hostIface))
+	gomega.Expect(resultMirror.Interfaces[1]).To(gomega.Equal(contIface))
 
-	By("Getting port uuid for the hostIface")
+	ginko.By("Getting port uuid for the hostIface")
 	portUUID, err := GetPortUUIDByName(hostIface.Name)
-	Expect(err).NotTo(HaveOccurred())
+	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	return portUUID
 }
 
@@ -82,26 +82,26 @@ func CheckPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) boo
 	}
 
 	for _, mirror := range mirrors {
-		By(fmt.Sprintf("Checking that mirror %s is in ovsdb", mirror.Name))
+		ginko.By(fmt.Sprintf("Checking that mirror %s is in ovsdb", mirror.Name))
 		mirrorNameOvsdb, err := GetMirrorAttribute(mirror.Name, "name")
-		Expect(err).NotTo(HaveOccurred())
-		Expect(mirrorNameOvsdb).To(Equal(mirror.Name))
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(mirrorNameOvsdb).To(gomega.Equal(mirror.Name))
 
 		if mirror.Ingress {
-			By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_src_port column", mirror.Name))
+			ginko.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_src_port column", mirror.Name))
 			srcPorts, err := GetMirrorSrcPorts(mirror.Name)
-			Expect(err).NotTo(HaveOccurred())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			for _, portUUID := range portUUIDs {
-				Expect(srcPorts).To(ContainElement(portUUID))
+				gomega.Expect(srcPorts).To(gomega.ContainElement(portUUID))
 			}
 		}
 
 		if mirror.Egress {
-			By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_dst_port column", mirror.Name))
+			ginko.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_dst_port column", mirror.Name))
 			dstPorts, err := GetMirrorDstPorts(mirror.Name)
-			Expect(err).NotTo(HaveOccurred())
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			for _, portUUID := range portUUIDs {
-				Expect(dstPorts).To(ContainElement(portUUID))
+				gomega.Expect(dstPorts).To(gomega.ContainElement(portUUID))
 			}
 		}
 	}
