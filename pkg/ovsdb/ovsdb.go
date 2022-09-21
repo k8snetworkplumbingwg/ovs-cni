@@ -348,7 +348,10 @@ func (ovsd *OvsBridgeDriver) CreateMirror(bridgeName, mirrorName string) error {
 		// as 2 operations in a transaction.
 		// The first one returns 'mirrorUUID' to referece the new inserted row
 		// in the second operation.
-		mirrorUUID, mirrorOp := createMirrorOperation(mirrorName)
+		mirrorUUID, mirrorOp, err := createMirrorOperation(mirrorName)
+		if err != nil {
+			return err
+		}
 		attachMirrorOp := attachMirrorOperation(mirrorUUID, bridgeName)
 
 		// Perform OVS transaction
@@ -382,6 +385,14 @@ func (ovsd *OvsBridgeDriver) DeleteMirror(bridgeName, mirrorName string) error {
 	row, err := ovsd.findByCondition("Mirror", condition, nil)
 	if err != nil {
 		return err
+	}
+
+	externalIDs, err := getExternalIDs(row)
+	if err != nil {
+		return fmt.Errorf("get external ids: %v", err)
+	}
+	if externalIDs["owner"] != ovsPortOwner {
+		return fmt.Errorf("mirror not created by ovs-cni")
 	}
 
 	mirrorUUID := row["_uuid"].(ovsdb.UUID)
@@ -894,7 +905,7 @@ func detachPortOperation(portUUID ovsdb.UUID, bridgeName string) *ovsdb.Operatio
 	return &mutateOp
 }
 
-func createMirrorOperation(mirrorName string) (ovsdb.UUID, *ovsdb.Operation) {
+func createMirrorOperation(mirrorName string) (ovsdb.UUID, *ovsdb.Operation, error) {
 	// Create an operation 'named-uuid' with a simple string as defined in RFC7047.
 	// Spec states that 'uuid-name is only meaningful within the scope of a single transaction'.
 	// So we use a simple constant string.
@@ -904,6 +915,14 @@ func createMirrorOperation(mirrorName string) (ovsdb.UUID, *ovsdb.Operation) {
 	mirror := make(map[string]interface{})
 	mirror["name"] = mirrorName
 
+	oMap, err := ovsdb.NewOvsMap(map[string]string{
+		"owner": ovsPortOwner,
+	})
+	if err != nil {
+		return ovsdb.UUID{}, nil, err
+	}
+	mirror["external_ids"] = oMap
+
 	// Add an entry in Port table
 	mirrorOp := ovsdb.Operation{
 		Op:       "insert",
@@ -912,7 +931,7 @@ func createMirrorOperation(mirrorName string) (ovsdb.UUID, *ovsdb.Operation) {
 		UUIDName: mirrorUUIDStr,
 	}
 
-	return mirrorUUID, &mirrorOp
+	return mirrorUUID, &mirrorOp, nil
 }
 
 func attachPortToMirrorProducerOperation(portUUID ovsdb.UUID, mirrorName string, ingress, egress bool) *ovsdb.Operation {
