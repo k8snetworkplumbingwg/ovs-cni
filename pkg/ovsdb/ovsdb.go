@@ -368,27 +368,12 @@ func (ovsd *OvsBridgeDriver) IsMirrorUsed(bridgeName, mirrorName string) (bool, 
 		return false, err
 	}
 
-	// Workaround to check output_port, select_dst_port and select_src_port consistenly, processing all
-	// of them as array of UUIDs.
-	// This is useful because ovn-org/libovsdb:
-	// - when row["column"] is empty in ovsdb, it returns an empty ovsdb.OvsSet
-	// - when row["column"] contains an UUID reference, it returns a ovsdb.UUID (not ovsdb.OvsSet)
-	// - when row["column"] contains multiple UUID references, it returns an ovsdb.OvsSet with the elements
-	selectSrcPorts, err := convertToArray(row["select_src_port"])
+	isEmpty, err := isMirrorEmpty(row)
 	if err != nil {
-		return false, fmt.Errorf("cannot convert select_src_port to an array error: %v", err)
-	}
-	selectDstPorts, err := convertToArray(row["select_dst_port"])
-	if err != nil {
-		return false, fmt.Errorf("cannot convert select_dst_port to an array error: %v", err)
-	}
-	outputPorts, err := convertToArray(row["output_port"])
-	if err != nil {
-		return false, fmt.Errorf("cannot convert output_port to an array error: %v", err)
+		return false, fmt.Errorf("cannot check if mirror %s of bridge %s is empty error: %v", mirrorName, bridgeName, err)
 	}
 
-	isUsed := len(selectSrcPorts) != 0 || len(selectDstPorts) != 0 || len(outputPorts) != 0
-	return isUsed, nil
+	return !isEmpty, nil
 }
 
 // DeleteMirror Removes a mirror of a specific bridge
@@ -639,6 +624,23 @@ func (ovsd *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (
 	}
 
 	return fmt.Sprintf("%v", port["name"]), true, nil
+}
+
+// CleanEmptyMirrors removes all empty mirrors
+func (ovsd *OvsBridgeDriver) CleanEmptyMirrors() error {
+	mirrorNames, err := ovsd.findEmptyMirrors()
+	if err != nil {
+		return fmt.Errorf("clean mirrors: %v", err)
+	}
+	for _, mirrorName := range mirrorNames {
+		log.Printf("Info: mirror %s is empty: removing it", mirrorName)
+		if err := ovsd.DeleteMirror(ovsd.OvsBridgeName, mirrorName); err != nil {
+			// Don't return an error here, just log its occurrence.
+			// Something else may have removed the mirror already.
+			log.Printf("cleanEmptyMirrors Error: %v\n", err)
+		}
+	}
+	return nil
 }
 
 // FindInterfacesWithError returns the interfaces which are in error state
@@ -1024,6 +1026,69 @@ func detachMirrorFromBridgeOperation(mirrorUUID ovsdb.UUID, bridgeName string) *
 	}
 
 	return &mutateOp
+}
+
+// findEmptyMirrors returns the empty mirrors (no select_src_port, select_dst_port and output ports)
+func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
+	var names []string
+
+	// get all mirrors
+	selectOp := ovsdb.Operation{
+		Op:      "select",
+		Columns: []string{"name", "output_port", "select_src_port", "select_dst_port"},
+		Table:   "Mirror",
+	}
+	transactionResult, err := ovsd.ovsdbTransact([]ovsdb.Operation{selectOp})
+	if err != nil {
+		return nil, err
+	}
+	if len(transactionResult) != 1 {
+		return nil, fmt.Errorf("no transaction result")
+	}
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return nil, fmt.Errorf(operationResult.Error)
+	}
+
+	// extract mirror names with both output_port, select_src_port and select_dst_port empty
+	for _, row := range operationResult.Rows {
+		isEmpty, err := isMirrorEmpty(row)
+		if err != nil {
+			return nil, fmt.Errorf("cannot convert select_src_port to an array error: %v", err)
+		}
+		if isEmpty {
+			names = append(names, fmt.Sprintf("%v", row["name"]))
+		}
+	}
+
+	if len(names) > 0 {
+		log.Printf("found %d empty mirrors", len(names))
+	}
+	return names, nil
+}
+
+// isMirrorEmpty Checks if a mirror db row has both output_port, select_src_port and select_dst_port empty
+func isMirrorEmpty(dbRow map[string]interface{}) (bool, error) {
+	// Workaround to check output_port, select_dst_port and select_src_port consistenly, processing all
+	// of them as array of UUIDs.
+	// This is useful because ovn-org/libovsdb:
+	// - when dbRow["column"] is empty in ovsdb, it returns an empty ovsdb.OvsSet
+	// - when dbRow["column"] contains an UUID reference, it returns a ovsdb.UUID (not ovsdb.OvsSet)
+	// - when dbRow["column"] contains multiple UUID references, it returns an ovsdb.OvsSet with the elements
+	selectSrcPorts, err := convertToArray(dbRow["select_src_port"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert select_src_port to an array error: %v", err)
+	}
+	selectDstPorts, err := convertToArray(dbRow["select_dst_port"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert select_dst_port to an array error: %v", err)
+	}
+	outputPorts, err := convertToArray(dbRow["output_port"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert output_port to an array error: %v", err)
+	}
+	isEmpty := len(selectSrcPorts) == 0 && len(selectDstPorts) == 0 && len(outputPorts) == 0
+	return isEmpty, nil
 }
 
 // utility function to convert an element (UUID or OvsSet) to an array of UUIDs

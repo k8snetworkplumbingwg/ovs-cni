@@ -92,6 +92,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	// removes all empty mirrors
+	if err := ovsDriver.CleanEmptyMirrors(); err != nil {
+		return err
+	}
+
 	// Cache PrevResult for CmdDel
 	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName)+"_prod",
 		&types.CachedPrevResultNetConf{PrevResult: netconf.PrevResult}); err != nil {
@@ -189,6 +194,11 @@ func CmdDel(args *skel.CmdArgs) error {
 				return fmt.Errorf("cannot delete mirror %s: %v ", mirror.Name, err)
 			}
 		}
+	}
+
+	// removes all empty mirrors
+	if err := ovsDriver.CleanEmptyMirrors(); err != nil {
+		return err
 	}
 
 	result := &current.Result{
