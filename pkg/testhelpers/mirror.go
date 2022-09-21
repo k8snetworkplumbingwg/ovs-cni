@@ -227,24 +227,31 @@ func AddOutputPortToMirror(portUUID, mirrorName string) (string, error) {
 	return strings.TrimSpace(string(output[:])), nil
 }
 
-// CreateEmptyMirror creates a new empty mirror with name = 'mirrorName' in bridge 'bridgeName'
-func CreateEmptyMirror(bridgeName, mirrorName string) (string, error) {
-	output, err := exec.Command("ovs-vsctl", "--", "add", "Bridge", bridgeName, "mirrors", "@m", "--", "--id=@m", "create", "Mirror", "name="+mirrorName).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to create empty mirror %s in bridge %s: %v", bridgeName, mirrorName, string(output[:]))
+// CreateEmptyMirrors creates multiple mirrors in a bridge with an optional owner in external_ids.
+// If ovsPortOwner is an empty string, it will leave external_ids empty.
+func CreateEmptyMirrors(bridgeName string, mirrorNames []string, ovsPortOwner string) {
+	for _, mirrorName := range mirrorNames {
+		_, err := createEmptyMirror(bridgeName, mirrorName)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		if ovsPortOwner != "" {
+			// manually add owner as external_ids
+			_, err = addOwnerToMirror(ovsPortOwner, mirrorName)
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		}
+		// check existence of the empty mirrors
+		emptyMirExists, err := IsMirrorExists(mirrorName)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(emptyMirExists).To(gomega.Equal(true))
 	}
-
-	return strings.TrimSpace(string(output[:])), nil
 }
 
-// AddOwnerToMirror adds an owner to an existing mirror as external_ids
-func AddOwnerToMirror(ovsPortOwner, mirrorName string) (string, error) {
-	output, err := exec.Command("ovs-vsctl", "add", "Mirror", mirrorName, "external_ids", "owner="+ovsPortOwner).CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("failed to add owner %s to mirror %s: %v", ovsPortOwner, mirrorName, string(output[:]))
+// CheckEmptyMirrorsExistence checks if all mirrors exist or not, based on 'exists' value.
+func CheckEmptyMirrorsExistence(mirrorNames []string, exists bool) {
+	for _, mirrorName := range mirrorNames {
+		emptyMirExists, err := IsMirrorExists(mirrorName)
+		gomega.Expect(err).NotTo(gomega.HaveOccurred())
+		gomega.Expect(emptyMirExists).To(gomega.Equal(exists))
 	}
-
-	return strings.TrimSpace(string(output[:])), nil
 }
 
 // ToJSONString coverts input into a JSON string
@@ -278,4 +285,24 @@ func ContainsElement(list []string, el string) bool {
 		}
 	}
 	return false
+}
+
+// createEmptyMirror creates a new empty mirror with name = 'mirrorName' in bridge 'bridgeName'
+func createEmptyMirror(bridgeName, mirrorName string) (string, error) {
+	output, err := exec.Command("ovs-vsctl", "--", "add", "Bridge", bridgeName, "mirrors", "@m", "--", "--id=@m", "create", "Mirror", "name="+mirrorName).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to create empty mirror %s in bridge %s: %v", bridgeName, mirrorName, string(output[:]))
+	}
+
+	return strings.TrimSpace(string(output[:])), nil
+}
+
+// addOwnerToMirror adds an owner to an existing mirror as external_ids
+func addOwnerToMirror(ovsPortOwner, mirrorName string) (string, error) {
+	output, err := exec.Command("ovs-vsctl", "add", "Mirror", mirrorName, "external_ids", "owner="+ovsPortOwner).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to add owner %s to mirror %s: %v", ovsPortOwner, mirrorName, string(output[:]))
+	}
+
+	return strings.TrimSpace(string(output[:])), nil
 }
