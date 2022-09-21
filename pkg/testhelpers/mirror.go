@@ -73,7 +73,8 @@ func GetPortUUIDFromResult(r cnitypes.Result) string {
 // CheckPortsInMirrors extracts ports from results and check if every mirror contains those port UUIDs.
 // Since it's not possibile to have mirrors without both ingress and egress,
 // it's enough finding the port in either ingress or egress.
-func CheckPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) bool {
+// It also verify the mirror owner using 'external_ids' attribute. You can skip this check with hasExternalOwner=true.
+func CheckPortsInMirrors(mirrors []types.Mirror, hasExternalOwner bool, ovsPortOwner string, results ...cnitypes.Result) bool {
 	// build an empty slice of port UUIDs
 	var portUUIDs = make([]string, 0)
 	for _, r := range results {
@@ -86,6 +87,12 @@ func CheckPortsInMirrors(mirrors []types.Mirror, results ...cnitypes.Result) boo
 		mirrorNameOvsdb, err := GetMirrorAttribute(mirror.Name, "name")
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(mirrorNameOvsdb).To(gomega.Equal(mirror.Name))
+
+		if !hasExternalOwner {
+			mirrorExternalIdsOvsdb, err := GetMirrorAttribute(mirror.Name, "external_ids")
+			gomega.Expect(err).NotTo(gomega.HaveOccurred())
+			gomega.Expect(mirrorExternalIdsOvsdb).To(gomega.ContainSubstring("owner=" + ovsPortOwner))
+		}
 
 		if mirror.Ingress {
 			ginko.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_src_port column", mirror.Name))
@@ -225,6 +232,16 @@ func CreateEmptyMirror(bridgeName, mirrorName string) (string, error) {
 	output, err := exec.Command("ovs-vsctl", "--", "add", "Bridge", bridgeName, "mirrors", "@m", "--", "--id=@m", "create", "Mirror", "name="+mirrorName).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to create empty mirror %s in bridge %s: %v", bridgeName, mirrorName, string(output[:]))
+	}
+
+	return strings.TrimSpace(string(output[:])), nil
+}
+
+// AddOwnerToMirror adds an owner to an existing mirror as external_ids
+func AddOwnerToMirror(ovsPortOwner, mirrorName string) (string, error) {
+	output, err := exec.Command("ovs-vsctl", "add", "Mirror", mirrorName, "external_ids", "owner="+ovsPortOwner).CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("failed to add owner %s to mirror %s: %v", ovsPortOwner, mirrorName, string(output[:]))
 	}
 
 	return strings.TrimSpace(string(output[:])), nil
