@@ -506,6 +506,57 @@ var testFunc = func(version string) {
 			})
 		})
 	})
+
+	Context("creating a mirror", func() {
+		mirrors := []types.Mirror{
+			{
+				Name: "mirror-cons",
+			},
+		}
+		mirrorsJSONStr, err := ToJSONString(mirrors)
+		Expect(err).NotTo(HaveOccurred())
+
+		conf := fmt.Sprintf(`{
+			"cniVersion": "%s",
+			"name": "mynet",
+			"type": "ovs-mirror-consumer",
+			"bridge": "%s",
+			"mirrors": %s
+		}`, version, bridgeName, mirrorsJSONStr)
+
+		emptyMirror := "emtyMirCons"
+
+		It("should successfully remove empty mirrors in the same bridge", func() {
+			targetNs := newNS()
+			defer func() {
+				closeNS(targetNs)
+			}()
+
+			By("manually create an empty mirror")
+			_, err := CreateEmptyMirror(bridgeName, emptyMirror)
+			Expect(err).NotTo(HaveOccurred())
+			emptyMirExists, err := IsMirrorExists(emptyMirror)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(emptyMirExists).To(Equal(true))
+
+			By("create interfaces using ovs-cni plugin")
+			prevResult := createInterfaces(IFNAME1, targetNs)
+
+			By("run ovs-mirror-producer passing prevResult")
+			confMirror, result := testAdd(conf, mirrors, prevResult, IFNAME1, targetNs)
+
+			// 'cmdAdd' mirror function calls automatically cleanEmptyMirrors
+			// to remove unused mirrors of the bridge
+
+			By("mirror" + emptyMirror + " should not exist anymore")
+			emptyMirExists, err = IsMirrorExists(emptyMirror)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(emptyMirExists).To(Equal(false))
+
+			testCheck(confMirror, result, IFNAME1, targetNs)
+			testDel(confMirror, mirrors, result, IFNAME1, targetNs)
+		})
+	})
 }
 
 func newNS() ns.NetNS {
