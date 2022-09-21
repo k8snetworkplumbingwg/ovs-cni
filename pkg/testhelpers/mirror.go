@@ -222,7 +222,7 @@ func AddOutputPortToMirror(portUUID, mirrorName string) (string, error) {
 
 // CreateEmptyMirror creates a new empty mirror with name = 'mirrorName' in bridge 'bridgeName'
 func CreateEmptyMirror(bridgeName, mirrorName string) (string, error) {
-	output, err := exec.Command("ovs-vsctl", "--", "set", "Bridge", bridgeName, "mirrors=@m", "--", "--id=@m", "create", "Mirror", "name="+mirrorName).CombinedOutput()
+	output, err := exec.Command("ovs-vsctl", "--", "add", "Bridge", bridgeName, "mirrors", "@m", "--", "--id=@m", "create", "Mirror", "name="+mirrorName).CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("failed to create empty mirror %s in bridge %s: %v", bridgeName, mirrorName, string(output[:]))
 	}
