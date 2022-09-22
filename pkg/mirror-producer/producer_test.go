@@ -737,7 +737,7 @@ var testFunc = func(version string) {
 
 				emptyMirrors := []string{"emptyMirProd1", "emptyMirProd2"}
 
-				It("should NOT remove those are in the current bridge", func() {
+				It("should NOT remove those that are in the current bridge", func() {
 					targetNs := newNS()
 					defer func() {
 						closeNS(targetNs)
@@ -784,7 +784,7 @@ var testFunc = func(version string) {
 
 				emptyMirrors := []string{"emptyMirProd1", "emptyMirProd2"}
 
-				It("should NOT remove those are in the current bridge", func() {
+				It("should NOT remove those that are in the current bridge", func() {
 					targetNs := newNS()
 					defer func() {
 						closeNS(targetNs)
