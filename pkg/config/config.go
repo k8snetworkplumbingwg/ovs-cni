@@ -23,6 +23,8 @@ import (
 	"os"
 	"strings"
 
+	current "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/containernetworking/cni/pkg/version"
 	"github.com/imdario/mergo"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
@@ -39,7 +41,7 @@ func LoadConf(data []byte) (*types.NetConf, error) {
 	if err != nil {
 		return nil, err
 	}
-	flatNetConf, err := loadFlatNetConf(netconf.ConfigurationPath)
+	flatNetConf, err := loadFlatNetConf[types.NetConf](netconf.ConfigurationPath)
 	if err != nil {
 		return nil, err
 	}
@@ -47,6 +49,7 @@ func LoadConf(data []byte) (*types.NetConf, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if netconf.LinkStateCheckRetries == 0 {
 		netconf.LinkStateCheckRetries = linkstateCheckRetries
 	}
@@ -55,6 +58,38 @@ func LoadConf(data []byte) (*types.NetConf, error) {
 		netconf.LinkStateCheckInterval = linkStateCheckInterval
 	}
 	return netconf, nil
+}
+
+// LoadMirrorConf parses and validates stdin netconf and returns MirrorNetConf object
+func LoadMirrorConf(data []byte) (*types.MirrorNetConf, error) {
+	netconf, err := loadMirrorNetConf(data)
+	if err != nil {
+		return nil, err
+	}
+	flatNetConf, err := loadFlatNetConf[types.MirrorNetConf](netconf.ConfigurationPath)
+	if err != nil {
+		return nil, err
+	}
+	netconf, err = mergeConf(netconf, flatNetConf)
+	if err != nil {
+		return nil, err
+	}
+	return netconf, nil
+}
+
+// LoadPrevResultConfFromCache retrieve preResult config from cache
+func LoadPrevResultConfFromCache(cRef string) (*types.CachedPrevResultNetConf, error) {
+	netCache := &types.CachedPrevResultNetConf{}
+	netConfBytes, err := utils.ReadCache(cRef)
+	if err != nil {
+		return nil, fmt.Errorf("error reading cached prevResult conf with name %s: %v", cRef, err)
+	}
+
+	if err = json.Unmarshal(netConfBytes, netCache); err != nil {
+		return nil, fmt.Errorf("failed to parse prevResult conf: %v", err)
+	}
+
+	return netCache, nil
 }
 
 // LoadConfFromCache retrieve net config from cache
@@ -82,18 +117,43 @@ func loadNetConf(bytes []byte) (*types.NetConf, error) {
 	if err := json.Unmarshal(bytes, netconf); err != nil {
 		return nil, fmt.Errorf("failed to load netconf: %v", err)
 	}
+	return netconf, nil
+}
+
+func loadMirrorNetConf(bytes []byte) (*types.MirrorNetConf, error) {
+	netconf := &types.MirrorNetConf{}
+	if err := json.Unmarshal(bytes, netconf); err != nil {
+		return nil, fmt.Errorf("failed to load netconf: %v", err)
+	}
+
+	// Parse previous result
+	if netconf.RawPrevResult != nil {
+		resultBytes, err := json.Marshal(netconf.RawPrevResult)
+		if err != nil {
+			return nil, fmt.Errorf("loadNetConf: could not serialize prevResult: %v", err)
+		}
+		res, err := version.NewResult(netconf.CNIVersion, resultBytes)
+		if err != nil {
+			return nil, fmt.Errorf("loadNetConf: could not parse prevResult: %v", err)
+		}
+		netconf.RawPrevResult = nil
+		netconf.PrevResult, err = current.NewResultFromResult(res)
+		if err != nil {
+			return nil, fmt.Errorf("loadNetConf: could not convert result to current version: %v", err)
+		}
+	}
 
 	return netconf, nil
 }
 
-func loadFlatNetConf(configPath string) (*types.NetConf, error) {
+func loadFlatNetConf[T types.NetConfs](configPath string) (*T, error) {
 	confFiles := getOvsConfFiles()
 	if configPath != "" {
 		confFiles = append([]string{configPath}, confFiles...)
 	}
 
 	// loop through the path and parse the JSON config
-	flatNetConf := &types.NetConf{}
+	flatNetConf := new(T)
 	for _, confFile := range confFiles {
 		confExists, err := pathExists(confFile)
 		if err != nil {
@@ -119,7 +179,7 @@ func loadFlatNetConf(configPath string) (*types.NetConf, error) {
 	return flatNetConf, nil
 }
 
-func mergeConf(netconf, flatNetConf *types.NetConf) (*types.NetConf, error) {
+func mergeConf[T types.NetConfs](netconf, flatNetConf *T) (*T, error) {
 	if err := mergo.Merge(netconf, flatNetConf); err != nil {
 		return nil, fmt.Errorf("merge with ovs config file: error: %v", err)
 	}

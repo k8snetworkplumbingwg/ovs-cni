@@ -45,6 +45,32 @@ spec:
         volumeMounts:
         - name: cnibin
           mountPath: /host/opt/cni/bin
+      - name: ovs-mirror-producer
+        image: quay.io/kubevirt/ovs-cni-mirror-producer:latest
+        command: ['cp', '/ovs-mirror-producer', '/host/opt/cni/bin/ovs-mirror-producer']
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "15Mi"
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
+      - name: ovs-mirror-consumer
+        image: quay.io/kubevirt/ovs-cni-mirror-consumer:latest
+        command: ['cp', '/ovs-mirror-consumer', '/host/opt/cni/bin/ovs-mirror-consumer']
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        resources:
+          requests:
+            cpu: "10m"
+            memory: "15Mi"
+        volumeMounts:
+        - name: cnibin
+          mountPath: /host/opt/cni/bin
       priorityClassName: system-node-critical
       containers:
       - name: ovs-cni-marker

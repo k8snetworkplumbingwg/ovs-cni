@@ -69,8 +69,8 @@ var testFunc = func(version string) {
 						cidrPod2 = "10.0.0.2/24"
 					)
 					BeforeEach(func() {
-						clusterApi.CreatePrivilegedPodWithIP(pod1Name, nadName, bridgeName, cidrPod1)
-						clusterApi.CreatePrivilegedPodWithIP(pod2Name, nadName, bridgeName, cidrPod2)
+						clusterApi.CreatePrivilegedPodWithIP(pod1Name, nadName, bridgeName, cidrPod1, "")
+						clusterApi.CreatePrivilegedPodWithIP(pod2Name, nadName, bridgeName, cidrPod2, "")
 					})
 					AfterEach(func() {
 						clusterApi.DeletePodsInTestNamespace()

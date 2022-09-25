@@ -1,0 +1,66 @@
+apiVersion: "k8s.cni.cncf.io/v1"
+kind: NetworkAttachmentDefinition
+metadata:
+  name: nad-al-cni-1
+  namespace: emu-cni
+  annotations:
+    k8s.v1.cni.cncf.io/resourceName: nad-al-cni-1
+spec:
+  config: '{
+      "cniVersion": "0.4.0",
+      "plugins": [
+        {
+          "type": "ovs",
+          "bridge": "br-emu-cni",
+          "vlan": 1
+        },
+        {
+          "type": "ovs-mirror-producer",
+          "bridge": "br-emu-cni",
+          "mirrors": [
+            {
+              "name": "mirror-1",
+              "ingress": true,
+              "egress": true
+            },
+            {
+              "name": "mirror-2",
+              "ingress": true,
+              "egress": false
+            }
+          ]
+        }
+      ]
+    }'
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cni-client-1
+  namespace: emu-cni
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: cni-client-1
+  template:
+    metadata:
+      annotations:
+        k8s.v1.cni.cncf.io/networks: | 
+          [
+            {
+              "name":"nad-al-cni-1",
+              "namespace":"emu-cni",
+              "interface":"emu-prod"
+            }
+          ]
+      labels:
+        app: cni-client-1
+    spec:
+      containers:
+      - name: samplepod
+        command: ["/bin/sh"]
+        args: ["-c", "sleep infinity"]
+        image: alpine

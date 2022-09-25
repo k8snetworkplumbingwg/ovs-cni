@@ -1,7 +1,7 @@
 #!/bin/bash -xe
 
 destination=$1
-version=1.17.7
+version=1.18.4
 tarball=go$version.linux-amd64.tar.gz
 url=https://dl.google.com/go/
 

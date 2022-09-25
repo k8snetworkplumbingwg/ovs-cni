@@ -16,7 +16,15 @@
 
 package types
 
-import "github.com/containernetworking/cni/pkg/types"
+import (
+	"github.com/containernetworking/cni/pkg/types"
+	current "github.com/containernetworking/cni/pkg/types/100"
+)
+
+// NetConfs can be either NetConf or MirrorNetConf
+type NetConfs interface {
+	NetConf | MirrorNetConf
+}
 
 // NetConf extends types.NetConf for ovs-cni
 type NetConf struct {
@@ -30,6 +38,28 @@ type NetConf struct {
 	SocketFile             string   `json:"socket_file"`
 	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
+}
+
+// MirrorNetConf extends types.NetConf for ovs-mirrors
+type MirrorNetConf struct {
+	types.NetConf
+
+	// support chaining for master interface and IP decisions
+	// occurring prior to running mirror plugin
+	RawPrevResult *map[string]interface{} `json:"prevResult"`
+	PrevResult    *current.Result         `json:"-"`
+
+	BrName            string    `json:"bridge,omitempty"`
+	ConfigurationPath string    `json:"configuration_path"`
+	SocketFile        string    `json:"socket_file"`
+	Mirrors           []*Mirror `json:"mirrors"`
+}
+
+// Mirror configuration
+type Mirror struct {
+	Name    string `json:"name"`
+	Ingress bool   `json:"ingress,omitempty"`
+	Egress  bool   `json:"egress,omitempty"`
 }
 
 // Trunk containing selective vlan IDs
@@ -46,4 +76,13 @@ type Trunk struct {
 type CachedNetConf struct {
 	Netconf    *NetConf
 	OrigIfName string
+}
+
+// CachedPrevResultNetConf containing PrevResult.
+// this is intended to be used only for storing and retrieving config
+// to/from a data store (example file cache).
+// This is required with CNI spec < 0.4.0 (like 0.3.0 and 0.3.1),
+// because prevResult wasn't available in cmdDel on those versions.
+type CachedPrevResultNetConf struct {
+	PrevResult *current.Result
 }

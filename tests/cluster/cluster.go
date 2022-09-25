@@ -88,7 +88,7 @@ func (api *ClusterAPI) RemoveTestNamespace() {
 }
 
 // CreatePrivilegedPodWithIP creates a pod attached with ovs via secondary network
-func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, cidr string) {
+func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, cidr, additionalCommands string) {
 	By(fmt.Sprintf("Creating pod %s with priviliged premission and ip %s", podName, cidr))
 	privileged := true
 	resourceList := make(corev1.ResourceList)
@@ -102,7 +102,7 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 	},
 		Spec: corev1.PodSpec{Containers: []corev1.Container{{Name: "test",
 			Image:           "quay.io/jitesoft/alpine",
-			Command:         []string{"sh", "-c", fmt.Sprintf("ip address add %s dev net1; sleep 99999", cidr)},
+			Command:         []string{"sh", "-c", fmt.Sprintf("ip address add %s dev net1; "+additionalCommands+" sleep 99999", cidr)},
 			Resources:       corev1.ResourceRequirements{Limits: resourceList},
 			SecurityContext: &corev1.SecurityContext{Privileged: &privileged}}}}}
 
@@ -185,6 +185,16 @@ func (api *ClusterAPI) PingFromPod(podName, containerName, targetIP string) erro
 	}
 
 	return nil
+}
+
+// ReadFileFromPod run the cat command on the pod container to read the content of a file
+func (api *ClusterAPI) ReadFileFromPod(podName, containerName, filePath string) (string, error) {
+	out, _, err := api.execOnPod(podName, containerName, testNamespace, "cat "+filePath)
+	if err != nil {
+		return "", errors.Wrapf(err, "Failed to run exec on pod %s", podName)
+	}
+
+	return out, nil
 }
 
 func (api *ClusterAPI) execOnPod(podName, containerName, namespace, command string) (string, string, error) {
