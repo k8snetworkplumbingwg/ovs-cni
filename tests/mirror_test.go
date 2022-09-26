@@ -94,7 +94,7 @@ var testMirrorFunc = func(version string) {
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
 
 						// wait a few seconds for the dump being written
-						time.Sleep(10 * time.Second)
+						time.Sleep(30 * time.Second)
 
 						tcpDumpResult, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
