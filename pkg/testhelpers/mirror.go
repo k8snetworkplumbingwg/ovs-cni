@@ -238,10 +238,6 @@ func CreateEmptyMirrors(bridgeName string, mirrorNames []string, ovsPortOwner st
 			_, err = addOwnerToMirror(ovsPortOwner, mirrorName)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		}
-		// check existence of the empty mirrors
-		emptyMirExists, err := IsMirrorExists(mirrorName)
-		gomega.Expect(err).NotTo(gomega.HaveOccurred())
-		gomega.Expect(emptyMirExists).To(gomega.Equal(true))
 	}
 }
 
