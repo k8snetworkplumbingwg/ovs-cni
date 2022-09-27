@@ -46,8 +46,8 @@ lint: | $(GO) $(BASE) $(GOLINT) ; $(info  running golint...) @ ## Run golint
 	 done ; exit $$ret
 
 build-%: $(GO)
-	hack/version.sh > ./cmd/$(subst -,/,$*)/.version
-	cd cmd/$(subst -,/,$*) && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
+	hack/version.sh > ./cmd/.version
+	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
 
 format: $(GO)
 	$(GO) fmt ./pkg/... ./cmd/...
@@ -75,17 +75,13 @@ test-%: $(GO) build-host-local-plugin
 functest: $(GO)
 	GO=$(GO) hack/functests.sh
 
-docker-build: $(patsubst %, docker-build-%, $(COMPONENTS))
+docker-build:
+	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} ./cmd
 
-docker-build-%: build-%
-	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ./cmd/$(subst -,/,$*)
-
-docker-push: $(patsubst %, docker-push-%, $(COMPONENTS))
-
-docker-push-%:
-	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG}
-	$(OCI_BIN) tag ${REGISTRY}/ovs-cni-$*:${IMAGE_TAG} ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
-	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-$*:${IMAGE_GIT_TAG}
+docker-push:
+	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
+	$(OCI_BIN) tag ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} ${REGISTRY}/ovs-cni-plugin:${IMAGE_GIT_TAG}
+	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-plugin:${IMAGE_GIT_TAG}
 
 dep: $(GO)
 	$(GO) mod tidy
