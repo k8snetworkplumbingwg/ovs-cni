@@ -75,7 +75,7 @@ test-%: $(GO) build-host-local-plugin
 functest: $(GO)
 	GO=$(GO) hack/functests.sh
 
-docker-build:
+docker-build: build
 	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} ./cmd
 
 docker-push:
