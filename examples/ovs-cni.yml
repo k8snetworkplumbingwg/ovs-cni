@@ -36,7 +36,6 @@ spec:
         image: quay.io/kubevirt/ovs-cni-plugin:latest
         command: ["/bin/sh","-c"]
         args:
-        args:
           - >
             cp /ovs /host/opt/cni/bin/ovs &&
             cp /ovs-mirror-producer /host/opt/cni/bin/ovs-mirror-producer &&

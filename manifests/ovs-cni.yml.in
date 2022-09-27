@@ -36,7 +36,6 @@ spec:
         image: ${OVS_CNI_PLUGIN_IMAGE_REPO}/${OVS_CNI_PLUGIN_IMAGE_NAME}:${OVS_CNI_PLUGIN_IMAGE_VERSION}
         command: ["/bin/sh","-c"]
         args:
-        args:
           - >
             cp /ovs /host${CNI_MOUNT_PATH}/ovs &&
             cp /ovs-mirror-producer /host${CNI_MOUNT_PATH}/ovs-mirror-producer &&
