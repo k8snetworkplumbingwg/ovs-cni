@@ -1,17 +1,14 @@
 # built binaries
-cmd/marker/marker
-cmd/plugin/plugin
-cmd/mirror/consumer/consumer
-cmd/mirror/producer/producer
+cmd/marker
+cmd/plugin
+cmd/mirror-consumer
+cmd/mirror-producer
 
 # Temporary build files
 build/_output
 
 # used in build
-cmd/marker/.version
-cmd/plugin/.version
-cmd/mirror/consumer/.version
-cmd/mirror/producer/.version
+cmd/.version
 
 # local cluster
 _kubevirtci/

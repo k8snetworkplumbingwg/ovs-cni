@@ -34,33 +34,13 @@ spec:
       initContainers:
       - name: ovs-cni-plugin
         image: quay.io/kubevirt/ovs-cni-plugin:latest
-        command: ['cp', '/ovs', '/host/opt/cni/bin/ovs']
-        imagePullPolicy: IfNotPresent
-        securityContext:
-          privileged: true
-        resources:
-          requests:
-            cpu: "10m"
-            memory: "15Mi"
-        volumeMounts:
-        - name: cnibin
-          mountPath: /host/opt/cni/bin
-      - name: ovs-mirror-producer
-        image: quay.io/kubevirt/ovs-cni-mirror-producer:latest
-        command: ['cp', '/ovs-mirror-producer', '/host/opt/cni/bin/ovs-mirror-producer']
-        imagePullPolicy: IfNotPresent
-        securityContext:
-          privileged: true
-        resources:
-          requests:
-            cpu: "10m"
-            memory: "15Mi"
-        volumeMounts:
-        - name: cnibin
-          mountPath: /host/opt/cni/bin
-      - name: ovs-mirror-consumer
-        image: quay.io/kubevirt/ovs-cni-mirror-consumer:latest
-        command: ['cp', '/ovs-mirror-consumer', '/host/opt/cni/bin/ovs-mirror-consumer']
+        command: ["/bin/sh","-c"]
+        args:
+        args:
+          - >
+            cp /ovs /host/opt/cni/bin/ovs &&
+            cp /ovs-mirror-producer /host/opt/cni/bin/ovs-mirror-producer &&
+            cp /ovs-mirror-consumer /host/opt/cni/bin/ovs-mirror-consumer
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
@@ -74,11 +54,16 @@ spec:
       priorityClassName: system-node-critical
       containers:
       - name: ovs-cni-marker
-        image: quay.io/kubevirt/ovs-cni-marker:latest
+        image: quay.io/kubevirt/ovs-cni-plugin:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
+        command:
+          - /marker
         args:
+          - -v
+          - "3"
+          - -logtostderr
           - -node-name
           - $(NODE_NAME)
           - -ovs-socket
