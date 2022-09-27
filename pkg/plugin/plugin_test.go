@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net"
 	"os/exec"
 	"strconv"
@@ -661,6 +662,37 @@ var testFunc = func(version string) {
 				output, err := exec.Command("ovs-vsctl", "--column=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
+			})
+		})
+		Context("specified OfportRequest", func() {
+			It("should configure an ovs interface with a specific ofport", func() {
+				// Pick a random ofport 5000-6000
+				ofportRequest := rand.Intn(1000) + 5000
+				ovsOutput := fmt.Sprintf("ofport              : %d", ofportRequest)
+
+				conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"ofport_request": %d,
+				"bridge": "%s"}`, version, ofportRequest, bridgeName)
+
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				result := attach(targetNs, conf, IFNAME, "", "")
+				hostIface := result.Interfaces[0]
+
+				// Wait for OVS to actually assign the port, even when the add returns
+				// successfully, ofport can still be blank ("[]") for a short period of
+				// time.
+				Eventually(func() bool {
+					output, err := exec.Command("ovs-vsctl", "--column=ofport", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
+					Expect(err).NotTo(HaveOccurred())
+					return (string(output[:len(output)-1]) == ovsOutput)
+				}, time.Minute, 100*time.Millisecond).Should(Equal(true))
 			})
 		})
 		Context("specify trunk with multiple ranges", func() {
