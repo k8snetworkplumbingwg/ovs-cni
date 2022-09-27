@@ -75,6 +75,10 @@ var testMirrorFunc = func(version string) {
 					BeforeEach(func() {
 						consAdditionalCommands := "apk add tcpdump; tcpdump -i net1 > /tcpdump.log;"
 						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
+						Eventually(func() error {
+							_, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							return err
+						}, 30 * time.Second, time.Second).Should(Succeed(), "tcpdump did not start in time");
 
 						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
 						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
@@ -90,12 +94,11 @@ var testMirrorFunc = func(version string) {
 						ipPodProd2, _, err := net.ParseCIDR(cidrPodProd2)
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing podProd2's cidr: %s", cidrPodProd2))
 
+						By("Pinging over the network")
 						err = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
 
-						// wait a few seconds for the dump being written
-						time.Sleep(30 * time.Second)
-
+						By("Confirming that the communication was recorded")
 						tcpDumpResult, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
 						Expect(tcpDumpResult).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
