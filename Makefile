@@ -46,7 +46,6 @@ lint: | $(GO) $(BASE) $(GOLINT) ; $(info  running golint...) @ ## Run golint
 	 done ; exit $$ret
 
 build-%: $(GO)
-	hack/version.sh > ./cmd/.version
 	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
 
 format: $(GO)
@@ -75,8 +74,9 @@ test-%: $(GO) build-host-local-plugin
 functest: $(GO)
 	GO=$(GO) hack/functests.sh
 
-docker-build: build
-	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} ./cmd
+docker-build:
+	hack/version.sh > .version
+	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -f ./cmd/Dockerfile .
 
 docker-push:
 	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}

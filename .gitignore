@@ -8,7 +8,7 @@ cmd/mirror-producer
 build/_output
 
 # used in build
-cmd/.version
+.version
 
 # local cluster
 _kubevirtci/
