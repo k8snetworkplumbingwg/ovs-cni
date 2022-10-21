@@ -75,7 +75,7 @@ functest: $(GO)
 	GO=$(GO) hack/functests.sh
 
 docker-build:
-	hack/version.sh > .version
+	hack/get_version.sh > .version
 	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -f ./cmd/Dockerfile .
 
 docker-push:
