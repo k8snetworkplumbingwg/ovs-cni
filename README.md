@@ -63,11 +63,13 @@ $ kubectl exec samplepod ip link
 
 You can choose to deploy this plugin on [local virtualized cluster](docs/deployment-on-local-cluster.md) or on your [arbitrary cluster](docs/deployment-on-arbitrary-cluster.md). After that you can follow [demo](docs/demo.md) that will guide you through preparation of Open vSwitch bridges, defining networks on Kubernetes and attaching pods to them.
 
+## Components
+
+ * [CNI Plugin](docs/cni-plugin.md) - Documentation and of standalone Open vSwitch CNI plugin.
+ * [Port Mirroring](docs/traffic-mirroring.md) - Documentation of a OVS CNI extension, allowing for port mirroring.
+ * [Hardware Offload](docs/ovs-offload.md) - Documentation of hardware offload functionality, using SR-IOV.
+ * [Marker](docs/marker.md) - Documentation and of daemon set exposing bridges as node resources.
+
 ## Development
 
 [Development guide](docs/devel-guide.md) is a go-to reference point for development helper commands, building, testing, container images and local cluster.
-
-## Components
-
- * [CNI Plugin](docs/cni-plugin.md) - Documentation and usage of standalone Open vSwitch CNI plugin.
- * [Marker](docs/marker.md) - Documentation and usage of daemon set exposing bridges as node resources.
