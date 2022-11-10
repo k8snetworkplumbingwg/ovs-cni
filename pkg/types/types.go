@@ -35,6 +35,7 @@ type NetConf struct {
 	Trunk                  []*Trunk `json:"trunk,omitempty"`
 	DeviceID               string   `json:"deviceID"`       // PCI address of a VF in valid sysfs format
 	OfportRequest          uint     `json:"ofport_request"` // OpenFlow port number in range 1 to 65,279
+	InterfaceType          string   `json:"interface_type"` // The type of interface on ovs.
 	ConfigurationPath      string   `json:"configuration_path"`
 	SocketFile             string   `json:"socket_file"`
 	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
