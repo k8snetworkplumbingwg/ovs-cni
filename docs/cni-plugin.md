@@ -35,14 +35,14 @@ Another example with a trunk port and jumbo frames:
 }
 ```
 
-Another example with a port which has an interface of type afxdp:
+Another example with a port which has an interface of type system:
 
 ```json
 {
    "name": "overlaynet",
    "type": "ovs",
    "bridge": "mynet1",
-   "interface_type": "afxdp"
+   "interface_type": "system"
 }
 ```
 
