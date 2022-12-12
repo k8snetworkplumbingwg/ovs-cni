@@ -78,7 +78,7 @@ var testMirrorFunc = func(version string) {
 						Eventually(func() error {
 							_, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 							return err
-						}, 30 * time.Second, time.Second).Should(Succeed(), "tcpdump did not start in time");
+						}, 120 * time.Second, time.Second).Should(Succeed(), "tcpdump did not start in time");
 
 						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
 						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
