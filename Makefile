@@ -34,16 +34,14 @@ $(BASE): ; $(info  setting GOPATH...)
 	@mkdir -p $(dir $@)
 	@ln -sf $(CURDIR) $@
 
-GOLINT = $(GOBIN)/golint
-$(GOBIN)/golint: | $(BASE) ; $(info  building golint...)
-	$Q go install -mod=mod golang.org/x/lint/golint@v0.0.0-20210508222113-6edffad5e616
+GOLANGCI = $(GOBIN)/golangci-lint
+$(GOBIN)/golangci-lint: | $(BASE) ; $(info  building golangci-lint...)
+	$Q go install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
-lint: | $(GO) $(BASE) $(GOLINT) ; $(info  running golint...) @ ## Run golint
-	$Q cd $(BASE) && ret=0 && for pkg in $(PKGS); do \
-		test -z "$$($(GOLINT) $$pkg | tee /dev/stderr)" || ret=1 ; \
-	 done ; exit $$ret
+lint: $(GO) $(GOLANGCI)
+	$(GOLANGCI) run
 
 build-%: $(GO)
 	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
