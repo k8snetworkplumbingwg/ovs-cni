@@ -47,8 +47,6 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
 
-const macSetupRetries = 2
-
 // EnvArgs args containing common, desired mac and ovs port name
 type EnvArgs struct {
 	cnitypes.CommonArgs
@@ -184,13 +182,13 @@ func splitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 		var maxID uint = 0
 		if item.MinID != nil {
 			minID = *item.MinID
-			if minID < 0 || minID > 4096 {
+			if minID > 4096 {
 				return nil, errors.New("incorrect trunk minID parameter")
 			}
 		}
 		if item.MaxID != nil {
 			maxID = *item.MaxID
-			if maxID < 0 || maxID > 4096 {
+			if maxID > 4096 {
 				return nil, errors.New("incorrect trunk maxID parameter")
 			}
 			if maxID < minID {
@@ -202,10 +200,10 @@ func splitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 				vlans[v] = true
 			}
 		}
-		var id uint = 0
+		var id uint
 		if item.ID != nil {
 			id = *item.ID
-			if id < 0 || minID > 4096 {
+			if minID > 4096 {
 				return nil, errors.New("incorrect trunk id parameter")
 			}
 			vlans[id] = true
@@ -320,7 +318,9 @@ func CmdAdd(args *skel.CmdArgs) error {
 		r, err := ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
 		defer func() {
 			if err != nil {
-				ipam.ExecDel(netconf.IPAM.Type, args.StdinData)
+				if err := ipam.ExecDel(netconf.IPAM.Type, args.StdinData); err != nil {
+					log.Printf("Failed best-effort cleanup IPAM configuration: %v", err)
+				}
 			}
 		}()
 		if err != nil {
@@ -470,7 +470,9 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	defer func() {
 		if err == nil {
-			utils.CleanCache(cRef)
+			if err := utils.CleanCache(cRef); err != nil {
+				log.Printf("Failed cleaning up cache: %v", err)
+			}
 		}
 	}()
 
@@ -548,7 +550,9 @@ func CmdDel(args *skel.CmdArgs) error {
 		err = sriov.ReleaseVF(args, cache.OrigIfName)
 		if err != nil {
 			// try to reset vf into original state as much as possible in case of error
-			sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName)
+			if err := sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
+				log.Printf("Failed best-effort cleanup of VF %s: %v", cache.OrigIfName, err)
+			}
 		}
 	} else {
 		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
@@ -559,7 +563,9 @@ func CmdDel(args *skel.CmdArgs) error {
 		// without error even if some resources are missing)
 		if _, ok := err.(ns.NSPathNotExistErr); ok || err == ip.ErrLinkNotFound {
 			if portFound {
-				ip.DelLinkByName(portName)
+				if err := ip.DelLinkByName(portName); err != nil {
+					log.Printf("Failed best-effort cleanup of %s: %v", portName, err)
+				}
 			}
 			return nil
 		}

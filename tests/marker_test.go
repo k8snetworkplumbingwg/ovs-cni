@@ -34,7 +34,12 @@ var _ = Describe("ovs-cni-marker", func() {
 			if err != nil {
 				panic(fmt.Errorf("%v: %s", err, out))
 			}
-			defer node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			defer func() {
+				_, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+				if err != nil {
+					panic(fmt.Errorf("%v: %s", err, out))
+				}
+			}()
 
 			Eventually(func() bool {
 				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
@@ -44,10 +49,7 @@ var _ = Describe("ovs-cni-marker", func() {
 					return false
 				}
 				capacityInt, _ := capacity.AsInt64()
-				if capacityInt != int64(1000) {
-					return false
-				}
-				return true
+				return capacityInt == int64(1000)
 			}, 180*time.Second, 5*time.Second).Should(Equal(true))
 
 			out, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")

@@ -51,7 +51,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).Run()
+	output, err := exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), "Cleanup of the bridge failed: %v", string(output[:]))
 })
 
 var _ = Describe("CNI mirror-producer 0.3.0", func() { testFunc("0.3.0") })
@@ -594,7 +595,8 @@ var testFunc = func(version string) {
 				By("create a consumer interface and add its port via 'ovs-vsctl' to fill mirror 'output_port'")
 				r2 := createInterfaces(IFNAME2, targetNs)
 				portUUID := GetPortUUIDFromResult(r2)
-				AddOutputPortToMirror(portUUID, mirrors[0].Name)
+				_, err = AddOutputPortToMirror(portUUID, mirrors[0].Name)
+				Expect(err).NotTo(HaveOccurred())
 
 				By("run DEL command of ovs-mirror-producer")
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)

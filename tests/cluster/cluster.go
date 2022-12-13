@@ -118,7 +118,7 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 
 		if len(pod.Status.ContainerStatuses) > 0 {
 			for _, containerStatus := range pod.Status.ContainerStatuses {
-				if containerStatus.Ready != true {
+				if !containerStatus.Ready {
 					return false
 				}
 			}

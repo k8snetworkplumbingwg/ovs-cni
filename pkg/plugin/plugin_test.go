@@ -99,7 +99,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).Run()
+	output, err := exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), "Cleanup of the bridge failed: %v", string(output[:]))
 })
 
 var _ = Describe("CNI Plugin 0.3.0", func() { testFunc("0.3.0") })
@@ -554,8 +555,8 @@ var testFunc = func(version string) {
 				targetNs := newNS()
 				defer func() {
 					// clean up targetNs in case of testAdd failure
-					targetNs.Close()
-					testutils.UnmountNS(targetNs)
+					_ = targetNs.Close()
+					_ = testutils.UnmountNS(targetNs)
 				}()
 				hostIfName, result := testAdd(conf, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
@@ -811,9 +812,7 @@ func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Resu
 		extraArgs += fmt.Sprintf("OvnPort=%s", ovnPort)
 	}
 
-	if strings.HasSuffix(extraArgs, ",") {
-		extraArgs = extraArgs[:len(extraArgs)-1]
-	}
+	extraArgs = strings.TrimSuffix(extraArgs, ",")
 
 	args := &skel.CmdArgs{
 		ContainerID: "dummy",
