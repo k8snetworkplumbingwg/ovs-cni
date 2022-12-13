@@ -99,7 +99,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	output, err := exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).CombinedOutput()
+	output, err := exec.Command("ovs-vsctl", "--if-exists", "del-br", bridgeName).CombinedOutput()
 	Expect(err).NotTo(HaveOccurred(), "Cleanup of the bridge failed: %v", string(output[:]))
 })
 
