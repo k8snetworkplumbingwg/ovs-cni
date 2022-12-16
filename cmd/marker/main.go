@@ -95,7 +95,7 @@ func main() {
 	markerCache := cache.Cache{}
 	wait.JitterUntil(func() {
 		jitteredReconcileInterval := wait.Jitter(time.Duration(*reconcileInterval)*time.Minute, 1.2)
-		shouldReconcileNode := time.Now().Sub(markerCache.LastRefreshTime()) >= jitteredReconcileInterval
+		shouldReconcileNode := time.Since(markerCache.LastRefreshTime()) >= jitteredReconcileInterval
 		if shouldReconcileNode {
 			reportedBridges, err := markerApp.GetReportedResources()
 			if err != nil {

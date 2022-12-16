@@ -43,7 +43,8 @@ var _ = BeforeSuite(func() {
 	flag.Parse()
 
 	// Change to root directory some test expect that
-	os.Chdir("../")
+	err := os.Chdir("../")
+	Expect(err).NotTo(HaveOccurred())
 
 	clusterApi = clusterapi.NewClusterAPI(*kubeconfig)
 	clusterApi.RemoveTestNamespace()

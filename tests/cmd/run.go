@@ -29,11 +29,21 @@ import (
 // Run exec a command with its arguments and return stdout and stderr
 func Run(command string, arguments ...string) (string, error) {
 	cmd := exec.Command(command, arguments...)
-	ginkgo.GinkgoWriter.Write([]byte(command + " " + strings.Join(arguments, " ") + "\n"))
+
+	if _, err := ginkgo.GinkgoWriter.Write([]byte(command + " " + strings.Join(arguments, " ") + "\n")); err != nil {
+		return "", err
+	}
+
 	var stdout, stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
-	err := cmd.Run()
-	ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("stdout: %.500s...\n, stderr %s\n", stdout.String(), stderr.String())))
-	return stdout.String(), err
+	if err := cmd.Run(); err != nil {
+		return "", err
+	}
+
+	if _, err := ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("stdout: %.500s...\n, stderr %s\n", stdout.String(), stderr.String()))); err != nil {
+		return "", err
+	}
+
+	return stdout.String(), nil
 }

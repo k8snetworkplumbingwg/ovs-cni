@@ -146,7 +146,9 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	defer func() {
 		if err == nil {
-			utils.CleanCache(cRef + "_prod")
+			if err := utils.CleanCache(cRef + "_prod"); err != nil {
+				log.Printf("Failed cleaning up cache: %v", err)
+			}
 		}
 	}()
 

@@ -51,7 +51,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	exec.Command("ovs-vsctl", "del-br", "--if-exists", bridgeName).Run()
+	output, err := exec.Command("ovs-vsctl", "--if-exists", "del-br", bridgeName).CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), "Cleanup of the bridge failed: %v", string(output[:]))
 })
 
 var _ = Describe("CNI mirror-consumer 0.3.0", func() { testFunc("0.3.0") })
@@ -399,7 +400,8 @@ var testFunc = func(version string) {
 				By("create a producer interface and add its port via 'ovs-vsctl' to fill both 'select_src_port' and 'select_dst_port'")
 				r2 := createInterfaces(IFNAME2, targetNs)
 				portUUID := GetPortUUIDFromResult(r2)
-				AddSelectPortToMirror(portUUID, mirrors[0].Name, true, true)
+				_, err = AddSelectPortToMirror(portUUID, mirrors[0].Name, true, true)
+				Expect(err).NotTo(HaveOccurred())
 
 				By("run DEL command of ovs-mirror-consumer")
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)
@@ -466,9 +468,11 @@ var testFunc = func(version string) {
 				r2 := createInterfaces(IFNAME2, targetNs)
 				portUUID := GetPortUUIDFromResult(r2)
 				By(fmt.Sprintf("update mirror %s adding portUUID as 'select_src_port'", mirrors[0].Name))
-				AddSelectPortToMirror(portUUID, mirrors[0].Name, true, false)
+				_, err = AddSelectPortToMirror(portUUID, mirrors[0].Name, true, false)
+				Expect(err).NotTo(HaveOccurred())
 				By(fmt.Sprintf("update mirror %s adding portUUID as 'select_dst_port'", mirrors[1].Name))
-				AddSelectPortToMirror(portUUID, mirrors[1].Name, false, true)
+				_, err = AddSelectPortToMirror(portUUID, mirrors[1].Name, false, true)
+				Expect(err).NotTo(HaveOccurred())
 
 				By("run DEL command of ovs-mirror-consumer")
 				testDel(confMirror, mirrors, result, IFNAME1, targetNs)

@@ -16,7 +16,6 @@ package tests_test
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -31,10 +30,11 @@ var _ = Describe("ovs-cni-marker", func() {
 	Describe("bridge resource reporting", func() {
 		It("should be reported only when available on node", func() {
 			out, err := node.RunAtNode("node01", "sudo ovs-vsctl add-br br-test")
-			if err != nil {
-				panic(fmt.Errorf("%v: %s", err, out))
-			}
-			defer node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			Expect(err).NotTo(HaveOccurred(), "Failed creating a test bridge: %v: %v", err, out)
+			defer func() {
+				out, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+				Expect(err).NotTo(HaveOccurred(), "Failed cleaning up a test bridge: %v: %v", err, out)
+			}()
 
 			Eventually(func() bool {
 				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
@@ -44,16 +44,11 @@ var _ = Describe("ovs-cni-marker", func() {
 					return false
 				}
 				capacityInt, _ := capacity.AsInt64()
-				if capacityInt != int64(1000) {
-					return false
-				}
-				return true
+				return capacityInt == int64(1000)
 			}, 180*time.Second, 5*time.Second).Should(Equal(true))
 
 			out, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
-			if err != nil {
-				panic(fmt.Errorf("%v: %s", err, out))
-			}
+			Expect(err).NotTo(HaveOccurred(), "Failed removing a test bridge: %v: %v", err, out)
 
 			Eventually(func() bool {
 				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
