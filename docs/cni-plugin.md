@@ -35,6 +35,17 @@ Another example with a trunk port and jumbo frames:
 }
 ```
 
+Another example with a port which has an interface of type system:
+
+```json
+{
+   "name": "overlaynet",
+   "type": "ovs",
+   "bridge": "mynet1",
+   "interface_type": "system"
+}
+```
+
 ## Network Configuration Reference
 
 * `name` (string, required): the name of the network.
@@ -46,6 +57,7 @@ Another example with a trunk port and jumbo frames:
 * `trunk` (optional): List of VLAN ID's and/or ranges of accepted VLAN
   ID's.
 * `ofport_request` (integer, optional): request a static OpenFlow port number in range 1 to 65,279
+* `interface_type` (string, optional): type of the interface belongs to ports. if value is "", ovs will use default interface of type 'internal'
 * `configuration_path` (optional): configuration file containing ovsdb
   socket file path, etc.
 

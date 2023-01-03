@@ -150,8 +150,8 @@ func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationRe
 // **************** OVS driver API ********************
 
 // CreatePort Create an internal port in OVS
-func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string) error {
-	intfUUID, intfOp, err := createInterfaceOperation(intfName, ofportRequest, ovnPortName)
+func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string) error {
+	intfUUID, intfOp, err := createInterfaceOperation(intfName, ofportRequest, ovnPortName, intfType)
 	if err != nil {
 		return err
 	}
@@ -782,12 +782,17 @@ func (ovsd *OvsDriver) isMirrorExistsByConditions(conditions []ovsdb.Condition) 
 	return true, nil
 }
 
-func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName string) (ovsdb.UUID, *ovsdb.Operation, error) {
+func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName string, intfType string) (ovsdb.UUID, *ovsdb.Operation, error) {
 	intfUUIDStr := fmt.Sprintf("Intf%s", intfName)
 	intfUUID := ovsdb.UUID{GoUUID: intfUUIDStr}
 
 	intf := make(map[string]interface{})
 	intf["name"] = intfName
+
+	// Configure interface type if not nil
+	if intfType != "" {
+		intf["type"] = intfType
+	}
 
 	// Configure interface ID for ovn
 	if ovnPortName != "" {

@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 	"math/rand"
 	"net"
 	"os/exec"
@@ -71,6 +72,7 @@ type Net040 struct {
 	IPAM          *IPAMConfig            `json:"ipam"`
 	VlanTag       *uint                  `json:"vlan"`
 	Trunk         []*types.Trunk         `json:"trunk,omitempty"`
+	InterfaceType string                 `json:"interface_type"`
 	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
 	PrevResult    types040.Result        `json:"-"`
 }
@@ -83,6 +85,7 @@ type NetCurrent struct {
 	IPAM          *IPAMConfig            `json:"ipam"`
 	VlanTag       *uint                  `json:"vlan"`
 	Trunk         []*types.Trunk         `json:"trunk,omitempty"`
+	InterfaceType string                 `json:"interface_type"`
 	RawPrevResult map[string]interface{} `json:"prevResult,omitempty"`
 	PrevResult    current.Result         `json:"-"`
 }
@@ -92,6 +95,7 @@ const vlanID = 100
 const mtu = 1456
 const defaultMTU = 1500
 const IFNAME = "eth0"
+const systemType = "system"
 
 var _ = BeforeSuite(func() {
 	output, err := exec.Command("ovs-vsctl", "show").CombinedOutput()
@@ -319,7 +323,9 @@ var testFunc = func(version string) {
 		Expect(hostLink).To(BeNil())
 
 		By("Checking that the port on OVS bridge was deleted")
-		brPorts, err := listBridgePorts(bridgeName)
+		netconf, err := config.LoadConf(args.StdinData)
+		Expect(err).NotTo(HaveOccurred())
+		brPorts, err := listBridgePorts(netconf.BrName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(brPorts)).To(Equal(0))
 	}
@@ -357,7 +363,9 @@ var testFunc = func(version string) {
 		Expect(hostLink.Attrs().HardwareAddr).To(Equal(hostHwaddr))
 
 		By("Checking that the host iface is connected as a port to the bridge")
-		brPorts, err := listBridgePorts(bridgeName)
+		netconf, err := config.LoadConf(args.StdinData)
+		Expect(err).NotTo(HaveOccurred())
+		brPorts, err := listBridgePorts(netconf.BrName)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(brPorts).To(Equal([]string{hostIface.Name}))
 
@@ -694,6 +702,41 @@ var testFunc = func(version string) {
 					Expect(err).NotTo(HaveOccurred())
 					return (string(output[:len(output)-1]) == ovsOutput)
 				}, time.Minute, 100*time.Millisecond).Should(Equal(true))
+			})
+		})
+		Context("with interface of type system for port", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"interface_type": "%s"
+			}`, version, bridgeName, systemType)
+			It("should successfully complete ADD and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				testCheck(conf, result, targetNs)
+				testDel(conf, hostIfName, targetNs, true)
+			})
+		})
+		Context("without interface type on port", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s"
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				testCheck(conf, result, targetNs)
+				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 		Context("specify trunk with multiple ranges", func() {
