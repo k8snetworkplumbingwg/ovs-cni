@@ -308,6 +308,21 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort); err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			// Unlike veth pair, OVS port will not be automatically removed
+			// if the following IPAM configuration fails and netns gets removed.
+			portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
+			if err != nil {
+				log.Printf("Failed best-effort cleanup: %v", err)
+			}
+			if portFound {
+				if err := removeOvsPort(ovsDriver, portName); err != nil {
+					log.Printf("Failed best-effort cleanup: %v", err)
+				}
+			}
+		}
+	}()
 
 	result := &current.Result{
 		Interfaces: []*current.Interface{hostIface, contIface},
@@ -315,7 +330,8 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	// run the IPAM plugin
 	if netconf.IPAM.Type != "" {
-		r, err := ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
+		var r cnitypes.Result
+		r, err = ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
 		defer func() {
 			if err != nil {
 				if err := ipam.ExecDel(netconf.IPAM.Type, args.StdinData); err != nil {
@@ -328,7 +344,8 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 
 		// Convert the IPAM result into the current Result type
-		newResult, err := current.NewResultFromResult(r)
+		var newResult *current.Result
+		newResult, err = current.NewResultFromResult(r)
 		if err != nil {
 			return err
 		}
