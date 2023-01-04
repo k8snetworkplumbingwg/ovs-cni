@@ -430,6 +430,40 @@ var testFunc = func(version string) {
 		return hostIface.Name, r
 	}
 
+	testInvalidAdd := func(conf string) {
+		By("Creating temporary target namespace to simulate a container")
+		targetNs, err := testutils.NewNS()
+		Expect(err).NotTo(HaveOccurred())
+		defer func() {
+			Expect(targetNs.Close()).To(Succeed())
+			Expect(testutils.UnmountNS(targetNs)).To(Succeed())
+		}()
+
+		args := &skel.CmdArgs{
+			ContainerID: "dummy",
+			Netns:       targetNs.Path(),
+			IfName:      IFNAME,
+			StdinData:   []byte(conf),
+		}
+		netconf, err := config.LoadConf(args.StdinData)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Snapshotting original configuration")
+		originalBrPorts, err := listBridgePorts(netconf.BrName)
+		Expect(err).NotTo(HaveOccurred())
+
+		By("Calling ADD command")
+		_, _, err = cmdAddWithArgs(args, func() error {
+			return CmdAdd(args)
+		})
+		Expect(err).To(HaveOccurred())
+
+		By("Checking that new port is not present on the bridge")
+		brPorts, err := listBridgePorts(netconf.BrName)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(brPorts).To(Equal(originalBrPorts))
+	}
+
 	Context("connecting container to a bridge", func() {
 		Context("with VLAN ID set on port", func() {
 			conf := fmt.Sprintf(`{
@@ -532,6 +566,34 @@ var testFunc = func(version string) {
 			}`, version, bridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				testIPAM(conf, true, "10.1.2", "3ffe:ffff:0:1ff")
+			})
+		})
+		Context("with invalid VLAN configuration", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": 9999
+			}`, version, bridgeName)
+			It("should fail and leave no leftovers", func() {
+				testInvalidAdd(conf)
+			})
+		})
+		Context("with invalid IPAM configuration", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"ipam": {
+					"type": "host-local",
+					"ranges": [[ {"subnet": "invalid", "gateway": "10.1.2.1"} ]],
+					"dataDir": "/tmp/ovs-cni/conf"
+				}
+			}`, version, bridgeName)
+			It("should fail and leave no leftovers", func() {
+				testInvalidAdd(conf)
 			})
 		})
 		Context("with MTU set on port", func() {
