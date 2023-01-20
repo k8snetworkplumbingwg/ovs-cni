@@ -243,18 +243,31 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var vlanTagNum uint = 0
 	trunks := make([]uint, 0)
-	portType := "access"
-	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
-		portType = "trunk"
-		if len(netconf.Trunk) > 0 {
-			trunkVlanIds, err := splitVlanIds(netconf.Trunk)
-			if err != nil {
-				return err
-			}
-			trunks = append(trunks, trunkVlanIds...)
-		}
-	} else if netconf.VlanTag != nil {
+
+	portType := ""
+	if netconf.VlanMode != "" {
+		portType = netconf.VlanMode
+	}
+
+	if netconf.VlanTag != nil {
 		vlanTagNum = *netconf.VlanTag
+	}
+
+	if len(netconf.Trunk) > 0 {
+		trunkVlanIds, err := splitVlanIds(netconf.Trunk)
+		if err != nil {
+			return err
+		}
+		trunks = append(trunks, trunkVlanIds...)
+	}
+	// Assuming an explicit override has not been specified for port type, if tag is nil or trunks are specified set port type to trunk
+	if (netconf.VlanTag == nil || len(netconf.Trunk) > 0) && portType == "" {
+		portType = "trunk"
+	}
+
+	// Assuming portType has not been set at any of the previous checks, fallback to access
+	if portType == "" {
+		portType = "access"
 	}
 
 	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
@@ -804,9 +817,6 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 		if *tag != *netconf.VlanTag {
 			return fmt.Errorf("vlan tag mismatch. ovs=%d,netconf=%d", *tag, *netconf.VlanTag)
 		}
-		if vlanMode != "access" {
-			return fmt.Errorf("vlan mode mismatch. expected=access,real=%s", vlanMode)
-		}
 	}
 
 	// check trunk
@@ -827,11 +837,18 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 				return fmt.Errorf("trunk mismatch. ovs=%v,netconf=%v", trunk, netconfTrunks)
 			}
 		}
-
-		if vlanMode != "trunk" {
-			return fmt.Errorf("vlan mode mismatch. expected=trunk,real=%s", vlanMode)
-		}
 	}
 
+	// check vlan mode
+	if netconf.VlanMode != "" {
+		if vlanMode == "" {
+			return fmt.Errorf("vlan mode mismatch. ovs=nil,netconf=%s", netconf.VlanMode)
+		}
+		if vlanMode != netconf.VlanMode {
+			return fmt.Errorf("vlan mode mismatch. ovs=%s,netconf=%s", vlanMode, netconf.VlanMode)
+		}
+	} else {
+
+	}
 	return nil
 }

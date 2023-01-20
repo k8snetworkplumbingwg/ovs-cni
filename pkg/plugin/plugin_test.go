@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 	"math/rand"
 	"net"
 	"os/exec"
@@ -27,6 +26,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -96,6 +97,8 @@ const mtu = 1456
 const defaultMTU = 1500
 const IFNAME = "eth0"
 const systemType = "system"
+const defaultVlanMode = "access"
+const vlanMode = "native-untagged"
 
 var _ = BeforeSuite(func() {
 	output, err := exec.Command("ovs-vsctl", "show").CombinedOutput()
@@ -330,7 +333,7 @@ var testFunc = func(version string) {
 		Expect(len(brPorts)).To(Equal(0))
 	}
 
-	testAdd := func(conf string, setVlan, setMtu bool, Trunk string, targetNs ns.NetNS) (string, cnitypes.Result) {
+	testAdd := func(conf string, setVlan, setMtu, setVLanMode bool, Trunk string, targetNs ns.NetNS) (string, cnitypes.Result) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
@@ -376,6 +379,19 @@ var testFunc = func(version string) {
 			Expect(portVlan).To(Equal(strconv.Itoa(vlanID)))
 		} else {
 			Expect(portVlan).To(Equal("[]"))
+		}
+
+		By("Checking that port the VLAN Mode matches expected state")
+		portVlanMode, err := getPortAttribute(hostIface.Name, "vlan_mode")
+		Expect(err).NotTo(HaveOccurred())
+		if setVLanMode {
+			Expect(portVlanMode).To(Equal(vlanMode))
+		} else {
+			if !setVlan || Trunk != "" {
+				Expect(portVlanMode).To(Equal("trunk"))
+			} else {
+				Expect(portVlanMode).To(Equal(defaultVlanMode))
+			}
 		}
 
 		if setMtu {
@@ -478,7 +494,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, true, false, "", targetNs)
+				hostIfName, result := testAdd(conf, true, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -495,7 +511,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -513,7 +529,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -531,7 +547,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "[10, 11, 12, 15, 17, 18]", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -609,7 +625,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, true, "", targetNs)
+				hostIfName, result := testAdd(conf, false, true, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -628,7 +644,7 @@ var testFunc = func(version string) {
 					_ = targetNs.Close()
 					_ = testutils.UnmountNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				Expect(targetNs.Close()).To(Succeed())
 				Expect(testutils.UnmountNS(targetNs)).To(Succeed())
@@ -647,7 +663,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				err := targetNs.Do(func(ns.NetNS) error {
 					defer GinkgoRecover()
@@ -779,7 +795,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -796,7 +812,7 @@ var testFunc = func(version string) {
 				defer func() {
 					closeNS(targetNs)
 				}()
-				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				hostIfName, result := testAdd(conf, false, false, false, "", targetNs)
 				testCheck(conf, result, targetNs)
 				testDel(conf, hostIfName, targetNs, true)
 			})
@@ -902,6 +918,65 @@ var testFunc = func(version string) {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(output)).To(
 					ContainSubstring(secondHostIface.Name), "OVS port with healthy interface should have been kept")
+			})
+		})
+
+		Context("with vlan mode set explicitly", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan_mode":"%s"
+				
+			}`, version, bridgeName, vlanMode)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+				hostIfName, result := testAdd(conf, false, false, true, "", targetNs)
+				testCheck(conf, result, targetNs)
+				testDel(conf, hostIfName, targetNs, true)
+			})
+		})
+		Context("with vlan mode not set explicitly", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s"
+				
+			}`, version, bridgeName)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+				hostIfName, result := testAdd(conf, false, false, false, "", targetNs)
+				testCheck(conf, result, targetNs)
+				testDel(conf, hostIfName, targetNs, true)
+			})
+		})
+		Context("with vlan mode set explicitly along with tag and trunk", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"vlan": %d,
+				"trunk": [ {"minID": 10, "maxID": 12}, {"id": 15}, {"minID": 17, "maxID": 18}  ],
+				"vlan_mode": "%s"
+				
+			}`, version, bridgeName, vlanID, vlanMode)
+			It("should successfully complete ADD, CHECK and DEL commands", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+				hostIfName, result := testAdd(conf, true, false, true, "", targetNs)
+				testCheck(conf, result, targetNs)
+				testDel(conf, hostIfName, targetNs, true)
 			})
 		})
 	})

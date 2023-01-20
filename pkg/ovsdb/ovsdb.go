@@ -828,9 +828,12 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 
 	port["vlan_mode"] = portType
 	var err error
-	if portType == "access" {
+
+	if portType != "trunk" && vlanTag != 0 {
 		port["tag"] = vlanTag
-	} else if len(trunks) > 0 {
+	}
+
+	if len(trunks) > 0 {
 		port["trunks"], err = ovsdb.NewOvsSet(trunks)
 		if err != nil {
 			return ovsdb.UUID{}, nil, err
