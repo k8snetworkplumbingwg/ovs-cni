@@ -173,7 +173,8 @@ spec:
       "vlan": 100,
       "ipam": {
         "type": "static"
-      }
+      },
+      "mtu": 1450
     }'
 EOF
 ```
@@ -213,7 +214,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: samplepod-3
-  annotations:  
+  annotations:
     k8s.v1.cni.cncf.io/networks: '[
         {
           "name": "ovs-ipam-net",
