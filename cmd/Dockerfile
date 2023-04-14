@@ -9,7 +9,9 @@ RUN dnf install -y golang-$(sed -En 's/^go +(.*+)$/\1/p' go.mod).*
 COPY . .
 
 ENV GOOS linux
-ENV GOARCH amd64
+# Support overriding target GOARCH during `make docker-build`
+ARG goarch=amd64
+ENV GOARCH=$goarch
 ENV CGO_ENABLED 0
 ENV GOFLAGS -mod=vendor
 
