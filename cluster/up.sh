@@ -23,10 +23,10 @@ $(cluster::path)/cluster-up/up.sh
 
 echo 'Installing Open vSwitch on nodes'
 for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); do
-    ./cluster/cli.sh ssh ${node} -- sudo dnf install -y centos-release-nfv-openvswitch
-    ./cluster/cli.sh ssh ${node} -- sudo dnf install -y openvswitch2.16 dpdk
     ./cluster/cli.sh ssh ${node} -- sudo systemctl daemon-reload
+    ./cluster/cli.sh ssh ${node} -- sudo systemctl enable openvswitch
     ./cluster/cli.sh ssh ${node} -- sudo systemctl restart openvswitch
+    ./cluster/cli.sh ssh ${node} -- sudo systemctl restart NetworkManager
 done
 
 echo 'Deploying multus'
