@@ -12,7 +12,7 @@ teardown() {
 }
 
 main() {
-    export KUBEVIRT_PROVIDER='k8s-1.23'
+    export KUBEVIRT_PROVIDER='k8s-1.26-centos9'
 
     source automation/setup.sh
     cd ${TMP_PROJECT_PATH}
