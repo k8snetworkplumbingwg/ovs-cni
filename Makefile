@@ -13,6 +13,7 @@ export GOROOT=$(BIN_DIR)/go/
 export GOBIN = $(GOROOT)/bin/
 export PATH := $(GOBIN):$(PATH):$(BIN_DIR)
 GOPATH = $(CURDIR)/.gopath
+GOARCH ?= amd64
 ORG_PATH = github.com/k8snetworkplumbingwg
 PACKAGE = ovs-cni
 OCI_BIN ?= $(shell if podman ps >/dev/null 2>&1; then echo podman; elif docker ps >/dev/null 2>&1; then echo docker; fi)
@@ -44,7 +45,7 @@ lint: $(GO) $(GOLANGCI)
 	$(GOLANGCI) run
 
 build-%: $(GO)
-	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=amd64 CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
+	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
 
 format: $(GO)
 	$(GO) fmt ./pkg/... ./cmd/...
@@ -74,7 +75,7 @@ functest: $(GO)
 
 docker-build:
 	hack/get_version.sh > .version
-	$(OCI_BIN) build -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -f ./cmd/Dockerfile .
+	$(OCI_BIN) build --build-arg goarch=${GOARCH} -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -f ./cmd/Dockerfile .
 
 docker-push:
 	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
