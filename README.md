@@ -65,10 +65,10 @@ You can choose to deploy this plugin on [local virtualized cluster](docs/deploym
 
 ## Components
 
- * [CNI Plugin](docs/cni-plugin.md) - Documentation and of standalone Open vSwitch CNI plugin.
- * [Port Mirroring](docs/traffic-mirroring.md) - Documentation of a OVS CNI extension, allowing for port mirroring.
+ * [CNI Plugin](docs/cni-plugin.md) - Documentation of standalone Open vSwitch CNI plugin.
+ * [Port Mirroring](docs/traffic-mirroring.md) - Documentation of an OVS CNI extension, allowing for port mirroring.
  * [Hardware Offload](docs/ovs-offload.md) - Documentation of hardware offload functionality, using SR-IOV.
- * [Marker](docs/marker.md) - Documentation and of daemon set exposing bridges as node resources.
+ * [Marker](docs/marker.md) - Documentation of daemon set exposing bridges as node resources.
 
 ## Development
 
