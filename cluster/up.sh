@@ -30,5 +30,5 @@ for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); d
 done
 
 echo 'Deploying multus'
-./cluster/kubectl.sh apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/v4.0.1/deployments/multus-daemonset-thick.yml
+./cluster/kubectl.sh apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/v4.0.1/deployments/multus-daemonset.yml
 ./cluster/kubectl.sh -n kube-system rollout status daemonset kube-multus-ds --timeout 300s
