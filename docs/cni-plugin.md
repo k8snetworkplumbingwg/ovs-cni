@@ -56,6 +56,7 @@ Another example with a port which has an interface of type system:
 * `mtu` (integer, optional): MTU.
 * `trunk` (optional): List of VLAN ID's and/or ranges of accepted VLAN
   ID's.
+* `vlan_mode` (optional): VLAN mode to set on attached port. Allowed values are [native-untagged,native-tagged,trunk,access,dot1q-tunnel]
 * `ofport_request` (integer, optional): request a static OpenFlow port number in range 1 to 65,279
 * `interface_type` (string, optional): type of the interface belongs to ports. if value is "", ovs will use default interface of type 'internal'
 * `configuration_path` (optional): configuration file containing ovsdb
