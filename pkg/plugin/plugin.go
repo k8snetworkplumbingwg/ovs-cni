@@ -142,11 +142,27 @@ func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error
 	return nil
 }
 
-func getBridgeName(bridgeName, ovnPort string) (string, error) {
+func getBridgeName(driver *ovsdb.OvsDriver, bridgeName, ovnPort, deviceID string) (string, error) {
 	if bridgeName != "" {
 		return bridgeName, nil
 	} else if bridgeName == "" && ovnPort != "" {
 		return "br-int", nil
+	} else if deviceID != "" {
+		possibleUplinkNames, err := sriov.GetBridgeUplinkNameByDeviceID(deviceID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get bridge name - failed to resolve uplink name: %v", err)
+		}
+		var errList []error
+		for _, uplinkName := range possibleUplinkNames {
+			bridgeName, err = driver.FindBridgeByInterface(uplinkName)
+			if err != nil {
+				errList = append(errList,
+					fmt.Errorf("failed to get bridge name - failed to find bridge name by uplink name %s: %v", uplinkName, err))
+				continue
+			}
+			return bridgeName, nil
+		}
+		return "", fmt.Errorf("failed to find bridge by uplink names %v: %v", possibleUplinkNames, errList)
 	}
 
 	return "", fmt.Errorf("failed to get bridge name")
@@ -256,19 +272,27 @@ func CmdAdd(args *skel.CmdArgs) error {
 	} else if netconf.VlanTag != nil {
 		vlanTagNum = *netconf.VlanTag
 	}
-
-	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
 	if err != nil {
 		return err
 	}
+	bridgeName, err := getBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
+	if err != nil {
+		return err
+	}
+	// save discovered bridge name to the netconf struct to make
+	// sure it is save in the cache.
+	// we need to cache discovered bridge name to make sure that we will
+	// use the right bridge name in CmdDel
+	netconf.BrName = bridgeName
 
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
+	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
 	if err != nil {
 		return err
 	}
 
 	// removes all ports whose interfaces have an error
-	if err := cleanPorts(ovsDriver); err != nil {
+	if err := cleanPorts(ovsBridgeDriver); err != nil {
 		return err
 	}
 
@@ -305,19 +329,19 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	if err = attachIfaceToBridge(ovsDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort); err != nil {
+	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort); err != nil {
 		return err
 	}
 	defer func() {
 		if err != nil {
 			// Unlike veth pair, OVS port will not be automatically removed
 			// if the following IPAM configuration fails and netns gets removed.
-			portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
+			portName, portFound, err := getOvsPortForContIface(ovsBridgeDriver, args.IfName, args.Netns)
 			if err != nil {
 				log.Printf("Failed best-effort cleanup: %v", err)
 			}
 			if portFound {
-				if err := removeOvsPort(ovsDriver, portName); err != nil {
+				if err := removeOvsPort(ovsBridgeDriver, portName); err != nil {
 					log.Printf("Failed best-effort cleanup: %v", err)
 				}
 			}
@@ -364,7 +388,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 		// wait until OF port link state becomes up. This is needed to make
 		// gratuitous arp for args.IfName to be sent over ovs bridge
-		err = waitLinkUp(ovsDriver, hostIface.Name, netconf.LinkStateCheckRetries, netconf.LinkStateCheckInterval)
+		err = waitLinkUp(ovsBridgeDriver, hostIface.Name, netconf.LinkStateCheckRetries, netconf.LinkStateCheckInterval)
 		if err != nil {
 			return err
 		}
@@ -502,13 +526,16 @@ func CmdDel(args *skel.CmdArgs) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
-
-	bridgeName, err := getBridgeName(cache.Netconf.BrName, ovnPort)
+	ovsDriver, err := ovsdb.NewOvsDriver(cache.Netconf.SocketFile)
+	if err != nil {
+		return err
+	}
+	bridgeName, err := getBridgeName(ovsDriver, cache.Netconf.BrName, ovnPort, cache.Netconf.DeviceID)
 	if err != nil {
 		return err
 	}
 
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, cache.Netconf.SocketFile)
+	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, cache.Netconf.SocketFile)
 	if err != nil {
 		return err
 	}
@@ -530,7 +557,7 @@ func CmdDel(args *skel.CmdArgs) error {
 			if rep, err = sriov.GetNetRepresentor(cache.Netconf.DeviceID); err != nil {
 				return err
 			}
-			if err = removeOvsPort(ovsDriver, rep); err != nil {
+			if err = removeOvsPort(ovsBridgeDriver, rep); err != nil {
 				// Don't throw err as delete can be called multiple times because of error in ResetVF and ovs
 				// port is already deleted in a previous invocation.
 				log.Printf("Error: %v\n", err)
@@ -540,7 +567,7 @@ func CmdDel(args *skel.CmdArgs) error {
 			}
 		} else {
 			// In accordance with the spec we clean up as many resources as possible.
-			if err := cleanPorts(ovsDriver); err != nil {
+			if err := cleanPorts(ovsBridgeDriver); err != nil {
 				return err
 			}
 		}
@@ -550,7 +577,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	// Unlike veth pair, OVS port will not be automatically removed when
 	// container namespace is gone. Find port matching DEL arguments and remove
 	// it explicitly.
-	portName, portFound, err := getOvsPortForContIface(ovsDriver, args.IfName, args.Netns)
+	portName, portFound, err := getOvsPortForContIface(ovsBridgeDriver, args.IfName, args.Netns)
 	if err != nil {
 		return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
 	}
@@ -558,7 +585,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	// Do not return an error if the port was not found, it may have been
 	// already removed by someone.
 	if portFound {
-		if err := removeOvsPort(ovsDriver, portName); err != nil {
+		if err := removeOvsPort(ovsBridgeDriver, portName); err != nil {
 			return err
 		}
 	}
@@ -589,7 +616,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	}
 
 	// removes all ports whose interfaces have an error
-	if err := cleanPorts(ovsDriver); err != nil {
+	if err := cleanPorts(ovsBridgeDriver); err != nil {
 		return err
 	}
 
@@ -614,12 +641,33 @@ func CmdCheck(args *skel.CmdArgs) error {
 		}
 	}
 
+	envArgs, err := getEnvArgs(args.Args)
+	if err != nil {
+		return err
+	}
+	var ovnPort string
+	if envArgs != nil {
+		ovnPort = string(envArgs.OvnPort)
+	}
+	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
+	if err != nil {
+		return err
+	}
+	// cached config may contain bridge name which were automatically
+	// discovered in CmdAdd, we need to re-discover the bridge name before we validating the cache
+	bridgeName, err := getBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
+	if err != nil {
+		return err
+	}
+	netconf.BrName = bridgeName
+
 	// check cache
 	cRef := config.GetCRef(args.ContainerID, args.IfName)
 	cache, err := config.LoadConfFromCache(cRef)
 	if err != nil {
 		return err
 	}
+
 	if err := validateCache(cache, netconf); err != nil {
 		return err
 	}
@@ -754,26 +802,12 @@ func validateInterface(intf current.Interface, isHost bool, hwOffload bool) erro
 }
 
 func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) error {
-	envArgs, err := getEnvArgs(args.Args)
-	if err != nil {
-		return err
-	}
-	var ovnPort string
-	if envArgs != nil {
-		ovnPort = string(envArgs.OvnPort)
-	}
-
-	bridgeName, err := getBridgeName(netconf.BrName, ovnPort)
+	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(netconf.BrName, netconf.SocketFile)
 	if err != nil {
 		return err
 	}
 
-	ovsDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
-	if err != nil {
-		return err
-	}
-
-	found, err := ovsDriver.IsBridgePresent(netconf.BrName)
+	found, err := ovsBridgeDriver.IsBridgePresent(netconf.BrName)
 	if err != nil {
 		return err
 	}
@@ -781,7 +815,7 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 		return fmt.Errorf("Error: bridge %s is not found in OVS", netconf.BrName)
 	}
 
-	ifaces, err := ovsDriver.FindInterfacesWithError()
+	ifaces, err := ovsBridgeDriver.FindInterfacesWithError()
 	if err != nil {
 		return err
 	}
@@ -789,7 +823,7 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 		return fmt.Errorf("Error: There are some interfaces in error state: %v", ifaces)
 	}
 
-	vlanMode, tag, trunk, err := ovsDriver.GetOFPortVlanState(hostIfname)
+	vlanMode, tag, trunk, err := ovsBridgeDriver.GetOFPortVlanState(hostIfname)
 	if err != nil {
 		return fmt.Errorf("Error: Failed to retrieve port %s state: %v", hostIfname, err)
 	}

@@ -125,6 +125,10 @@ spec:
     }'
 ```
 
+_*Note:* it is possible to omit `bridge` argument. Bridge will be automatically selected by the CNI plugin by following
+the chain: Virtual Function PCI address (injected by Multus to `deviceID` parameter) > Physical Function > Bond interface 
+(optional, if Physical Function is part of a bond interface) > ovs bridge_
+
 Now deploy a pod with the following config to attach VF into container and its representor net device
 attached with ovs bridge `br-snic0`.
 
