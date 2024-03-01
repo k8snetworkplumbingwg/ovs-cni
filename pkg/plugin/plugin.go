@@ -604,6 +604,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	ovsHWOffloadEnable := sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID)
 
 	// run the IPAM plugin
 	if netconf.NetConf.IPAM.Type != "" {
@@ -644,7 +645,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 			}
 		} else {
 			// Check prevResults for ips against values found in the host
-			if err := validateInterface(*intf, true); err != nil {
+			if err := validateInterface(*intf, true, ovsHWOffloadEnable); err != nil {
 				return err
 			}
 			hostIntf = *intf
@@ -667,7 +668,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	if err := netns.Do(func(_ ns.NetNS) error {
 
 		// Check interface against values found in the container
-		err := validateInterface(contIntf, false)
+		err := validateInterface(contIntf, false, ovsHWOffloadEnable)
 		if err != nil {
 			return err
 		}
@@ -718,7 +719,7 @@ func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	return nil
 }
 
-func validateInterface(intf current.Interface, isHost bool) error {
+func validateInterface(intf current.Interface, isHost bool, hwOffload bool) error {
 	var link netlink.Link
 	var err error
 	var iftype string
@@ -738,10 +739,11 @@ func validateInterface(intf current.Interface, isHost bool) error {
 	if !isHost && intf.Sandbox == "" {
 		return fmt.Errorf("Error: %s interface %s should not be in host namespace", iftype, link.Attrs().Name)
 	}
-
-	_, isVeth := link.(*netlink.Veth)
-	if !isVeth {
-		return fmt.Errorf("Error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
+	if !hwOffload {
+		_, isVeth := link.(*netlink.Veth)
+		if !isVeth {
+			return fmt.Errorf("Error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
+		}
 	}
 
 	if intf.Mac != "" && intf.Mac != link.Attrs().HardwareAddr.String() {
