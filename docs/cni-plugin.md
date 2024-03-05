@@ -50,7 +50,8 @@ Another example with a port which has an interface of type system:
 
 * `name` (string, required): the name of the network.
 * `type` (string, required): "ovs".
-* `bridge` (string, required): name of the bridge to use.
+* `bridge` (string, optional): name of the bridge to use, can be omitted if `ovnPort` is set in CNI_ARGS, or if `deviceID` is set
+* `deviceID` (string, optional): PCI address of a Virtual Function in valid sysfs format to use in HW offloading mode. This value is usually set by Multus.
 * `vlan` (integer, optional): VLAN ID of attached port. Trunk port if not
    specified.
 * `mtu` (integer, optional): MTU.
@@ -60,6 +61,11 @@ Another example with a port which has an interface of type system:
 * `interface_type` (string, optional): type of the interface belongs to ports. if value is "", ovs will use default interface of type 'internal'
 * `configuration_path` (optional): configuration file containing ovsdb
   socket file path, etc.
+
+
+_*Note:* if `deviceID` is provided, then it is possible to omit `bridge` argument. Bridge will be automatically selected by the CNI plugin by following
+the chain: Virtual Function PCI address (provided in `deviceID` argument) > Physical Function > Bond interface 
+(optional, if Physical Function is part of a bond interface) > ovs bridge_
 
 ### Flatfile Configuation
 

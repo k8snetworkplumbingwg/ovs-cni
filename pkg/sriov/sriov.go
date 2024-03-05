@@ -67,6 +67,45 @@ func IsOvsHardwareOffloadEnabled(deviceID string) bool {
 	return deviceID != ""
 }
 
+// GetBridgeUplinkNameByDeviceID tries to automatically resolve uplink interface name
+// for provided VF deviceID by following the sequence:
+// VF pci address > PF pci address > Bond (optional, if PF is part of a bond)
+// return list of candidate names
+func GetBridgeUplinkNameByDeviceID(deviceID string) ([]string, error) {
+	pfName, err := sriovnet.GetUplinkRepresentor(deviceID)
+	if err != nil {
+		return nil, err
+	}
+	pfLink, err := netlink.LinkByName(pfName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get link info for uplink %s: %v", pfName, err)
+	}
+	parent, err := getParentInterface(pfLink)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get parent link for uplink %s: %v", pfName, err)
+	}
+	if parent == nil {
+		// PF has no parent interface, return PF name
+		return []string{pfLink.Attrs().Name}, nil
+	}
+	return []string{parent.Attrs().Name, pfLink.Attrs().Name}, nil
+}
+
+// getParentInterface returns a parent interface for the link if it exists
+func getParentInterface(link netlink.Link) (netlink.Link, error) {
+	if link.Attrs().MasterIndex == 0 {
+		return nil, nil
+	}
+	parentLink, err := netlink.LinkByIndex(link.Attrs().MasterIndex)
+	if err != nil {
+		return nil, err
+	}
+	if parentLink.Type() == "openvswitch" {
+		return nil, nil
+	}
+	return parentLink, nil
+}
+
 // GetNetRepresentor retrieves network representor device for smartvf
 func GetNetRepresentor(deviceID string) (string, error) {
 	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).
