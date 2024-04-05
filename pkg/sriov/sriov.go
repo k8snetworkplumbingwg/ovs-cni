@@ -22,21 +22,34 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 
-	"github.com/Mellanox/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/k8snetworkplumbingwg/sriovnet"
 	"github.com/vishvananda/netlink"
 )
 
 var (
 	// SysBusPci is sysfs pci device directory
-	SysBusPci = "/sys/bus/pci/devices"
+	SysBusPci       = "/sys/bus/pci/devices"
+	rePciDeviceName = regexp.MustCompile(`^[0-9a-f]{4}:[0-9a-f]{2}:[01][0-9a-f]\.[0-7]$`)
+	reAuxDeviceName = regexp.MustCompile(`^\w+.\w+.\d+$`)
 )
 
-// GetVFLinkName retrives interface name for given pci address
+// IsPCIDeviceName check if passed device id is a PCI device name
+func IsPCIDeviceName(deviceID string) bool {
+	return rePciDeviceName.MatchString(deviceID)
+}
+
+// IsAuxDeviceName check if passed device id is a Auxiliary device name
+func IsAuxDeviceName(deviceID string) bool {
+	return reAuxDeviceName.MatchString(deviceID)
+}
+
+// GetVFLinkName retrieves interface name for given pci address
 func GetVFLinkName(pciAddr string) (string, error) {
 	var names []string
 	vfDir := filepath.Join(SysBusPci, pciAddr, "net")
@@ -58,6 +71,21 @@ func GetVFLinkName(pciAddr string) (string, error) {
 		names = append(names, f.Name())
 	}
 
+	return names[0], nil
+}
+
+// GetSFLinkName retrieves aux interface name for given pci address
+func GetAuxLinkName(auxDev string) (string, error) {
+	var names []string
+	names, err := sriovnet.GetNetDevicesFromAux(auxDev)
+	if err != nil {
+		return "", err
+	}
+	// Make sure we have 1 netdevice per pci address
+	numNetDevices := len(names)
+	if numNetDevices != 1 {
+		return "", fmt.Errorf("failed to get one netdevice interface (count %d) per Device ID %s", numNetDevices, auxDev)
+	}
 	return names[0], nil
 }
 
@@ -133,30 +161,39 @@ func getBondMembers(bond netlink.Link) ([]string, error) {
 	return result, nil
 }
 
-// GetNetRepresentor retrieves network representor device for smartvf
+// GetNetRepresentor returns representor name for passed device ID. Supported devices are Virtual Function
+// or Scalable Function
 func GetNetRepresentor(deviceID string) (string, error) {
-	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).
-	// The uplink is later used to retrieve the representor for the smart VF.
-	uplink, err := sriovnet.GetUplinkRepresentor(deviceID)
+	var rep, uplink string
+	var err error
+	var index int
+
+	if IsPCIDeviceName(deviceID) { // PCI device
+		uplink, err = sriovnet.GetUplinkRepresentor(deviceID)
+		if err != nil {
+			return "", err
+		}
+		index, err = sriovnet.GetVfIndexByPciAddress(deviceID)
+		if err != nil {
+			return "", err
+		}
+		rep, err = sriovnet.GetVfRepresentor(uplink, index)
+	} else if IsAuxDeviceName(deviceID) { // Auxiliary device
+		uplink, err = sriovnet.GetUplinkRepresentorFromAux(deviceID)
+		if err != nil {
+			return "", err
+		}
+		index, err = sriovnet.GetSfIndexByAuxDev(deviceID)
+		if err != nil {
+			return "", err
+		}
+		rep, err = sriovnet.GetSfRepresentor(uplink, index)
+	} else {
+		return "", fmt.Errorf("cannot determine device type for id '%s'", deviceID)
+	}
 	if err != nil {
 		return "", err
 	}
-
-	// get smart VF index from PCI
-	vfIndex, err := sriovnet.GetVfIndexByPciAddress(deviceID)
-	if err != nil {
-		return "", err
-	}
-
-	// get smart VF representor interface. This is a host net device which represents
-	// smart VF attached inside the container by device plugin. It can be considered
-	// as one end of veth pair whereas other end is smartVF. The VF representor would
-	// get added into ovs bridge for the control plane configuration.
-	rep, err := sriovnet.GetVfRepresentor(uplink, vfIndex)
-	if err != nil {
-		return "", err
-	}
-
 	return rep, nil
 }
 
@@ -164,18 +201,27 @@ func GetNetRepresentor(deviceID string) (string, error) {
 func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int, deviceID string) (*current.Interface, *current.Interface, error) {
 	hostIface := &current.Interface{}
 	contIface := &current.Interface{}
+	var netDevices []string
+	var err error
 
-	// get smart VF netdevice from PCI
-	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
-	if err != nil {
-		return nil, nil, err
+	if IsPCIDeviceName(deviceID) {
+		// get smart VF netdevice from PCI
+		netDevices, err = sriovnet.GetNetDevicesFromPci(deviceID)
+		if err != nil {
+			return nil, nil, err
+		}
+	} else {
+		netDevices, err = sriovnet.GetNetDevicesFromAux(deviceID)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Make sure we have 1 netdevice per pci address
-	if len(vfNetdevices) != 1 {
+	if len(netDevices) != 1 {
 		return nil, nil, fmt.Errorf("failed to get one netdevice interface per %s", deviceID)
 	}
-	vfNetdevice := vfNetdevices[0]
+	netDevice := netDevices[0]
 
 	// network representor device for smartvf
 	rep, err := GetNetRepresentor(deviceID)
@@ -199,14 +245,14 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int
 	}
 
 	// Move smart VF to Container namespace
-	err = moveIfToNetns(vfNetdevice, contNetns)
+	err = moveIfToNetns(netDevice, contNetns)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	err = contNetns.Do(func(hostNS ns.NetNS) error {
 		contIface.Name = ifName
-		_, err = renameLink(vfNetdevice, contIface.Name)
+		_, err = renameLink(netDevice, contIface.Name)
 		if err != nil {
 			return err
 		}
@@ -294,21 +340,32 @@ func ReleaseVF(args *skel.CmdArgs, origIfName string) error {
 
 }
 
-// ResetVF reset the VF which accidently moved into default network namespace by a container failure
-func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
+// ResetOffloadDev reset the VF which accidently moved into default network namespace by a container failure
+func ResetOffloadDev(args *skel.CmdArgs, deviceID, origIfName string) error {
 	// get smart VF netdevice from PCI
-	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
-	if err != nil {
-		return err
+	var netDevices []string
+	var err error
+
+	if IsPCIDeviceName(deviceID) {
+		// get smart VF netdevice from PCI
+		netDevices, err = sriovnet.GetNetDevicesFromPci(deviceID)
+		if err != nil {
+			return err
+		}
+	} else {
+		netDevices, err = sriovnet.GetNetDevicesFromAux(deviceID)
+		if err != nil {
+			return err
+		}
 	}
 	// Make sure we have 1 netdevice per pci address
-	if len(vfNetdevices) != 1 {
+	if len(netDevices) != 1 {
 		// This would happen if netdevice is not yet visible in default network namespace.
 		// so return ErrLinkNotFound error so that meta plugin can attempt multiple times
 		// until link is available.
 		return ip.ErrLinkNotFound
 	}
-	_, err = renameLink(vfNetdevices[0], origIfName)
+	_, err = renameLink(netDevices[0], origIfName)
 	if err != nil {
 		return err
 	}

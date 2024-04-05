@@ -13,7 +13,12 @@ export GOROOT=$(BIN_DIR)/go/
 export GOBIN = $(GOROOT)/bin/
 export PATH := $(GOBIN):$(PATH):$(BIN_DIR)
 GOPATH = $(CURDIR)/.gopath
-GOARCH ?= amd64
+UNAME=$(shell uname -m | tr '[:upper:]' '[:lower:]')
+ifeq ($(UNAME), x86_64)
+	GOARCH ?= amd64
+else ifeq ($(UNAME), aarch64)
+	GOARCH ?= arm64
+endif
 ORG_PATH = github.com/k8snetworkplumbingwg
 PACKAGE = ovs-cni
 OCI_BIN ?= $(shell if podman ps >/dev/null 2>&1; then echo podman; elif docker ps >/dev/null 2>&1; then echo docker; fi)
@@ -42,7 +47,7 @@ $(GOBIN)/golangci-lint: | $(BASE) ; $(info  building golangci-lint...)
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
 lint: $(GO) $(GOLANGCI)
-	$(GOLANGCI) run
+	$(GOLANGCI) --timeout 420s run
 
 build-%: $(GO)
 	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor

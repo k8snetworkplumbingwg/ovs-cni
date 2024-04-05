@@ -304,7 +304,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var origIfName string
 	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
-		origIfName, err = sriov.GetVFLinkName(netconf.DeviceID)
+		if sriov.IsPCIDeviceName(netconf.DeviceID) {
+			origIfName, err = sriov.GetVFLinkName(netconf.DeviceID)
+		} else { // Auxiliary network device
+			origIfName, err = sriov.GetAuxLinkName(netconf.DeviceID)
+		}
 		if err != nil {
 			return err
 		}
@@ -558,11 +562,11 @@ func CmdDel(args *skel.CmdArgs) error {
 				return err
 			}
 			if err = removeOvsPort(ovsBridgeDriver, rep); err != nil {
-				// Don't throw err as delete can be called multiple times because of error in ResetVF and ovs
+				// Don't throw err as delete can be called multiple times because of error in ResetOffloadDev and ovs
 				// port is already deleted in a previous invocation.
 				log.Printf("Error: %v\n", err)
 			}
-			if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
+			if err = sriov.ResetOffloadDev(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 				return err
 			}
 		} else {
@@ -594,7 +598,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		err = sriov.ReleaseVF(args, cache.OrigIfName)
 		if err != nil {
 			// try to reset vf into original state as much as possible in case of error
-			if err := sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
+			if err := sriov.ResetOffloadDev(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 				log.Printf("Failed best-effort cleanup of VF %s: %v", cache.OrigIfName, err)
 			}
 		}
