@@ -33,6 +33,10 @@ const (
 	ovsTable    = "Open_vSwitch"
 )
 
+var (
+	errObjectNotFound = errors.New("object not found")
+)
+
 // Bridge defines an object in Bridge table
 type Bridge struct {
 	UUID string `ovsdb:"_uuid"`
@@ -631,6 +635,9 @@ func (ovsd *OvsDriver) GetOvsPortForContIface(contIface, contNetnsPath string) (
 	colums := []string{"name", "external_ids"}
 	port, err := ovsd.findByCondition("Port", condition, colums)
 	if err != nil {
+		if errors.Is(err, errObjectNotFound) {
+			return "", false, nil
+		}
 		return "", false, err
 	}
 
@@ -745,7 +752,7 @@ func (ovsd *OvsDriver) findByCondition(table string, condition ovsdb.Condition, 
 	}
 
 	if len(operationResult.Rows) != 1 {
-		return nil, fmt.Errorf("failed to find object from table %s", table)
+		return nil, fmt.Errorf("%w in the table %s", errObjectNotFound, table)
 	}
 
 	return operationResult.Rows[0], nil
