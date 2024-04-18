@@ -36,7 +36,7 @@ REGISTRY=$registry make docker-push
 
 ovs_cni_manifest="./examples/ovs-cni.yml"
 
-sed 's/quay.io\/kubevirt/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh delete --ignore-not-found -f -
+sed 's/ghcr.io\/k8snetworkplumbingwg/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh delete --ignore-not-found -f -
 
 # Delete daemon sets that were deprecated/renamed
 ./cluster/kubectl.sh -n kube-system delete --ignore-not-found ds ovs-cni-plugin-amd64
@@ -50,4 +50,4 @@ until [ $(check_deleted "-f $ovs_cni_manifest") -eq 1 ]; do sleep 1; done
 until [ $(check_deleted "ds ovs-cni-plugin-amd64") -eq 1 ]; do sleep 1; done
 until [ $(check_deleted "ds ovs-vsctl-amd64") -eq 1 ]; do sleep 1; done
 
-sed 's/quay.io\/kubevirt/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -
+sed 's/ghcr.io\/k8snetworkplumbingwg/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -

@@ -33,7 +33,7 @@ spec:
         effect: NoSchedule
       initContainers:
       - name: ovs-cni-plugin
-        image: quay.io/kubevirt/ovs-cni-plugin:latest
+        image: ghcr.io/k8snetworkplumbingwg/ovs-cni-plugin:latest
         command: ["/bin/sh","-c"]
         args:
           - >
@@ -53,7 +53,7 @@ spec:
       priorityClassName: system-node-critical
       containers:
       - name: ovs-cni-marker
-        image: quay.io/kubevirt/ovs-cni-plugin:latest
+        image: ghcr.io/k8snetworkplumbingwg/ovs-cni-plugin:latest
         imagePullPolicy: IfNotPresent
         securityContext:
           privileged: true
