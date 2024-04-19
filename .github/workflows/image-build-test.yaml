@@ -1,0 +1,35 @@
+name: image-build-test
+on: [push, pull_request]
+
+env:
+  BUILD_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le
+
+jobs:
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      # Add support for more platforms with QEMU (optional)
+      # https://github.com/docker/setup-qemu-action
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Prepare version file
+        run: ./hack/get_version.sh > .version
+
+      - name: Build and push container image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          # no need to explicitly set goarch, 
+          # correct arch will be selected for each build platform 
+          build-args: |
+            goarch=
+          platforms: ${{ env.BUILD_PLATFORMS }}
+          file: ./cmd/Dockerfile
