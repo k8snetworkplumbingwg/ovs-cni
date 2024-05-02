@@ -91,6 +91,10 @@ func connectToOvsDb(ovsSocket string) (client.Client, error) {
 func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
 	ovsDriver := new(OvsDriver)
 
+	if ovsSocket == "" {
+		ovsSocket = "unix:/var/run/openvswitch/db.sock"
+	}
+
 	ovsDB, err := connectToOvsDb(ovsSocket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ovsdb error: %v", err)
@@ -617,6 +621,29 @@ func (ovsd *OvsDriver) IsBridgePresent(bridgeName string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// FindBridgeByInterface returns name of the bridge that contains provided interface
+func (ovsd *OvsDriver) FindBridgeByInterface(ifaceName string) (string, error) {
+	iface, err := ovsd.findByCondition("Interface",
+		ovsdb.NewCondition("name", ovsdb.ConditionEqual, ifaceName),
+		[]string{"name", "_uuid"})
+	if err != nil {
+		return "", fmt.Errorf("failed to find interface %s: %v", ifaceName, err)
+	}
+	port, err := ovsd.findByCondition("Port",
+		ovsdb.NewCondition("interfaces", ovsdb.ConditionIncludes, iface["_uuid"]),
+		[]string{"name", "_uuid"})
+	if err != nil {
+		return "", fmt.Errorf("failed to find port %s: %v", ifaceName, err)
+	}
+	bridge, err := ovsd.findByCondition("Bridge",
+		ovsdb.NewCondition("ports", ovsdb.ConditionIncludes, port["_uuid"]),
+		[]string{"name"})
+	if err != nil {
+		return "", fmt.Errorf("failed to find bridge for %s: %v", ifaceName, err)
+	}
+	return fmt.Sprintf("%v", bridge["name"]), nil
 }
 
 // GetOvsPortForContIface Return ovs port name for an container interface

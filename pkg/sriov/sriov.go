@@ -67,6 +67,72 @@ func IsOvsHardwareOffloadEnabled(deviceID string) bool {
 	return deviceID != ""
 }
 
+// GetBridgeUplinkNameByDeviceID tries to automatically resolve uplink interface name
+// for provided VF deviceID by following the sequence:
+// VF pci address > PF pci address > Bond (optional, if PF is part of a bond)
+// return list of candidate names
+func GetBridgeUplinkNameByDeviceID(deviceID string) ([]string, error) {
+	pfName, err := sriovnet.GetUplinkRepresentor(deviceID)
+	if err != nil {
+		return nil, err
+	}
+	pfLink, err := netlink.LinkByName(pfName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get link info for uplink %s: %v", pfName, err)
+	}
+	bond, err := getBondInterface(pfLink)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get parent link for uplink %s: %v", pfName, err)
+	}
+	if bond == nil {
+		// PF has no parent bond, return only PF name
+		return []string{pfLink.Attrs().Name}, nil
+	}
+	// for some OVS datapathes, to use bond configuration it is required to attach primary PF (usually first one) to the ovs instead of the bond interface.
+	// Example:
+	// 		- Bond interface bond0 (contains PF0 + PF1)
+	//		- OVS bridge br0 (only PF0 is attached)
+	//		- VF representors from PF0 and PF1 can be attached to OVS bridge br0, traffic will be offloaded and sent through bond0
+	//
+	// to support autobridge selection for VFs from the PF1 (which is part of the bond, but not directly attached to the ovs),
+	// we need to add other interfaces that are part of the bond as candidates, for PF1 candidates list will be: [bond0, PF0, PF1]
+	bondMembers, err := getBondMembers(bond)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve list of bond members for bond %s, uplink %s: %v", bond.Attrs().Name, pfName, err)
+	}
+	return bondMembers, nil
+}
+
+// getBondInterface returns a parent bond interface for the link if it exists
+func getBondInterface(link netlink.Link) (netlink.Link, error) {
+	if link.Attrs().MasterIndex == 0 {
+		return nil, nil
+	}
+	bondLink, err := netlink.LinkByIndex(link.Attrs().MasterIndex)
+	if err != nil {
+		return nil, err
+	}
+	if bondLink.Type() != "bond" {
+		return nil, nil
+	}
+	return bondLink, nil
+}
+
+// getBondMembers returns list with name of the bond and all bond members
+func getBondMembers(bond netlink.Link) ([]string, error) {
+	allLinks, err := netlink.LinkList()
+	if err != nil {
+		return nil, err
+	}
+	result := []string{bond.Attrs().Name}
+	for _, link := range allLinks {
+		if link.Attrs().MasterIndex == bond.Attrs().Index {
+			result = append(result, link.Attrs().Name)
+		}
+	}
+	return result, nil
+}
+
 // GetNetRepresentor retrieves network representor device for smartvf
 func GetNetRepresentor(deviceID string) (string, error) {
 	// get Uplink netdevice.  The uplink is basically the PF name of the deviceID (smart VF).
