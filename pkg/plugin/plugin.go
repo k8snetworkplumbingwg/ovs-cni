@@ -248,9 +248,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var mac string
 	var ovnPort string
+	var contPodUid string
 	if envArgs != nil {
 		mac = string(envArgs.MAC)
 		ovnPort = string(envArgs.OvnPort)
+		contPodUid = string(envArgs.K8S_POD_UID)
 	}
 
 	netconf, err := config.LoadConf(args.StdinData)
@@ -330,7 +332,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, string(envArgs.K8S_POD_UID)); err != nil {
+	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
 		return err
 	}
 	defer func() {
