@@ -28,6 +28,7 @@ import (
 var _ = Describe("ovs-mirror 0.3.0", func() { testMirrorFunc("0.3.0") })
 var _ = Describe("ovs-mirror 0.3.1", func() { testMirrorFunc("0.3.1") })
 var _ = Describe("ovs-mirror 0.4.0", func() { testMirrorFunc("0.4.0") })
+var _ = Describe("ovs-mirror 1.0.0", func() { testMirrorFunc("1.0.0") })
 
 var testMirrorFunc = func(version string) {
 	Describe("ovs traffic mirroring tests", func() {
@@ -78,7 +79,7 @@ var testMirrorFunc = func(version string) {
 						Eventually(func() error {
 							_, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 							return err
-						}, 120 * time.Second, time.Second).Should(Succeed(), "tcpdump did not start in time");
+						}, 120*time.Second, time.Second).Should(Succeed(), "tcpdump did not start in time")
 
 						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
 						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")

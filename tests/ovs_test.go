@@ -31,6 +31,7 @@ import (
 var _ = Describe("ovs-cni 0.3.0", func() { testFunc("0.3.0") })
 var _ = Describe("ovs-cni 0.3.1", func() { testFunc("0.3.1") })
 var _ = Describe("ovs-cni 0.4.0", func() { testFunc("0.4.0") })
+var _ = Describe("ovs-cni 1.0.0", func() { testFunc("1.0.0") })
 
 var testFunc = func(version string) {
 	Describe("pod availability tests", func() {
