@@ -1,4 +1,4 @@
-FROM quay.io/fedora/fedora:38-x86_64
+FROM quay.io/fedora/fedora:40-x86_64
 
 RUN dnf -y install make git sudo gcc rsync-daemon rsync openvswitch hostname && \
     dnf -y clean all
@@ -6,7 +6,7 @@ RUN dnf -y install make git sudo gcc rsync-daemon rsync openvswitch hostname && 
 ENV GOPATH="/go"
 RUN \
     DESTINATION=/opt && \
-    VERSION=1.18.4 && \
+    VERSION=1.21.7 && \
     TARBALL=go${VERSION}.linux-amd64.tar.gz && \
     URL=https://dl.google.com/go && \
     mkdir -p ${DESTINATION} && \

@@ -20,7 +20,6 @@ package sriov
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -59,7 +58,7 @@ func saveScratchConf(containerID, dataDir string, conf []byte) error {
 
 	path := filepath.Join(dataDir, containerID)
 
-	err := ioutil.WriteFile(path, conf, 0600)
+	err := os.WriteFile(path, conf, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to write container data in the path(%q): %v", path, err)
 	}
@@ -68,7 +67,7 @@ func saveScratchConf(containerID, dataDir string, conf []byte) error {
 }
 
 func readScratchConf(cRefPath string) ([]byte, error) {
-	data, err := ioutil.ReadFile(cRefPath)
+	data, err := os.ReadFile(cRefPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read container data in the path(%q): %v", cRefPath, err)
 	}

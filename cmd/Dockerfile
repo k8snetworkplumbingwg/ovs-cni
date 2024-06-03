@@ -1,4 +1,4 @@
-FROM quay.io/centos/centos:stream8 as builder
+FROM quay.io/centos/centos:stream9 as builder
 
 RUN mkdir /workdir
 WORKDIR /workdir
