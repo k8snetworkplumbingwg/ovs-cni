@@ -21,7 +21,7 @@ RUN go build -tags no_openssl -o /workdir/bin/marker ./cmd/marker
 RUN go build -tags no_openssl -o /workdir/bin/ovs-mirror-producer ./cmd/mirror-producer
 RUN go build -tags no_openssl -o /workdir/bin/ovs-mirror-consumer ./cmd/mirror-consumer
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal
-RUN microdnf install findutils
+FROM registry.access.redhat.com/ubi9/ubi-minimal
+RUN microdnf install -y findutils
 COPY --from=builder /workdir/.version /.version
 COPY --from=builder /workdir/bin/* /
