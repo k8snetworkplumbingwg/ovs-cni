@@ -19,7 +19,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strings"
 
@@ -165,7 +165,7 @@ func loadFlatNetConf[T types.NetConfs](configPath string) (*T, error) {
 				return nil, fmt.Errorf("open ovs config file %s error: %v", confFile, err)
 			}
 			defer jsonFile.Close()
-			jsonBytes, err := ioutil.ReadAll(jsonFile)
+			jsonBytes, err := io.ReadAll(jsonFile)
 			if err != nil {
 				return nil, fmt.Errorf("load ovs config file %s: error: %v", confFile, err)
 			}

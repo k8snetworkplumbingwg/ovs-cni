@@ -19,7 +19,6 @@ package sriov
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -44,7 +43,7 @@ func GetVFLinkName(pciAddr string) (string, error) {
 		return "", err
 	}
 
-	fInfos, err := ioutil.ReadDir(vfDir)
+	fInfos, err := os.ReadDir(vfDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to read net dir of the device %s: %v", pciAddr, err)
 	}

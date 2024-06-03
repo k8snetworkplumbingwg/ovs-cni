@@ -37,7 +37,7 @@ $(BASE): ; $(info  setting GOPATH...)
 
 GOLANGCI = $(GOBIN)/golangci-lint
 $(GOBIN)/golangci-lint: | $(BASE) ; $(info  building golangci-lint...)
-	$Q go install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.50.1
+	$Q go install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
@@ -83,7 +83,6 @@ docker-push:
 	$(OCI_BIN) push ${TLS_SETTING} ${REGISTRY}/ovs-cni-plugin:${IMAGE_GIT_TAG}
 
 dep: $(GO)
-	$(GO) mod tidy
 	$(GO) mod vendor
 
 manifests:
