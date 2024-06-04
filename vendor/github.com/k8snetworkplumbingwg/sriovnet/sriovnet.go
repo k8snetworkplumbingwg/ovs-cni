@@ -14,7 +14,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"
 
-	utilfs "github.com/Mellanox/sriovnet/pkg/utils/filesystem"
+	utilfs "github.com/k8snetworkplumbingwg/sriovnet/pkg/utils/filesystem"
+	"github.com/k8snetworkplumbingwg/sriovnet/pkg/utils/netlinkops"
 )
 
 const (
@@ -23,7 +24,11 @@ const (
 	ibEncapType    = "infiniband"
 )
 
-var virtFnRe = regexp.MustCompile(`virtfn(\d+)`)
+var (
+	virtFnRe          = regexp.MustCompile(`virtfn(\d+)`)
+	pciAddressRe      = regexp.MustCompile(`^[0-9a-f]{4}:[0-9a-f]{2}:[01][0-9a-f].[0-7]$`)
+	auxiliaryDeviceRe = regexp.MustCompile(`^(\S+\.){2}\d+$`)
+)
 
 type VfObj struct {
 	Index      int
@@ -40,12 +45,22 @@ type PfNetdevHandle struct {
 }
 
 func SetPFLinkUp(pfNetdevName string) error {
-	handle, err := netlink.LinkByName(pfNetdevName)
+	handle, err := netlinkops.GetNetlinkOps().LinkByName(pfNetdevName)
 	if err != nil {
 		return err
 	}
 
-	return netlink.LinkSetUp(handle)
+	return netlinkops.GetNetlinkOps().LinkSetUp(handle)
+}
+
+func IsVfPciVfioBound(pciAddr string) bool {
+	driverLink := filepath.Join(PciSysDir, pciAddr, "driver")
+	driverPath, err := utilfs.Fs.Readlink(driverLink)
+	if err != nil {
+		return false
+	}
+	driverName := filepath.Base(driverPath)
+	return driverName == "vfio-pci"
 }
 
 func IsSriovSupported(netdevName string) bool {
@@ -108,7 +123,7 @@ func DisableSriov(pfNetdevName string) error {
 }
 
 func GetPfNetdevHandle(pfNetdevName string) (*PfNetdevHandle, error) {
-	pfLinkHandle, err := netlink.LinkByName(pfNetdevName)
+	pfLinkHandle, err := netlinkops.GetNetlinkOps().LinkByName(pfNetdevName)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +188,7 @@ func BindVf(handle *PfNetdevHandle, vf *VfObj) error {
 }
 
 func GetVfDefaultMacAddr(vfNetdevName string) (string, error) {
-	ethHandle, err1 := netlink.LinkByName(vfNetdevName)
+	ethHandle, err1 := netlinkops.GetNetlinkOps().LinkByName(vfNetdevName)
 	if err1 != nil {
 		return "", err1
 	}
@@ -184,16 +199,16 @@ func GetVfDefaultMacAddr(vfNetdevName string) (string, error) {
 
 func SetVfDefaultMacAddress(handle *PfNetdevHandle, vf *VfObj) error {
 	netdevName := vfNetdevNameFromParent(handle.PfNetdevName, vf.Index)
-	ethHandle, err1 := netlink.LinkByName(netdevName)
+	ethHandle, err1 := netlinkops.GetNetlinkOps().LinkByName(netdevName)
 	if err1 != nil {
 		return err1
 	}
 	ethAttr := ethHandle.Attrs()
-	return netlink.LinkSetVfHardwareAddr(handle.pfLinkHandle, vf.Index, ethAttr.HardwareAddr)
+	return netlinkops.GetNetlinkOps().LinkSetVfHardwareAddr(handle.pfLinkHandle, vf.Index, ethAttr.HardwareAddr)
 }
 
 func SetVfVlan(handle *PfNetdevHandle, vf *VfObj, vlan int) error {
-	return netlink.LinkSetVfVlan(handle.pfLinkHandle, vf.Index, vlan)
+	return netlinkops.GetNetlinkOps().LinkSetVfVlan(handle.pfLinkHandle, vf.Index, vlan)
 }
 
 func setVfNodeGUID(handle *PfNetdevHandle, vf *VfObj, guid []byte) error {
@@ -205,7 +220,7 @@ func setVfNodeGUID(handle *PfNetdevHandle, vf *VfObj, guid []byte) error {
 	if err == nil {
 		return nil
 	}
-	err = netlink.LinkSetVfNodeGUID(handle.pfLinkHandle, vf.Index, guid)
+	err = netlinkops.GetNetlinkOps().LinkSetVfNodeGUID(handle.pfLinkHandle, vf.Index, guid)
 	return err
 }
 
@@ -218,7 +233,7 @@ func setVfPortGUID(handle *PfNetdevHandle, vf *VfObj, guid []byte) error {
 	if err == nil {
 		return nil
 	}
-	err = netlink.LinkSetVfPortGUID(handle.pfLinkHandle, vf.Index, guid)
+	err = netlinkops.GetNetlinkOps().LinkSetVfPortGUID(handle.pfLinkHandle, vf.Index, guid)
 	return err
 }
 
@@ -261,8 +276,8 @@ func SetVfPrivileged(handle *PfNetdevHandle, vf *VfObj, privileged bool) error {
 	 * golangci-lint complains on missing error check. ignore it
 	 * with nolint comment until we update the code to ignore ENOTSUP error
 	 */
-	netlink.LinkSetVfTrust(handle.pfLinkHandle, vf.Index, trusted)     //nolint
-	netlink.LinkSetVfSpoofchk(handle.pfLinkHandle, vf.Index, spoofChk) //nolint
+	netlinkops.GetNetlinkOps().LinkSetVfTrust(handle.pfLinkHandle, vf.Index, trusted)     //nolint
+	netlinkops.GetNetlinkOps().LinkSetVfSpoofchk(handle.pfLinkHandle, vf.Index, spoofChk) //nolint
 	return nil
 }
 
@@ -308,7 +323,7 @@ func ConfigVfs(handle *PfNetdevHandle, privileged bool) error {
 		}
 		// skip VFs in another namespace
 		netdevName := vfNetdevNameFromParent(handle.PfNetdevName, vf.Index)
-		if _, err = netlink.LinkByName(netdevName); err != nil {
+		if _, err = netlinkops.GetNetlinkOps().LinkByName(netdevName); err != nil {
 			continue
 		}
 		err = setDefaultHwAddr(handle, vf)
@@ -396,7 +411,7 @@ func GetVfNetdevName(handle *PfNetdevHandle, vf *VfObj) string {
 // GetVfIndexByPciAddress gets a VF PCI address (e.g '0000:03:00.4') and
 // returns the correlate VF index.
 func GetVfIndexByPciAddress(vfPciAddress string) (int, error) {
-	vfPath := filepath.Join(PciSysDir, vfPciAddress, "physfn/virtfn*")
+	vfPath := filepath.Join(PciSysDir, vfPciAddress, "physfn", "virtfn*")
 	matches, err := filepath.Glob(vfPath)
 	if err != nil {
 		return -1, err
@@ -418,25 +433,22 @@ func GetVfIndexByPciAddress(vfPciAddress string) (int, error) {
 	return -1, fmt.Errorf("vf index for %s not found", vfPciAddress)
 }
 
-// GetNetDevicesFromPci gets a PCI address (e.g '0000:03:00.1') and
-// returns the correlate list of netdevices
-func GetNetDevicesFromPci(pciAddress string) ([]string, error) {
-	pciDir := filepath.Join(PciSysDir, pciAddress, "net")
-	_, err := utilfs.Fs.Stat(pciDir)
+// gets the PF index that's associated with a VF PCI address (e.g '0000:03:00.4')
+func GetPfIndexByVfPciAddress(vfPciAddress string) (int, error) {
+	const pciParts = 4
+	pfPciAddress, err := GetPfPciFromVfPci(vfPciAddress)
 	if err != nil {
-		return nil, fmt.Errorf("cannot get a network device with pci address %v %v", pciAddress, err)
+		return -1, err
 	}
-
-	netDevicesFiles, err := utilfs.Fs.ReadDir(pciDir)
+	var domain, bus, dev, fn int
+	parsed, err := fmt.Sscanf(pfPciAddress, "%04x:%02x:%02x.%d", &domain, &bus, &dev, &fn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get network device name in %v %v", pciDir, err)
+		return -1, fmt.Errorf("error trying to parse PF PCI address %s: %v", pfPciAddress, err)
 	}
-
-	netDevices := make([]string, 0, len(netDevicesFiles))
-	for _, netDeviceFile := range netDevicesFiles {
-		netDevices = append(netDevices, strings.TrimSpace(netDeviceFile.Name()))
+	if parsed != pciParts {
+		return -1, fmt.Errorf("failed to parse PF PCI address %s. Unexpected format", pfPciAddress)
 	}
-	return netDevices, nil
+	return fn, err
 }
 
 // GetPfPciFromVfPci retrieves the parent PF PCI address of the provided VF PCI address in D:B:D.f format
@@ -452,4 +464,43 @@ func GetPfPciFromVfPci(vfPciAddress string) (string, error) {
 		return pf, fmt.Errorf("could not find PF PCI Address")
 	}
 	return pf, err
+}
+
+// GetNetDevicesFromPci gets a PCI address (e.g '0000:03:00.1') and
+// returns the correlate list of netdevices
+func GetNetDevicesFromPci(pciAddress string) ([]string, error) {
+	pciDir := filepath.Join(PciSysDir, pciAddress, "net")
+	return getFileNamesFromPath(pciDir)
+}
+
+// GetPciFromNetDevice returns the PCI address associated with a network device name
+func GetPciFromNetDevice(name string) (string, error) {
+	devPath := filepath.Join(NetSysDir, name)
+
+	realPath, err := utilfs.Fs.Readlink(devPath)
+	if err != nil {
+		return "", fmt.Errorf("device %s not found: %s", name, err)
+	}
+
+	parent := filepath.Dir(realPath)
+	base := filepath.Base(parent)
+	// Devices can have their PCI device sysfs entry at different levels:
+	// PF, VF, SF representor:
+	//   /sys/devices/pci0000:00/.../0000:03:00.0/net/p0
+	//   /sys/devices/pci0000:00/.../0000:03:00.0/net/pf0hpf
+	//   /sys/devices/pci0000:00/.../0000:03:00.0/net/pf0vf0
+	//   /sys/devices/pci0000:00/.../0000:03:00.0/net/pf0sf0
+	// SF port:
+	//   /sys/devices/pci0000:00/.../0000:03:00.0/mlx5_core.sf.3/net/enp3s0f0s1
+	// This loop allows detecting any of them.
+	for parent != "/" && !pciAddressRe.MatchString(base) {
+		parent = filepath.Dir(parent)
+		base = filepath.Base(parent)
+	}
+	// If we stopped on '/' and the base was never a proper PCI address,
+	// then 'netdev' is not a PCI device.
+	if !pciAddressRe.MatchString(base) {
+		return "", fmt.Errorf("device %s is not a PCI device: %s", name, realPath)
+	}
+	return base, nil
 }
