@@ -50,8 +50,9 @@ import (
 // EnvArgs args containing common, desired mac and ovs port name
 type EnvArgs struct {
 	cnitypes.CommonArgs
-	MAC     cnitypes.UnmarshallableString `json:"mac,omitempty"`
-	OvnPort cnitypes.UnmarshallableString `json:"ovnPort,omitempty"`
+	MAC         cnitypes.UnmarshallableString `json:"mac,omitempty"`
+	OvnPort     cnitypes.UnmarshallableString `json:"ovnPort,omitempty"`
+	K8S_POD_UID cnitypes.UnmarshallableString
 }
 
 func init() {
@@ -168,8 +169,8 @@ func getBridgeName(driver *ovsdb.OvsDriver, bridgeName, ovnPort, deviceID string
 	return "", fmt.Errorf("failed to get bridge name")
 }
 
-func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string) error {
-	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType)
+func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string, contPodUid string) error {
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType, contPodUid)
 	if err != nil {
 		return err
 	}
@@ -247,9 +248,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var mac string
 	var ovnPort string
+	var contPodUid string
 	if envArgs != nil {
 		mac = string(envArgs.MAC)
 		ovnPort = string(envArgs.OvnPort)
+		contPodUid = string(envArgs.K8S_POD_UID)
 	}
 
 	netconf, err := config.LoadConf(args.StdinData)
@@ -329,7 +332,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort); err != nil {
+	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
 		return err
 	}
 	defer func() {
