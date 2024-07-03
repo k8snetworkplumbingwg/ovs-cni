@@ -4,7 +4,15 @@ RUN mkdir /workdir
 WORKDIR /workdir
 
 COPY go.mod .
-RUN dnf install -y golang-$(sed -En 's/^go +(.*+)$/\1/p' go.mod).*
+
+RUN dnf install -y wget
+
+RUN GO_VERSION=$(sed -En 's/^go +(.*)$/\1/p' go.mod) && \
+    wget https://dl.google.com/go/go${GO_VERSION}.linux-amd64.tar.gz && \
+    tar -C /usr/local -xzf go${GO_VERSION}.linux-amd64.tar.gz && \
+    rm go${GO_VERSION}.linux-amd64.tar.gz
+
+ENV PATH /usr/local/go/bin:$PATH
 
 COPY . .
 
