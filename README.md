@@ -1,4 +1,4 @@
-# Open vSwitch CNI plugin
+# DNM Open vSwitch CNI plugin
 
 This plugin allows user to define Kubernetes networks on top of Open vSwitch bridges available on nodes. Note that ovs-cni does not configure bridges, it's up to a user to create them and connect them to L2, L3 or an overlay network. This project also delivers OVS marker, which exposes available bridges as Node resources, that can be used to schedule pods on the right node via [intel/network-resources-injector](https://github.com/intel/network-resources-injector/). Finally please note that Open vSwitch must be installed and running on the host.
 
