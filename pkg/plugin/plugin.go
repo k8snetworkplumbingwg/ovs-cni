@@ -328,7 +328,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var hostIface, contIface *current.Interface
 	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
-		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, netconf.MTU, netconf.DeviceID, userspaceMode)
+		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
 		if err != nil {
 			return err
 		}
