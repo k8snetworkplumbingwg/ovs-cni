@@ -32,7 +32,8 @@ import (
 
 var (
 	// SysBusPci is sysfs pci device directory
-	SysBusPci = "/sys/bus/pci/devices"
+	SysBusPci        = "/sys/bus/pci/devices"
+	UserspaceDrivers = []string{"vfio-pci", "uio_pci_generic", "igb_uio"}
 )
 
 // GetVFLinkName retrives interface name for given pci address
@@ -64,6 +65,27 @@ func GetVFLinkName(pciAddr string) (string, error) {
 // is enabled.
 func IsOvsHardwareOffloadEnabled(deviceID string) bool {
 	return deviceID != ""
+}
+
+// HasUserspaceDriver checks if a device is attached to userspace driver
+// This method is copied from https://github.com/k8snetworkplumbingwg/sriov-cni/blob/8af83a33b2cac8e2df0bd6276b76658eb7c790ab/pkg/utils/utils.go#L222
+func HasUserspaceDriver(pciAddr string) (bool, error) {
+	driverLink := filepath.Join(SysBusPci, pciAddr, "driver")
+	driverPath, err := filepath.EvalSymlinks(driverLink)
+	if err != nil {
+		return false, err
+	}
+	driverStat, err := os.Stat(driverPath)
+	if err != nil {
+		return false, err
+	}
+	driverName := driverStat.Name()
+	for _, drv := range UserspaceDrivers {
+		if driverName == drv {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // GetBridgeUplinkNameByDeviceID tries to automatically resolve uplink interface name
@@ -159,48 +181,25 @@ func GetNetRepresentor(deviceID string) (string, error) {
 	return rep, nil
 }
 
-// SetupSriovInterface moves smartVF into container namespace, rename it with ifName and also returns host interface with VF's representor device
-func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int, deviceID string) (*current.Interface, *current.Interface, error) {
-	hostIface := &current.Interface{}
-	contIface := &current.Interface{}
-
+// setupKernelSriovContIface moves smartVF into container namespace,
+// configures the smartVF and also fills in the contIface fields
+func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface, deviceID, ifName string, mtu int) error {
 	// get smart VF netdevice from PCI
 	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	// Make sure we have 1 netdevice per pci address
 	if len(vfNetdevices) != 1 {
-		return nil, nil, fmt.Errorf("failed to get one netdevice interface per %s", deviceID)
+		return fmt.Errorf("failed to get one netdevice interface per %s", deviceID)
 	}
 	vfNetdevice := vfNetdevices[0]
-
-	// network representor device for smartvf
-	rep, err := GetNetRepresentor(deviceID)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	hostIface.Name = rep
-
-	link, err := netlink.LinkByName(hostIface.Name)
-	if err != nil {
-		return nil, nil, err
-	}
-	hostIface.Mac = link.Attrs().HardwareAddr.String()
-
-	// set MTU on smart VF representor
-	if mtu != 0 {
-		if err = netlink.LinkSetMTU(link, mtu); err != nil {
-			return nil, nil, fmt.Errorf("failed to set MTU on %s: %v", hostIface.Name, err)
-		}
-	}
 
 	// Move smart VF to Container namespace
 	err = moveIfToNetns(vfNetdevice, contNetns)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
 	err = contNetns.Do(func(hostNS ns.NetNS) error {
@@ -209,7 +208,7 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int
 		if err != nil {
 			return err
 		}
-		link, err = netlink.LinkByName(contIface.Name)
+		link, err := netlink.LinkByName(contIface.Name)
 		if err != nil {
 			return err
 		}
@@ -228,7 +227,78 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int
 		return nil
 	})
 	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// setupUserspaceSriovContIface configures smartVF via PF netlink and fills in the contIface fields
+func setupUserspaceSriovContIface(contNetns ns.NetNS, contIface *current.Interface, pfLink netlink.Link, vfIdx int, ifName string) error {
+	vfInfo := pfLink.Attrs().Vfs[vfIdx]
+
+	contIface.Name = ifName
+	contIface.Mac = vfInfo.Mac.String()
+	contIface.Sandbox = contNetns.Path()
+
+	return nil
+}
+
+// SetupSriovInterface configures smartVF and returns VF's representor device as host interface and VF's netdevice as container interface
+func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName string, mtu int, deviceID string, userspaceMode bool) (*current.Interface, *current.Interface, error) {
+	hostIface := &current.Interface{}
+	contIface := &current.Interface{}
+
+	// network representor device for smartvf
+	rep, err := GetNetRepresentor(deviceID)
+	if err != nil {
 		return nil, nil, err
+	}
+
+	hostIface.Name = rep
+
+	link, err := netlink.LinkByName(hostIface.Name)
+	if err != nil {
+		return nil, nil, err
+	}
+	hostIface.Mac = link.Attrs().HardwareAddr.String()
+
+	// get PF netlink and VF index from PCI address
+	pfIface, err := sriovnet.GetUplinkRepresentor(deviceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	pfLink, err := netlink.LinkByName(pfIface)
+	if err != nil {
+		return nil, nil, err
+	}
+	vfIdx, err := sriovnet.GetVfIndexByPciAddress(deviceID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// make sure PF netlink and VF index are valid
+	if len(pfLink.Attrs().Vfs) < vfIdx || pfLink.Attrs().Vfs[vfIdx].ID != vfIdx {
+		return nil, nil, fmt.Errorf("failed to get vf info from %s at index %d with Vfs %v", pfIface, vfIdx, pfLink.Attrs().Vfs)
+	}
+
+	// set MTU on smart VF representor
+	if mtu != 0 {
+		if err = netlink.LinkSetMTU(link, mtu); err != nil {
+			return nil, nil, fmt.Errorf("failed to set MTU on %s: %v", hostIface.Name, err)
+		}
+	}
+
+	if !userspaceMode {
+		// configure the smart VF netdevice directly in the container namespace
+		if err = setupKernelSriovContIface(contNetns, contIface, deviceID, ifName, mtu); err != nil {
+			return nil, nil, err
+		}
+	} else {
+		// configure the smart VF netdevice via PF netlink
+		if err = setupUserspaceSriovContIface(contNetns, contIface, pfLink, vfIdx, ifName); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	return hostIface, contIface, nil

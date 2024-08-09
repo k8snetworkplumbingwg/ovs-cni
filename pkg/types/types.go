@@ -71,13 +71,15 @@ type Trunk struct {
 	ID    *uint `json:"id,omitempty"`
 }
 
-// CachedNetConf containing NetConfig and original smartnic vf interface
-// name (set only in case of ovs hareware offload scenario).
+// CachedNetConf containing NetConfig, original smartnic vf interface name
+// and kernel/userspace device driver mode of the smartnic vf interface
+// (the last two are set only in case of ovs hareware offload scenario).
 // this is intended to be used only for storing and retrieving config
 // to/from a data store (example file cache).
 type CachedNetConf struct {
-	Netconf    *NetConf
-	OrigIfName string
+	Netconf       *NetConf
+	OrigIfName    string
+	UserspaceMode bool
 }
 
 // CachedPrevResultNetConf containing PrevResult.
