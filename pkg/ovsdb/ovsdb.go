@@ -69,7 +69,7 @@ const (
 
 // connectToOvsDb connect to ovsdb
 func connectToOvsDb(ovsSocket string) (client.Client, error) {
-	dbmodel, err := model.NewDBModel("Open_vSwitch",
+	dbmodel, err := model.NewClientDBModel("Open_vSwitch",
 		map[string]model.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
 	if err != nil {
 		return nil, fmt.Errorf("unable to create DB model error: %v", err)
@@ -138,7 +138,7 @@ func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error)
 // Wrapper for ovsDB transaction
 func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	// Perform OVSDB transaction
-	reply, _ := ovsd.ovsClient.Transact(ops...)
+	reply, _ := ovsd.ovsClient.Transact(context.Background(), ops...)
 
 	if len(reply) < len(ops) {
 		return nil, errors.New("OVS transaction failed. Less replies than operations")
