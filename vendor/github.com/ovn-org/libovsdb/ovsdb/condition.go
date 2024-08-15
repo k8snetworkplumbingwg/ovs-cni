@@ -7,6 +7,7 @@ import (
 )
 
 type ConditionFunction string
+type WaitCondition string
 
 const (
 	// ConditionLessThan is the less than condition
@@ -25,6 +26,11 @@ const (
 	ConditionIncludes ConditionFunction = "includes"
 	// ConditionExcludes is the excludes condition
 	ConditionExcludes ConditionFunction = "excludes"
+
+	// WaitConditionEqual is the equal condition
+	WaitConditionEqual WaitCondition = "=="
+	// WaitConditionNotEqual is the not equal condition
+	WaitConditionNotEqual WaitCondition = "!="
 )
 
 // Condition is described in RFC 7047: 5.1
@@ -88,7 +94,7 @@ func (c *Condition) UnmarshalJSON(b []byte) error {
 
 // Evaluate will evaluate the condition on the two provided values
 // The conditions operately differently depending on the type of
-// the provided values. The behavjour is as described in RFC7047
+// the provided values. The behavior is as described in RFC7047
 func (c ConditionFunction) Evaluate(a interface{}, b interface{}) (bool, error) {
 	x := reflect.ValueOf(a)
 	y := reflect.ValueOf(b)
@@ -163,7 +169,7 @@ func (c ConditionFunction) Evaluate(a interface{}, b interface{}) (bool, error) 
 			return false, fmt.Errorf("condition not supported on %s", x.Kind())
 		}
 	default:
-		return false, fmt.Errorf("unsuported condition function %s", c)
+		return false, fmt.Errorf("unsupported condition function %s", c)
 	}
 	// we should never get here
 	return false, fmt.Errorf("unreachable condition")
