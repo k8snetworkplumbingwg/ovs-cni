@@ -956,7 +956,7 @@ func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (cnitypes.Result, []byte
 }
 
 func cmdCheckWithArgs(args *skel.CmdArgs, f func() error) error {
-	return testutils.CmdCheck(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
+	return testutils.CmdCheck(args.Netns, args.ContainerID, args.IfName, f)
 }
 
 func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {
