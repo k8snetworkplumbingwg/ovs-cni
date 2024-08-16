@@ -23,7 +23,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/v2"
 )
 
 // Run exec a command with its arguments and return stdout and stderr

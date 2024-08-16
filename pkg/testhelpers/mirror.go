@@ -10,7 +10,7 @@ import (
 	types040 "github.com/containernetworking/cni/pkg/types/040"
 	current "github.com/containernetworking/cni/pkg/types/100"
 
-	ginko "github.com/onsi/ginkgo"
+	ginko "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
