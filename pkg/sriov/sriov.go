@@ -23,11 +23,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/k8snetworkplumbingwg/sriovnet"
 	"github.com/containernetworking/cni/pkg/skel"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ns"
+	"github.com/k8snetworkplumbingwg/sriovnet"
 	"github.com/vishvananda/netlink"
 )
 

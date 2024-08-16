@@ -704,7 +704,7 @@ func (ovsd *OvsDriver) FindInterfacesWithError() ([]string, error) {
 	}
 	operationResult := transactionResult[0]
 	if operationResult.Error != "" {
-		return nil, fmt.Errorf(operationResult.Error)
+		return nil, errors.New(operationResult.Error)
 	}
 
 	var names []string
@@ -1110,7 +1110,7 @@ func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
 	}
 	operationResult := transactionResult[0]
 	if operationResult.Error != "" {
-		return nil, fmt.Errorf(operationResult.Error)
+		return nil, errors.New(operationResult.Error)
 	}
 
 	// extract mirror names with both output_port, select_src_port and select_dst_port empty
