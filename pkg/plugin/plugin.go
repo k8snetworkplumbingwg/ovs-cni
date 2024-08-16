@@ -116,6 +116,10 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mt
 			return err
 		}
 
+		if err := setInterfaceUp(contIfaceName); err != nil {
+			return err
+		}
+
 		contIface.Name = containerVeth.Name
 		contIface.Mac = containerVeth.HardwareAddr.String()
 		contIface.Sandbox = contNetns.Path()
@@ -132,6 +136,19 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mt
 	}
 
 	return hostIface, contIface, nil
+}
+
+func setInterfaceUp(name string) error {
+	link, err := netlink.LinkByName(name)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetUp(link); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error {
