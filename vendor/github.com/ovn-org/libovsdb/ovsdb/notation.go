@@ -30,17 +30,18 @@ const (
 // Operation represents an operation according to RFC7047 section 5.2
 type Operation struct {
 	Op        string      `json:"op"`
-	Table     string      `json:"table"`
+	Table     string      `json:"table,omitempty"`
 	Row       Row         `json:"row,omitempty"`
 	Rows      []Row       `json:"rows,omitempty"`
 	Columns   []string    `json:"columns,omitempty"`
 	Mutations []Mutation  `json:"mutations,omitempty"`
-	Timeout   int         `json:"timeout,omitempty"`
+	Timeout   *int        `json:"timeout,omitempty"`
 	Where     []Condition `json:"where,omitempty"`
 	Until     string      `json:"until,omitempty"`
 	Durable   *bool       `json:"durable,omitempty"`
 	Comment   *string     `json:"comment,omitempty"`
 	Lock      *string     `json:"lock,omitempty"`
+	UUID      string      `json:"uuid,omitempty"`
 	UUIDName  string      `json:"uuid-name,omitempty"`
 }
 
@@ -82,6 +83,7 @@ type MonitorRequests struct {
 // MonitorRequest represents a monitor request according to RFC7047
 type MonitorRequest struct {
 	Columns []string       `json:"columns,omitempty"`
+	Where   []Condition    `json:"where,omitempty"`
 	Select  *MonitorSelect `json:"select,omitempty"`
 }
 

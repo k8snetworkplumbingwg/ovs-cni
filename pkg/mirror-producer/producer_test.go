@@ -29,7 +29,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/testutils"
 	"github.com/vishvananda/netlink"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	plugin "github.com/k8snetworkplumbingwg/ovs-cni/pkg/plugin"
@@ -831,7 +831,7 @@ func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (cnitypes.Result, []byte
 }
 
 func cmdCheckWithArgs(args *skel.CmdArgs, f func() error) error {
-	return testutils.CmdCheck(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
+	return testutils.CmdCheck(args.Netns, args.ContainerID, args.IfName, f)
 }
 
 func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {

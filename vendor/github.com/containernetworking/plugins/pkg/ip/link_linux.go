@@ -28,17 +28,14 @@ import (
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 )
 
-var (
-	ErrLinkNotFound = errors.New("link not found")
-)
+var ErrLinkNotFound = errors.New("link not found")
 
 // makeVethPair is called from within the container's network namespace
 func makeVethPair(name, peer string, mtu int, mac string, hostNS ns.NetNS) (netlink.Link, error) {
 	veth := &netlink.Veth{
 		LinkAttrs: netlink.LinkAttrs{
-			Name:  name,
-			Flags: net.FlagUp,
-			MTU:   mtu,
+			Name: name,
+			MTU:  mtu,
 		},
 		PeerName:      peer,
 		PeerNamespace: netlink.NsFd(int(hostNS.Fd())),
@@ -70,44 +67,43 @@ func peerExists(name string) bool {
 	return true
 }
 
-func makeVeth(name, vethPeerName string, mtu int, mac string, hostNS ns.NetNS) (peerName string, veth netlink.Link, err error) {
+func makeVeth(name, vethPeerName string, mtu int, mac string, hostNS ns.NetNS) (string, netlink.Link, error) {
+	var peerName string
+	var veth netlink.Link
+	var err error
 	for i := 0; i < 10; i++ {
 		if vethPeerName != "" {
 			peerName = vethPeerName
 		} else {
 			peerName, err = RandomVethName()
 			if err != nil {
-				return
+				return peerName, nil, err
 			}
 		}
 
 		veth, err = makeVethPair(name, peerName, mtu, mac, hostNS)
 		switch {
 		case err == nil:
-			return
+			return peerName, veth, nil
 
 		case os.IsExist(err):
 			if peerExists(peerName) && vethPeerName == "" {
 				continue
 			}
-			err = fmt.Errorf("container veth name provided (%v) already exists", name)
-			return
-
+			return peerName, veth, fmt.Errorf("container veth name (%q) peer provided (%q) already exists", name, peerName)
 		default:
-			err = fmt.Errorf("failed to make veth pair: %v", err)
-			return
+			return peerName, veth, fmt.Errorf("failed to make veth pair: %v", err)
 		}
 	}
 
 	// should really never be hit
-	err = fmt.Errorf("failed to find a unique veth name")
-	return
+	return peerName, nil, fmt.Errorf("failed to find a unique veth name")
 }
 
 // RandomVethName returns string "veth" with random prefix (hashed from entropy)
 func RandomVethName() (string, error) {
 	entropy := make([]byte, 4)
-	_, err := rand.Reader.Read(entropy)
+	_, err := rand.Read(entropy)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate random veth name: %v", err)
 	}
@@ -144,10 +140,6 @@ func SetupVethWithName(contVethName, hostVethName string, mtu int, contVethMac s
 	hostVethName, contVeth, err := makeVeth(contVethName, hostVethName, mtu, contVethMac, hostNS)
 	if err != nil {
 		return net.Interface{}, net.Interface{}, err
-	}
-
-	if err = netlink.LinkSetUp(contVeth); err != nil {
-		return net.Interface{}, net.Interface{}, fmt.Errorf("failed to set %q up: %v", contVethName, err)
 	}
 
 	var hostVeth netlink.Link

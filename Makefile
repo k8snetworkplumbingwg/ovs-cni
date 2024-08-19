@@ -36,8 +36,8 @@ $(BASE): ; $(info  setting GOPATH...)
 	@ln -sf $(CURDIR) $@
 
 GOLANGCI = $(GOBIN)/golangci-lint
-$(GOBIN)/golangci-lint: | $(BASE) ; $(info  building golangci-lint...)
-	$Q go install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.59.0
+$(GOBIN)/golangci-lint: $(GO) | $(BASE) ; $(info  building golangci-lint...)
+	$Q $(GO) install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.60.1
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 

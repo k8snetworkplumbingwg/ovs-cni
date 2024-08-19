@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
 

@@ -12,9 +12,10 @@ import (
 
 // DatabaseSchema is a database schema according to RFC7047
 type DatabaseSchema struct {
-	Name    string                 `json:"name"`
-	Version string                 `json:"version"`
-	Tables  map[string]TableSchema `json:"tables"`
+	Name          string                 `json:"name"`
+	Version       string                 `json:"version"`
+	Tables        map[string]TableSchema `json:"tables"`
+	allTablesRoot *bool
 }
 
 // UUIDColumn is a static column that represents the _uuid column, common to all tables
@@ -28,6 +29,32 @@ func (schema DatabaseSchema) Table(tableName string) *TableSchema {
 		return &table
 	}
 	return nil
+}
+
+// IsRoot whether a table is root or not
+func (schema DatabaseSchema) IsRoot(tableName string) (bool, error) {
+	t := schema.Table(tableName)
+	if t == nil {
+		return false, fmt.Errorf("Table %s not in schame", tableName)
+	}
+	if t.IsRoot {
+		return true, nil
+	}
+	// As per RFC7047, for compatibility with schemas created before
+	// "isRoot" was introduced, if "isRoot" is omitted or false in every
+	// <table-schema> in a given <database-schema>, then every table is part
+	// of the root set.
+	if schema.allTablesRoot == nil {
+		allTablesRoot := true
+		for _, tSchema := range schema.Tables {
+			if tSchema.IsRoot {
+				allTablesRoot = false
+				break
+			}
+		}
+		schema.allTablesRoot = &allTablesRoot
+	}
+	return *schema.allTablesRoot, nil
 }
 
 // Print will print the contents of the DatabaseSchema
@@ -47,18 +74,17 @@ func (schema DatabaseSchema) Print(w io.Writer) {
 }
 
 // SchemaFromFile returns a DatabaseSchema from a file
-func SchemaFromFile(f *os.File) (*DatabaseSchema, error) {
+func SchemaFromFile(f *os.File) (DatabaseSchema, error) {
 	data, err := ioutil.ReadAll(f)
 	if err != nil {
-		return nil, err
+		return DatabaseSchema{}, err
 	}
 	var schema DatabaseSchema
 	err = json.Unmarshal(data, &schema)
 	if err != nil {
-		return nil, err
+		return DatabaseSchema{}, err
 	}
-
-	return &schema, nil
+	return schema, nil
 }
 
 // ValidateOperations performs basic validation for operations against a DatabaseSchema
@@ -105,6 +131,7 @@ func (schema DatabaseSchema) ValidateOperations(operations ...Operation) bool {
 type TableSchema struct {
 	Columns map[string]*ColumnSchema `json:"columns"`
 	Indexes [][]string               `json:"indexes,omitempty"`
+	IsRoot  bool                     `json:"isRoot,omitempty"`
 }
 
 // Column returns the Column object for a specific column name
@@ -125,7 +152,7 @@ of this library, we define an ExtendedType that includes all possible column typ
 atomic fields).
 */
 
-//ExtendedType includes atomic types as defined in the RFC plus Enum, Map and Set
+// ExtendedType includes atomic types as defined in the RFC plus Enum, Map and Set
 type ExtendedType = string
 
 // RefType is used to define the possible RefTypes
@@ -322,9 +349,7 @@ func (b *BaseType) UnmarshalJSON(data []byte) error {
 			oSet := bt.Enum.([]interface{})
 			innerSet := oSet[1].([]interface{})
 			b.Enum = make([]interface{}, len(innerSet))
-			for k, val := range innerSet {
-				b.Enum[k] = val
-			}
+			copy(b.Enum, innerSet)
 		default:
 			b.Enum = []interface{}{bt.Enum}
 		}
@@ -507,7 +532,7 @@ func (c *ColumnSchema) Ephemeral() bool {
 	return false
 }
 
-// UnmarshalJSON unmarshalls a json-formatted column
+// UnmarshalJSON unmarshals a json-formatted column
 func (c *ColumnSchema) UnmarshalJSON(data []byte) error {
 	// ColumnJSON represents the known json values for a Column
 	var colJSON struct {

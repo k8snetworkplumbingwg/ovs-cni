@@ -11,21 +11,21 @@ which column in the database. We refer to pointers to this structs as Models. Ex
    	Config map[string]string `ovsdb:"other_config"`
    }
 
-Based on these Models a Database Model (see DBModel type) is built to represent
+Based on these Models a Database Model (see ClientDBModel type) is built to represent
 the entire OVSDB:
 
-   dbModel, _ := client.NewDBModel("OVN_Northbound",
+   clientDBModel, _ := client.NewClientDBModel("OVN_Northbound",
        map[string]client.Model{
    	"Logical_Switch": &MyLogicalSwitch{},
    })
 
 
-The DBModel represents the entire Database (or the part of it we're interested in).
+The ClientDBModel represents the entire Database (or the part of it we're interested in).
 Using it, the libovsdb.client package is able to properly encode and decode OVSDB messages
 and store them in Model instances.
 A client instance is created by simply specifying the connection information and the database model:
 
-     ovs, _ := client.Connect(contect.Background(), dbModel)
+     ovs, _ := client.Connect(context.Background(), clientDBModel)
 
 Main API
 
@@ -61,9 +61,8 @@ Conditions must refer to fields of the provided Model (via pointer to fields). E
 		Value: []string{"portUUID"},
 	    })
 
-If no client.Condition is provided, the client will create a default Condition based on the Model's data.
-The first non-null field that corresponds to a database index will be used. Therefore the following
-two statements are equivalent:
+If no client.Condition is provided, the client will use any of fields that correspond to indexes to
+generate an appropriate condition. Therefore the following two statements are equivalent:
 
 	ls = &MyLogicalSwitch {UUID:"myUUID"}
 
@@ -92,8 +91,11 @@ For example, the following operation will delete all the Logical Switches named 
 
 To create a Condition that matches all of the conditions simultaneously (i.e: AND semantics), use WhereAll().
 
-Where() and WhereAll() inject conditions into operations that will be evaluated by the server.
-However, to perform searches on the local cache, a more flexible mechanism is available: WhereCache()
+Where() or WhereAll() evaluate the provided index values or explicit conditions against the cache and generate
+conditions based on the UUIDs of matching models. If no matches are found in the cache, the generated conditions
+will be based on the index or condition fields themselves.
+
+A more flexible mechanism to search the cache is available: WhereCache()
 
 WhereCache() accepts a function that takes any Model as argument and returns a boolean.
 It is used to search the cache so commonly used with List() function. For example:
@@ -111,7 +113,7 @@ same condition using Where() or WhereAll() which will be more efficient.
 
 Get
 
-Get() operation is a simple operation capable of retrieving one Model based on some of its indexes. E.g:
+Get() operation is a simple operation capable of retrieving one Model based on some of its schema indexes. E.g:
 
 	ls := &LogicalSwitch{UUID:"myUUID"}
 	err := ovs.Get(ls)
