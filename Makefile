@@ -24,6 +24,11 @@ V = 0
 Q = $(if $(filter 1,$V),,@)
 TLS_SETTING := $(if $(filter $(OCI_BIN),podman),--tls-verify=false,)
 
+# Go settings
+GO_BUILD_OPTS ?= CGO_ENABLED=0 GO111MODULE=on
+GO_TAGS ?= -tags no_openssl
+GO_FLAGS ?= -mod vendor
+
 all: lint build
 
 GO := $(GOBIN)/go
@@ -45,7 +50,7 @@ lint: $(GO) $(GOLANGCI)
 	$(GOLANGCI) run
 
 build-%: $(GO)
-	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=$(GOARCH) CGO_ENABLED=0 GO111MODULE=on $(GO) build -tags no_openssl -mod vendor
+	cd cmd/$* && $(GO) fmt && $(GO) vet && GOOS=linux GOARCH=$(GOARCH) $(GO_BUILD_OPTS) $(GO) build $(GO_TAGS)
 
 format: $(GO)
 	$(GO) fmt ./pkg/... ./cmd/...
