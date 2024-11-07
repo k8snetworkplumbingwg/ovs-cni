@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"reflect"
 	"strings"
@@ -27,6 +28,12 @@ import (
 	"github.com/golang/glog"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/cache"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/marker"
+)
+
+const (
+	UnixSocketType          = "unix"
+	TcpSocketType           = "tcp"
+	SocketConnectionTimeout = time.Minute
 )
 
 func main() {
@@ -51,41 +58,9 @@ func main() {
 		glog.Fatal("node-name must be set")
 	}
 
-	if *ovsSocket == "" {
-		glog.Fatal("ovs-socket must be set")
-	}
+	endpoint := parseOvsSocket(ovsSocket)
 
-	var socketType, path string
-	ovsSocketTokens := strings.Split(*ovsSocket, ":")
-	if len(ovsSocketTokens) < 2 {
-		/*
-		 * ovsSocket should consist of comma separated socket type and socket
-		 * detail. If no socket type is specified, it is assumed to be a unix
-		 * domain socket, for backwards compatibility.
-		 */
-		socketType = "unix"
-		path = *ovsSocket
-	} else {
-		socketType = ovsSocketTokens[0]
-		path = ovsSocketTokens[1]
-	}
-
-	if socketType == "unix" {
-		for {
-			_, err := os.Stat(path)
-			if err == nil {
-				glog.Info("Found the OVS socket")
-				break
-			} else if os.IsNotExist(err) {
-				glog.Infof("Given ovs-socket %q was not found, waiting for the socket to appear", path)
-				time.Sleep(time.Minute)
-			} else {
-				glog.Fatalf("Failed opening the OVS socket with: %v", err)
-			}
-		}
-	}
-
-	markerApp, err := marker.NewMarker(*nodeName, socketType+":"+path)
+	markerApp, err := marker.NewMarker(*nodeName, endpoint)
 	if err != nil {
 		glog.Fatalf("Failed to create a new marker object: %v", err)
 	}
@@ -136,4 +111,69 @@ func keepAlive(healthCheckFile string, healthCheckInterval int) {
 		}
 
 	}, time.Duration(healthCheckInterval)*time.Second)
+}
+
+func parseOvsSocket(ovsSocket *string) string {
+	if *ovsSocket == "" {
+		glog.Fatal("ovs-socket must be set")
+	}
+
+	var socketType, address string
+	ovsSocketTokens := strings.Split(*ovsSocket, ":")
+	if len(ovsSocketTokens) < 2 {
+		/*
+		 * ovsSocket should consist of comma separated socket type and socket
+		 * detail. If no socket type is specified, it is assumed to be a unix
+		 * domain socket, for backwards compatibility.
+		 */
+		socketType = UnixSocketType
+		address = *ovsSocket
+	} else {
+		socketType = ovsSocketTokens[0]
+		if socketType == TcpSocketType {
+			if len(ovsSocketTokens) != 3 {
+				glog.Fatalf("Failed to parse OVS %s socket, must be in this format %s:<host>:<port>", socketType, socketType)
+			}
+			address = fmt.Sprintf("%s:%s", ovsSocketTokens[1], ovsSocketTokens[2])
+		} else {
+			// unix socket
+			address = ovsSocketTokens[1]
+		}
+	}
+	endpoint := fmt.Sprintf("%s:%s", socketType, address)
+
+	if socketType == UnixSocketType {
+		for {
+			_, err := os.Stat(address)
+			if err == nil {
+				glog.Info("Found the OVS socket")
+				break
+			} else if os.IsNotExist(err) {
+				glog.Infof("Given ovs-socket %q was not found, waiting for the socket to appear", address)
+				time.Sleep(SocketConnectionTimeout)
+			} else {
+				glog.Fatalf("Failed opening the OVS socket with: %v", err)
+			}
+		}
+	} else if socketType == TcpSocketType {
+		conn, err := net.DialTimeout(socketType, address, SocketConnectionTimeout)
+		if err == nil {
+			glog.Info("Successfully connected to TCP socket")
+			conn.Close()
+			return endpoint
+		}
+
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			glog.Fatalf("Connection to %s timed out", address)
+		} else if opErr, ok := err.(*net.OpError); ok {
+			if opErr.Op == "dial" {
+				glog.Fatalf("Connection to %s failed: %v", address, err)
+			} else {
+				glog.Fatalf("Unexpected error when connecting to %s: %v", address, err)
+			}
+		} else {
+			glog.Fatalf("Unexpected error when connecting to %s: %v", address, err)
+		}
+	}
+	return endpoint
 }
