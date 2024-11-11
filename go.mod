@@ -108,4 +108,4 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.31.0
 )
 
-go 1.22.0
+go 1.22.9
