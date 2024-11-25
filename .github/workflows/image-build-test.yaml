@@ -27,9 +27,5 @@ jobs:
         with:
           context: .
           push: false
-          # no need to explicitly set goarch, 
-          # correct arch will be selected for each build platform 
-          build-args: |
-            goarch=
           platforms: ${{ env.BUILD_PLATFORMS }}
           file: ./cmd/Dockerfile
