@@ -45,10 +45,6 @@ jobs:
         with:
           context: .
           push: true
-          # no need to explicitly set goarch, 
-          # correct arch will be selected for each build platform 
-          build-args: |
-            goarch=
           platforms: ${{ env.BUILD_PLATFORMS }}
           tags: |
             ${{ env.IMAGE_NAME }}:latest
