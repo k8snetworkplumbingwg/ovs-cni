@@ -158,13 +158,13 @@ func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationRe
 // **************** OVS driver API ********************
 
 // CreatePort Create an internal port in OVS
-func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string) error {
+func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, podNamespaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string) error {
 	intfUUID, intfOp, err := createInterfaceOperation(intfName, ofportRequest, ovnPortName, intfType)
 	if err != nil {
 		return err
 	}
 
-	portUUID, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, trunks, portType, intfUUID)
+	portUUID, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, podNamespaceName, vlanTag, trunks, portType, intfUUID)
 	if err != nil {
 		return err
 	}
@@ -853,7 +853,7 @@ func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName s
 	return intfUUID, &intfOp, nil
 }
 
-func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUUID ovsdb.UUID) (ovsdb.UUID, *ovsdb.Operation, error) {
+func createPortOperation(intfName, contNetnsPath, contIfaceName, podNamespaceName string, vlanTag uint, trunks []uint, portType string, intfUUID ovsdb.UUID) (ovsdb.UUID, *ovsdb.Operation, error) {
 	portUUIDStr := intfName
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -880,6 +880,7 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 		"contNetns": contNetnsPath,
 		"contIface": contIfaceName,
 		"owner":     ovsPortOwner,
+		"pod":       podNamespaceName,
 	})
 	if err != nil {
 		return ovsdb.UUID{}, nil, err
