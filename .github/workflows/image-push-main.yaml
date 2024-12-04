@@ -2,7 +2,7 @@ name: "Push images on merge to main"
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}-plugin
-  BUILD_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le
+  BUILD_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
 
 on:
   push:
