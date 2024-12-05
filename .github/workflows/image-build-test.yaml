@@ -2,7 +2,7 @@ name: image-build-test
 on: [push, pull_request]
 
 env:
-  BUILD_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le
+  BUILD_PLATFORMS: linux/amd64,linux/arm64,linux/ppc64le,linux/s390x
 
 jobs:
   build-image:
