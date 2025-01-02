@@ -1,0 +1,52 @@
+# ---------- RHEL8 ----------
+FROM registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.23-openshift-4.19 AS builder-rhel8
+
+RUN mkdir /workdir
+WORKDIR /workdir
+
+COPY . .
+
+ENV GOOS linux
+# Support overriding target GOARCH during `make docker-build`
+ARG goarch=amd64
+ENV GOARCH=$goarch
+ENV CGO_ENABLED 1
+ENV GOFLAGS -mod=vendor
+
+RUN mkdir /workdir/bin
+RUN go build -o /workdir/bin/ovs ./cmd/plugin
+
+# ---------- RHEL9 ----------
+FROM registry.ci.openshift.org/ocp/builder:rhel-9-golang-1.23-openshift-4.19 AS builder-rhel9
+
+RUN mkdir /workdir
+WORKDIR /workdir
+
+COPY . .
+
+ENV GOOS linux
+# Support overriding target GOARCH during `make docker-build`
+ARG goarch=amd64
+ENV GOARCH=$goarch
+ENV CGO_ENABLED 1
+ENV GOFLAGS -mod=vendor
+
+RUN mkdir /workdir/bin
+RUN go build -o /workdir/bin/ovs ./cmd/plugin
+RUN go build -o /workdir/bin/marker ./cmd/marker
+RUN go build -o /workdir/bin/ovs-mirror-producer ./cmd/mirror-producer
+RUN go build -o /workdir/bin/ovs-mirror-consumer ./cmd/mirror-consumer
+
+# ---------- Run container ----------
+FROM registry.ci.openshift.org/ocp/4.19:base-rhel9
+
+COPY --from=builder-rhel9 /workdir/bin/* /
+
+RUN mkdir /usr/bin/rhel9
+COPY --from=builder-rhel9 /workdir/bin/ovs /usr/bin/rhel9
+RUN mkdir /usr/bin/rhel8
+COPY --from=builder-rhel8 /workdir/bin/ovs /usr/bin/rhel8
+
+WORKDIR /
+
+LABEL io.k8s.display-name="OVS CNI"
