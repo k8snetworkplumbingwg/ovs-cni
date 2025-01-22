@@ -1,21 +1,21 @@
 module github.com/k8snetworkplumbingwg/ovs-cni
 
 require (
-	dario.cat/mergo v1.0.0
+	dario.cat/mergo v1.0.1
 	github.com/containernetworking/cni v1.2.3
-	github.com/containernetworking/plugins v1.5.1
-	github.com/golang/glog v1.2.2
+	github.com/containernetworking/plugins v1.6.2
+	github.com/golang/glog v1.2.4
 	github.com/j-keck/arping v1.0.3
-	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.1
+	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.5
 	github.com/k8snetworkplumbingwg/sriovnet v1.2.0
-	github.com/onsi/ginkgo/v2 v2.21.0
-	github.com/onsi/gomega v1.35.1
+	github.com/onsi/ginkgo/v2 v2.22.2
+	github.com/onsi/gomega v1.36.2
 	github.com/ovn-org/libovsdb v0.7.0
 	github.com/pkg/errors v0.9.1
-	github.com/vishvananda/netlink v1.2.1-beta.2
-	k8s.io/api v0.32.0
-	k8s.io/apimachinery v0.32.0
-	k8s.io/client-go v0.32.0
+	github.com/vishvananda/netlink v1.3.0
+	k8s.io/api v0.32.1
+	k8s.io/apimachinery v0.32.1
+	k8s.io/client-go v0.32.1
 	kubevirt.io/qe-tools v0.1.8
 )
 
@@ -83,27 +83,27 @@ require (
 )
 
 replace (
-	k8s.io/api => k8s.io/api v0.32.0
-	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.32.0
-	k8s.io/apimachinery => k8s.io/apimachinery v0.32.0
-	k8s.io/apiserver => k8s.io/apiserver v0.32.0
-	k8s.io/cli-runtime => k8s.io/cli-runtime v0.32.0
-	k8s.io/client-go => k8s.io/client-go v0.32.0
-	k8s.io/cloud-provider => k8s.io/cloud-provider v0.32.0
-	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.32.0
-	k8s.io/code-generator => k8s.io/code-generator v0.32.0
-	k8s.io/component-base => k8s.io/component-base v0.32.0
-	k8s.io/cri-api => k8s.io/cri-api v0.32.0
-	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.32.0
-	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.32.0
-	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.0
-	k8s.io/kube-proxy => k8s.io/kube-proxy v0.32.0
-	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.32.0
-	k8s.io/kubectl => k8s.io/kubectl v0.32.0
-	k8s.io/kubelet => k8s.io/kubelet v0.32.0
-	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.4
-	k8s.io/metrics => k8s.io/metrics v0.32.0
-	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.32.0
+	k8s.io/api => k8s.io/api v0.32.1
+	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.32.1
+	k8s.io/apimachinery => k8s.io/apimachinery v0.32.1
+	k8s.io/apiserver => k8s.io/apiserver v0.32.1
+	k8s.io/cli-runtime => k8s.io/cli-runtime v0.32.1
+	k8s.io/client-go => k8s.io/client-go v0.32.1
+	k8s.io/cloud-provider => k8s.io/cloud-provider v0.32.1
+	k8s.io/cluster-bootstrap => k8s.io/cluster-bootstrap v0.32.1
+	k8s.io/code-generator => k8s.io/code-generator v0.32.1
+	k8s.io/component-base => k8s.io/component-base v0.32.1
+	k8s.io/cri-api => k8s.io/cri-api v0.32.1
+	k8s.io/csi-translation-lib => k8s.io/csi-translation-lib v0.32.1
+	k8s.io/kube-aggregator => k8s.io/kube-aggregator v0.32.1
+	k8s.io/kube-controller-manager => k8s.io/kube-controller-manager v0.32.1
+	k8s.io/kube-proxy => k8s.io/kube-proxy v0.32.1
+	k8s.io/kube-scheduler => k8s.io/kube-scheduler v0.32.1
+	k8s.io/kubectl => k8s.io/kubectl v0.32.1
+	k8s.io/kubelet => k8s.io/kubelet v0.32.1
+	k8s.io/legacy-cloud-providers => k8s.io/legacy-cloud-providers v0.30.9
+	k8s.io/metrics => k8s.io/metrics v0.32.1
+	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.32.1
 )
 
 go 1.23.0
