@@ -4,7 +4,7 @@ require (
 	github.com/Mellanox/sriovnet v1.0.2
 	github.com/containernetworking/cni v1.0.1
 	github.com/containernetworking/plugins v1.0.1
-	github.com/golang/glog v1.1.0
+	github.com/golang/glog v1.2.4
 	github.com/imdario/mergo v0.3.12
 	github.com/j-keck/arping v1.0.2
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v0.0.0-20200626054723-37f83d1996bc
