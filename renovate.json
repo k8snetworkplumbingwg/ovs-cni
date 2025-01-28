@@ -9,8 +9,6 @@
     "release-0.34"
   ],
   "prConcurrentLimit": 3,
-  "groupName": "all dependencies",
-  "groupSlug": "all",
   "lockFileMaintenance": {
     "enabled": false
   },
@@ -25,34 +23,14 @@
     "hack/**",
     "manifests/**"
   ],
+  "postUpdateOptions": ["gomodTidy"],
   "packageRules": [
     {
-      "groupName": "all dependencies on main",
-      "matchBaseBranches": [
-        "main"
-      ],
-      "matchPackagePatterns": [
-        "*"
-      ]
-    },
-    {
-      "groupName": "only security dependencies on stable",
+      "groupName": "all dependencies",
+      "groupSlug": "all",
       "enabled": false,
-      "matchBaseBranches": [
-        "release-0.34"
-      ],
       "matchPackagePatterns": [
         "*"
-      ]
-    },
-    {
-      "matchPackageNames": [
-        "golang",
-        "go"
-      ],
-      "allowedVersions": "<=1.22",
-      "matchBaseBranches": [
-        "release-0.34"
       ]
     }
   ],
@@ -61,5 +39,5 @@
   },
   "osvVulnerabilityAlerts": true,
   "assigneesFromCodeOwners": true,
-  "separateMajorMinor": false
+  "separateMajorMinor": true
 }
