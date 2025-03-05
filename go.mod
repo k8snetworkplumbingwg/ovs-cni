@@ -54,12 +54,11 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/oauth2 v0.13.0 // indirect
+	golang.org/x/oauth2 v0.27.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/time v0.3.0 // indirect
-	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
@@ -98,6 +97,6 @@ replace (
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.30.3
 )
 
-go 1.22.0
+go 1.23.0
 
-toolchain go1.22.5
+toolchain go1.23.7
