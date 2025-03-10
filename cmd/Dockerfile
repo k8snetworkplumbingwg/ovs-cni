@@ -1,10 +1,7 @@
-FROM quay.io/centos/centos:stream8 as builder
+FROM quay.io/projectquay/golang:1.18 as builder
 
 RUN mkdir /workdir
 WORKDIR /workdir
-
-COPY go.mod .
-RUN dnf install -y golang-$(sed -En 's/^go +(.*+)$/\1/p' go.mod).*
 
 COPY . .
 
