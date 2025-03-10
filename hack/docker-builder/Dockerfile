@@ -27,7 +27,7 @@ RUN \
     tar -xzf cni-plugins-linux-amd64-v1.0.1.tgz && \
     rm -f cni-plugins-linux-amd64-v1.0.1.tgz
 
-RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo
+RUN go install -mod=mod github.com/onsi/ginkgo/v2/ginkgo@v2.14.0
 
 ADD entrypoint.sh /entrypoint.sh
 
