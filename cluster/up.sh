@@ -34,4 +34,4 @@ curl https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/v3.9.1/de
 MULTUS_IMAGE=ghcr.io/k8snetworkplumbingwg/multus-cni:v3.9
 sed -i "s#ghcr.io/k8snetworkplumbingwg/multus-cni:stable\$#$MULTUS_IMAGE#" cluster/multus-daemonset.yml
 ./cluster/kubectl.sh create -f cluster/multus-daemonset.yml
-./cluster/kubectl.sh -n kube-system wait --for=condition=ready -l name=multus pod --timeout=300s
+./cluster/kubectl.sh rollout status daemonset -l name=multus -n kube-system --timeout=300s
