@@ -89,6 +89,7 @@ spec:
                 find /tmp/healthy -mmin -2 | grep -q '/tmp/healthy'
           initialDelaySeconds: ${OVS_CNI_MARKER_HEALTHCHECK_INTERVAL}
           periodSeconds: ${OVS_CNI_MARKER_HEALTHCHECK_INTERVAL}
+        terminationMessagePolicy: FallbackToLogsOnError
       volumes:
         - name: cnibin
           hostPath:
