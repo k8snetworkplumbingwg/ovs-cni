@@ -18,17 +18,22 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	"github.com/vishvananda/netlink"
 
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/containernetworking/plugins/pkg/netlinksafe"
 	"github.com/containernetworking/plugins/pkg/utils/sysctl"
 )
 
 const (
 	// Note: use slash as separator so we can have dots in interface name (VLANs)
-	DisableIPv6SysctlTemplate = "net/ipv6/conf/%s/disable_ipv6"
+	DisableIPv6SysctlTemplate    = "net/ipv6/conf/%s/disable_ipv6"
+	KeepAddrOnDownSysctlTemplate = "net/ipv6/conf/%s/keep_addr_on_down"
+
+	dadSettleTimeout = 5 * time.Second
 )
 
 // ConfigureIface takes the result of IPAM plugin and
@@ -38,7 +43,7 @@ func ConfigureIface(ifName string, res *current.Result) error {
 		return fmt.Errorf("no interfaces to configure")
 	}
 
-	link, err := netlink.LinkByName(ifName)
+	link, err := netlinksafe.LinkByName(ifName)
 	if err != nil {
 		return fmt.Errorf("failed to lookup %q: %v", ifName, err)
 	}
@@ -55,8 +60,8 @@ func ConfigureIface(ifName string, res *current.Result) error {
 			return fmt.Errorf("failed to add IP addr %v to %q: invalid interface index", ipc, ifName)
 		}
 
-		// Make sure sysctl "disable_ipv6" is 0 if we are about to add
-		// an IPv6 address to the interface
+		// Make sure sysctl "disable_ipv6" is 0 and "keep_addr_on_down" is 1
+		// if we are about to add an IPv6 address to the interface
 		if !hasEnabledIpv6 && ipc.Address.IP.To4() == nil {
 			// Enabled IPv6 for loopback "lo" and the interface
 			// being configured
@@ -79,6 +84,15 @@ func ConfigureIface(ifName string, res *current.Result) error {
 					return fmt.Errorf("failed to enable IPv6 for interface %q (%s=%s): %v", iface, ipv6SysctlValueName, value, err)
 				}
 			}
+
+			// Enable "keep_addr_on_down" for the interface being configured
+			// This prevents the kernel from removing the address when the interface is brought down
+			keepAddrOnDownSysctlValueName := fmt.Sprintf(KeepAddrOnDownSysctlTemplate, ifName)
+			_, err = sysctl.Sysctl(keepAddrOnDownSysctlValueName, "1")
+			if err != nil {
+				return fmt.Errorf("failed to enable keep_addr_on_down for interface %q: %v", ifName, err)
+			}
+
 			hasEnabledIpv6 = true
 		}
 
@@ -100,7 +114,10 @@ func ConfigureIface(ifName string, res *current.Result) error {
 	}
 
 	if v6gw != nil {
-		ip.SettleAddresses(ifName, 10)
+		err = ip.SettleAddresses(ifName, dadSettleTimeout)
+		if err != nil {
+			return fmt.Errorf("failed to settle addresses for %q: %v", ifName, err)
+		}
 	}
 
 	for _, r := range res.Routes {
@@ -117,10 +134,27 @@ func ConfigureIface(ifName string, res *current.Result) error {
 			Dst:       &r.Dst,
 			LinkIndex: link.Attrs().Index,
 			Gw:        gw,
+			Priority:  r.Priority,
+		}
+
+		if r.Table != nil {
+			route.Table = *r.Table
+		}
+
+		if r.Scope != nil {
+			route.Scope = netlink.Scope(*r.Scope)
+		}
+
+		if r.Table != nil {
+			route.Table = *r.Table
+		}
+
+		if r.Scope != nil {
+			route.Scope = netlink.Scope(*r.Scope)
 		}
 
 		if err = netlink.RouteAddEcmp(&route); err != nil {
-			return fmt.Errorf("failed to add route '%v via %v dev %v': %v", r.Dst, gw, ifName, err)
+			return fmt.Errorf("failed to add route '%v via %v dev %v metric %d (Scope: %v, Table: %d)': %v", r.Dst, gw, ifName, r.Priority, route.Scope, route.Table, err)
 		}
 	}
 
