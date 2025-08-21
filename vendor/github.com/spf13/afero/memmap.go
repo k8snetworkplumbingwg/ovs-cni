@@ -15,9 +15,11 @@ package afero
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -85,6 +87,24 @@ func (m *MemMapFs) findParent(f *mem.FileData) *mem.FileData {
 		return nil
 	}
 	return pfile
+}
+
+func (m *MemMapFs) findDescendants(name string) []*mem.FileData {
+	fData := m.getData()
+	descendants := make([]*mem.FileData, 0, len(fData))
+	for p, dFile := range fData {
+		if strings.HasPrefix(p, name+FilePathSeparator) {
+			descendants = append(descendants, dFile)
+		}
+	}
+
+	sort.Slice(descendants, func(i, j int) bool {
+		cur := len(strings.Split(descendants[i].Name(), FilePathSeparator))
+		next := len(strings.Split(descendants[j].Name(), FilePathSeparator))
+		return cur < next
+	})
+
+	return descendants
 }
 
 func (m *MemMapFs) registerWithParent(f *mem.FileData, perm os.FileMode) {
@@ -237,7 +257,7 @@ func (m *MemMapFs) OpenFile(name string, flag int, perm os.FileMode) (File, erro
 		file = mem.NewReadOnlyFileHandle(file.(*mem.File).Data())
 	}
 	if flag&os.O_APPEND > 0 {
-		_, err = file.Seek(0, os.SEEK_END)
+		_, err = file.Seek(0, io.SeekEnd)
 		if err != nil {
 			file.Close()
 			return nil, err
@@ -308,29 +328,51 @@ func (m *MemMapFs) Rename(oldname, newname string) error {
 	if _, ok := m.getData()[oldname]; ok {
 		m.mu.RUnlock()
 		m.mu.Lock()
-		m.unRegisterWithParent(oldname)
+		err := m.unRegisterWithParent(oldname)
+		if err != nil {
+			return err
+		}
+
 		fileData := m.getData()[oldname]
-		delete(m.getData(), oldname)
 		mem.ChangeFileName(fileData, newname)
 		m.getData()[newname] = fileData
+
+		err = m.renameDescendants(oldname, newname)
+		if err != nil {
+			return err
+		}
+
+		delete(m.getData(), oldname)
+
 		m.registerWithParent(fileData, 0)
 		m.mu.Unlock()
 		m.mu.RLock()
 	} else {
 		return &os.PathError{Op: "rename", Path: oldname, Err: ErrFileNotFound}
 	}
+	return nil
+}
 
-	for p, fileData := range m.getData() {
-		if strings.HasPrefix(p, oldname+FilePathSeparator) {
-			m.mu.RUnlock()
-			m.mu.Lock()
-			delete(m.getData(), p)
-			p := strings.Replace(p, oldname, newname, 1)
-			m.getData()[p] = fileData
-			m.mu.Unlock()
-			m.mu.RLock()
+func (m *MemMapFs) renameDescendants(oldname, newname string) error {
+	descendants := m.findDescendants(oldname)
+	removes := make([]string, 0, len(descendants))
+	for _, desc := range descendants {
+		descNewName := strings.Replace(desc.Name(), oldname, newname, 1)
+		err := m.unRegisterWithParent(desc.Name())
+		if err != nil {
+			return err
 		}
+
+		removes = append(removes, desc.Name())
+		mem.ChangeFileName(desc, descNewName)
+		m.getData()[descNewName] = desc
+
+		m.registerWithParent(desc, 0)
 	}
+	for _, r := range removes {
+		delete(m.getData(), r)
+	}
+
 	return nil
 }
 

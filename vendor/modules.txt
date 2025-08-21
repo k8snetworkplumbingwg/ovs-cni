@@ -129,8 +129,8 @@ github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/scheme
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/client/clientset/versioned/typed/k8s.cni.cncf.io/v1
-# github.com/k8snetworkplumbingwg/sriovnet v1.2.0
-## explicit; go 1.18
+# github.com/k8snetworkplumbingwg/sriovnet v1.2.1-0.20250818105516-24ab680f94f3
+## explicit; go 1.23.0
 github.com/k8snetworkplumbingwg/sriovnet
 github.com/k8snetworkplumbingwg/sriovnet/pkg/utils/filesystem
 github.com/k8snetworkplumbingwg/sriovnet/pkg/utils/netlinkops
@@ -228,22 +228,23 @@ github.com/prometheus/procfs/internal/util
 # github.com/safchain/ethtool v0.4.0
 ## explicit; go 1.16
 github.com/safchain/ethtool
-# github.com/spf13/afero v1.9.4
-## explicit; go 1.16
+# github.com/spf13/afero v1.14.0
+## explicit; go 1.23.0
 github.com/spf13/afero
 github.com/spf13/afero/internal/common
 github.com/spf13/afero/mem
 # github.com/spf13/pflag v1.0.5
 ## explicit; go 1.12
 github.com/spf13/pflag
-# github.com/stretchr/testify v1.9.0
+# github.com/stretchr/testify v1.10.0
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
-# github.com/vishvananda/netlink v1.2.1-beta.2
+github.com/stretchr/testify/assert/yaml
+# github.com/vishvananda/netlink v1.3.1
 ## explicit; go 1.12
 github.com/vishvananda/netlink
 github.com/vishvananda/netlink/nl
-# github.com/vishvananda/netns v0.0.4
+# github.com/vishvananda/netns v0.0.5
 ## explicit; go 1.17
 github.com/vishvananda/netns
 # github.com/x448/float16 v0.8.4
