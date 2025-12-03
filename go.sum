@@ -226,6 +226,8 @@ github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/julienschmidt/httprouter v1.2.0/go.mod h1:SYymIcj16QtmaHHD7aYtjjsJG7VTCxuUUipMqKk8s4w=
 github.com/julienschmidt/httprouter v1.3.0/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
+github.com/k8snetworkplumbingwg/govdpa v0.1.5-0.20260114172534-639773118e4f h1:LQtn/QM21xLLxENWYdCuuyBZs0jO8J0vt9aB9G2H5nU=
+github.com/k8snetworkplumbingwg/govdpa v0.1.5-0.20260114172534-639773118e4f/go.mod h1:w+XfqnQFjNnng94Uy1j4OFtkeCEH204rOH0Hn6zncLg=
 github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7 h1:z4P744DR+PIpkjwXSEc6TvN3L6LVzmUquFgmNm8wSUc=
 github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7/go.mod h1:CM7HAH5PNuIsqjMN0fGc1ydM74Uj+0VZFhob620nklw=
 github.com/k8snetworkplumbingwg/sriovnet v1.2.0 h1:6ELfAxCB1dvosGUy3DVRmfH+HWTzmPD3W67HKQvMR1M=

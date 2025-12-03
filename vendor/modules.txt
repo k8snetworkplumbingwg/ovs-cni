@@ -124,6 +124,9 @@ github.com/josharian/intern
 # github.com/json-iterator/go v1.1.12
 ## explicit; go 1.12
 github.com/json-iterator/go
+# github.com/k8snetworkplumbingwg/govdpa v0.1.5-0.20260114172534-639773118e4f
+## explicit; go 1.24.0
+github.com/k8snetworkplumbingwg/govdpa/pkg/kvdpa
 # github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 ## explicit; go 1.21
 github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io

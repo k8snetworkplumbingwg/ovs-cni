@@ -8,6 +8,7 @@ require (
 	github.com/containernetworking/plugins v1.8.0
 	github.com/golang/glog v1.2.5
 	github.com/j-keck/arping v1.0.3
+	github.com/k8snetworkplumbingwg/govdpa v0.1.5-0.20260114172534-639773118e4f
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/k8snetworkplumbingwg/sriovnet v1.2.0
 	github.com/onsi/ginkgo/v2 v2.28.1
