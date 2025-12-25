@@ -6,7 +6,7 @@ require (
 	github.com/containernetworking/plugins v1.5.1
 	github.com/golang/glog v1.2.4
 	github.com/j-keck/arping v1.0.3
-	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.1
+	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/k8snetworkplumbingwg/sriovnet v1.2.0
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
