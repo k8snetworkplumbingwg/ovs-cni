@@ -28,7 +28,7 @@ import (
 )
 
 var kubeconfig *string
-var clusterApi *clusterapi.ClusterAPI
+var clusterAPI *clusterapi.ClusterAPI
 
 func TestPlugin(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -46,13 +46,13 @@ var _ = BeforeSuite(func() {
 	err := os.Chdir("../")
 	Expect(err).NotTo(HaveOccurred())
 
-	clusterApi = clusterapi.NewClusterAPI(*kubeconfig)
-	clusterApi.RemoveTestNamespace()
-	clusterApi.CreateTestNamespace()
+	clusterAPI = clusterapi.NewClusterAPI(*kubeconfig)
+	clusterAPI.RemoveTestNamespace()
+	clusterAPI.CreateTestNamespace()
 })
 
 var _ = AfterSuite(func() {
-	clusterApi.RemoveTestNamespace()
+	clusterAPI.RemoveTestNamespace()
 })
 
 func init() {

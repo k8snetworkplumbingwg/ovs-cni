@@ -23,16 +23,16 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang/glog"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"github.com/golang/glog"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/cache"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/marker"
 )
 
 const (
 	UnixSocketType          = "unix"
-	TcpSocketType           = "tcp"
+	TCPSocketType           = "tcp"
 	SocketConnectionTimeout = time.Minute
 )
 
@@ -98,7 +98,6 @@ func main() {
 		if err != nil {
 			glog.Fatalf("Update failed: %v", err)
 		}
-
 	}, time.Duration(*updateInterval)*time.Second, 1.2, true, wait.NeverStop)
 }
 
@@ -119,7 +118,6 @@ func keepAlive(healthCheckFile string, healthCheckInterval int) {
 					healthCheckFile, err)
 			}
 		}
-
 	}, time.Duration(healthCheckInterval)*time.Second)
 }
 
@@ -140,7 +138,7 @@ func parseOvsSocket(ovsSocket *string) (string, string, error) {
 		address = *ovsSocket
 	} else {
 		socketType = ovsSocketTokens[0]
-		if socketType == TcpSocketType {
+		if socketType == TCPSocketType {
 			if len(ovsSocketTokens) != 3 {
 				return "", "", fmt.Errorf("failed to parse OVS %s socket, must be in this format %s:<host>:<port>", socketType, socketType)
 			}
@@ -166,8 +164,8 @@ func getOvsSocketValidator(socketType string) (func(string) error, error) {
 	switch socketType {
 	case UnixSocketType:
 		return validateOvsUnixConnection, nil
-	case TcpSocketType:
-		return validateOvsTcpConnection, nil
+	case TCPSocketType:
+		return validateOvsTCPConnection, nil
 	default:
 		return nil, fmt.Errorf("unsupported ovs socket type: %s", socketType)
 	}
@@ -189,8 +187,8 @@ func validateOvsUnixConnection(address string) error {
 	return nil
 }
 
-func validateOvsTcpConnection(address string) error {
-	conn, err := net.DialTimeout(TcpSocketType, address, SocketConnectionTimeout)
+func validateOvsTCPConnection(address string) error {
+	conn, err := net.DialTimeout(TCPSocketType, address, SocketConnectionTimeout)
 	if err == nil {
 		glog.Info("Successfully connected to TCP socket")
 		conn.Close()

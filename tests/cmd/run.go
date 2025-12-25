@@ -41,7 +41,7 @@ func Run(command string, arguments ...string) (string, error) {
 		return "", err
 	}
 
-	if _, err := ginkgo.GinkgoWriter.Write([]byte(fmt.Sprintf("stdout: %.500s...\n, stderr %s\n", stdout.String(), stderr.String()))); err != nil {
+	if _, err := fmt.Fprintf(ginkgo.GinkgoWriter, "stdout: %.500s...\n, stderr %s\n", stdout.String(), stderr.String()); err != nil {
 		return "", err
 	}
 

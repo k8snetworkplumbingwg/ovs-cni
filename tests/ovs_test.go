@@ -37,7 +37,7 @@ var testFunc = func(version string) {
 	Describe("pod availability tests", func() {
 		Context("When ovs-cni is deployed on the cluster", func() {
 			Specify("ovs-cni pod should be up and running", func() {
-				pods, _ := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				pods, _ := clusterAPI.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
 				Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
 			})
 		})
@@ -56,10 +56,10 @@ var testFunc = func(version string) {
 			Context("and a network attachment definition is defined", func() {
 				const nadName = "ovs-net"
 				BeforeEach(func() {
-					clusterApi.CreateNetworkAttachmentDefinition(nadName, bridgeName, `{ "cniVersion": "`+version+`", "type": "ovs", "bridge": "`+bridgeName+`", "vlan": 100 }`)
+					clusterAPI.CreateNetworkAttachmentDefinition(nadName, bridgeName, `{ "cniVersion": "`+version+`", "type": "ovs", "bridge": "`+bridgeName+`", "vlan": 100 }`)
 				})
 				AfterEach(func() {
-					clusterApi.RemoveNetworkAttachmentDefinition(nadName)
+					clusterAPI.RemoveNetworkAttachmentDefinition(nadName)
 				})
 
 				Context("and two pods are connected through it", func() {
@@ -70,11 +70,11 @@ var testFunc = func(version string) {
 						cidrPod2 = "10.0.0.2/24"
 					)
 					BeforeEach(func() {
-						clusterApi.CreatePrivilegedPodWithIP(pod1Name, nadName, bridgeName, cidrPod1, "")
-						clusterApi.CreatePrivilegedPodWithIP(pod2Name, nadName, bridgeName, cidrPod2, "")
+						clusterAPI.CreatePrivilegedPodWithIP(pod1Name, nadName, bridgeName, cidrPod1, "")
+						clusterAPI.CreatePrivilegedPodWithIP(pod2Name, nadName, bridgeName, cidrPod2, "")
 					})
 					AfterEach(func() {
-						clusterApi.DeletePodsInTestNamespace()
+						clusterAPI.DeletePodsInTestNamespace()
 					})
 
 					Specify("they should be able to communicate over the network", func() {
@@ -84,7 +84,7 @@ var testFunc = func(version string) {
 						ipPod2, _, err := net.ParseCIDR(cidrPod2)
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing pod's cidr: %s", cidrPod2))
 
-						err = clusterApi.PingFromPod(pod1Name, "test", ipPod2.String())
+						err = clusterAPI.PingFromPod(pod1Name, "test", ipPod2.String())
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", pod1Name, ipPod2.String(), pod2Name, ipPod1.String()))
 					})
 				})

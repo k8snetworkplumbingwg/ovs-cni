@@ -50,9 +50,9 @@ import (
 // EnvArgs args containing common, desired mac and ovs port name
 type EnvArgs struct {
 	cnitypes.CommonArgs
-	MAC         cnitypes.UnmarshallableString `json:"mac,omitempty"`
-	OvnPort     cnitypes.UnmarshallableString `json:"ovnPort,omitempty"`
-	K8S_POD_UID cnitypes.UnmarshallableString
+	MAC       cnitypes.UnmarshallableString `json:"mac,omitempty"`
+	OvnPort   cnitypes.UnmarshallableString `json:"ovnPort,omitempty"`
+	K8SPodUID cnitypes.UnmarshallableString
 }
 
 func init() {
@@ -85,7 +85,6 @@ func getHardwareAddr(ifName string) string {
 		return ""
 	}
 	return ifLink.Attrs().HardwareAddr.String()
-
 }
 
 // IPAddrToHWAddr takes the four octets of IPv4 address (aa.bb.cc.dd, for example) and uses them in creating
@@ -186,8 +185,8 @@ func getBridgeName(driver *ovsdb.OvsDriver, bridgeName, ovnPort, deviceID string
 	return "", fmt.Errorf("failed to get bridge name")
 }
 
-func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string, contPodUid string) error {
-	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType, contPodUid)
+func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string, contPodUID string) error {
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType, contPodUID)
 	if err != nil {
 		return err
 	}
@@ -265,11 +264,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var mac string
 	var ovnPort string
-	var contPodUid string
+	var contPodUID string
 	if envArgs != nil {
 		mac = string(envArgs.MAC)
 		ovnPort = string(envArgs.OvnPort)
-		contPodUid = string(envArgs.K8S_POD_UID)
+		contPodUID = string(envArgs.K8SPodUID)
 	}
 
 	netconf, err := config.LoadConf(args.StdinData)
@@ -279,9 +278,9 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	var vlanTagNum uint = 0
 	trunks := make([]uint, 0)
-	portType := "access"
+	portType := ovsdb.PortTypeAccess
 	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
-		portType = "trunk"
+		portType = ovsdb.PortTypeTrunk
 		if len(netconf.Trunk) > 0 {
 			trunkVlanIds, err := splitVlanIds(netconf.Trunk)
 			if err != nil {
@@ -359,7 +358,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
+	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, contPodUID); err != nil {
 		return err
 	}
 	defer func() {
@@ -490,7 +489,7 @@ func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string, retryCount,
 			}
 		}
 		if i == retryCount {
-			return fmt.Errorf("The OF port %s state is not up, try increasing number of retries/interval config parameter", ofPortName)
+			return fmt.Errorf("the OF port %s state is not up, try increasing number of retries/interval config parameter", ofPortName)
 		}
 		time.Sleep(checkInterval)
 	}
@@ -520,7 +519,6 @@ func cleanPorts(ovsDriver *ovsdb.OvsBridgeDriver) error {
 }
 
 func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
-
 	return ovsDriver.DeletePort(portName)
 }
 
@@ -614,7 +612,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	// it explicitly.
 	portName, portFound, err := getOvsPortForContIface(ovsBridgeDriver, args.IfName, args.Netns)
 	if err != nil {
-		return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
+		return fmt.Errorf("failed to obtain OVS port for given connection: %v", err)
 	}
 
 	// Do not return an error if the port was not found, it may have been
@@ -719,7 +717,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 
 	// Parse previous result.
 	if netconf.NetConf.RawPrevResult == nil {
-		return fmt.Errorf("Required prevResult missing")
+		return fmt.Errorf("required prevResult missing")
 	}
 	if err := version.ParsePrevResult(&netconf.NetConf); err != nil {
 		return err
@@ -747,7 +745,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 
 	// The namespace must be the same as what was configured
 	if args.Netns != contIntf.Sandbox {
-		return fmt.Errorf("Sandbox in prevResult %s doesn't match configured netns: %s",
+		return fmt.Errorf("sandbox in prevResult %s doesn't match configured netns: %s",
 			contIntf.Sandbox, args.Netns)
 	}
 
@@ -759,7 +757,6 @@ func CmdCheck(args *skel.CmdArgs) error {
 
 	// Check prevResults for ips and routes against values found in the container
 	if err := netns.Do(func(_ ns.NetNS) error {
-
 		// Check interface against values found in the container
 		err := validateInterface(contIntf, false, ovsHWOffloadEnable)
 		if err != nil {
@@ -790,12 +787,12 @@ func CmdCheck(args *skel.CmdArgs) error {
 
 func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	if cache.Netconf.BrName != netconf.BrName {
-		return fmt.Errorf("BrName mismatch. cache=%s,netconf=%s",
+		return fmt.Errorf("brName mismatch. cache=%s,netconf=%s",
 			cache.Netconf.BrName, netconf.BrName)
 	}
 
 	if cache.Netconf.SocketFile != netconf.SocketFile {
-		return fmt.Errorf("SocketFile mismatch. cache=%s,netconf=%s",
+		return fmt.Errorf("socketFile mismatch. cache=%s,netconf=%s",
 			cache.Netconf.SocketFile, netconf.SocketFile)
 	}
 
@@ -805,7 +802,7 @@ func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	}
 
 	if cache.Netconf.DeviceID != netconf.DeviceID {
-		return fmt.Errorf("DeviceID mismatch. cache=%s,netconf=%s",
+		return fmt.Errorf("deviceID mismatch. cache=%s,netconf=%s",
 			cache.Netconf.DeviceID, netconf.DeviceID)
 	}
 
@@ -827,20 +824,20 @@ func validateInterface(intf current.Interface, isHost bool, hwOffload bool) erro
 	}
 	link, err = netlink.LinkByName(intf.Name)
 	if err != nil {
-		return fmt.Errorf("Error: %s Interface name in prevResult: %s not found", iftype, intf.Name)
+		return fmt.Errorf("error: %s interface name in prevResult: %s not found", iftype, intf.Name)
 	}
 	if !isHost && intf.Sandbox == "" {
-		return fmt.Errorf("Error: %s interface %s should not be in host namespace", iftype, link.Attrs().Name)
+		return fmt.Errorf("error: %s interface %s should not be in host namespace", iftype, link.Attrs().Name)
 	}
 	if !hwOffload {
 		_, isVeth := link.(*netlink.Veth)
 		if !isVeth {
-			return fmt.Errorf("Error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
+			return fmt.Errorf("error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
 		}
 	}
 
 	if intf.Mac != "" && intf.Mac != link.Attrs().HardwareAddr.String() {
-		return fmt.Errorf("Error: Interface %s Mac %s doesn't match %s Mac: %s", intf.Name, intf.Mac, iftype, link.Attrs().HardwareAddr)
+		return fmt.Errorf("error: interface %s Mac %s doesn't match %s Mac: %s", intf.Name, intf.Mac, iftype, link.Attrs().HardwareAddr)
 	}
 
 	return nil
@@ -857,7 +854,7 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 		return err
 	}
 	if !found {
-		return fmt.Errorf("Error: bridge %s is not found in OVS", netconf.BrName)
+		return fmt.Errorf("error: bridge %s is not found in OVS", netconf.BrName)
 	}
 
 	ifaces, err := ovsBridgeDriver.FindInterfacesWithError()
@@ -865,12 +862,12 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 		return err
 	}
 	if len(ifaces) > 0 {
-		return fmt.Errorf("Error: There are some interfaces in error state: %v", ifaces)
+		return fmt.Errorf("error: there are some interfaces in error state: %v", ifaces)
 	}
 
 	vlanMode, tag, trunk, err := ovsBridgeDriver.GetOFPortVlanState(hostIfname)
 	if err != nil {
-		return fmt.Errorf("Error: Failed to retrieve port %s state: %v", hostIfname, err)
+		return fmt.Errorf("error: failed to retrieve port %s state: %v", hostIfname, err)
 	}
 
 	// check vlan tag
@@ -885,7 +882,7 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 		if *tag != *netconf.VlanTag {
 			return fmt.Errorf("vlan tag mismatch. ovs=%d,netconf=%d", *tag, *netconf.VlanTag)
 		}
-		if vlanMode != "access" {
+		if vlanMode != ovsdb.PortTypeAccess {
 			return fmt.Errorf("vlan mode mismatch. expected=access,real=%s", vlanMode)
 		}
 	}
@@ -909,7 +906,7 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 			}
 		}
 
-		if vlanMode != "trunk" {
+		if vlanMode != ovsdb.PortTypeTrunk {
 			return fmt.Errorf("vlan mode mismatch. expected=trunk,real=%s", vlanMode)
 		}
 	}
