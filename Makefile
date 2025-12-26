@@ -42,7 +42,7 @@ $(BASE): ; $(info  setting GOPATH...)
 
 GOLANGCI = $(GOBIN)/golangci-lint
 $(GOBIN)/golangci-lint: $(GO) | $(BASE) ; $(info  building golangci-lint...)
-	$Q $(GO) install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.6
+	$Q $(GO) install -mod=mod github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.6.2
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 

@@ -37,7 +37,7 @@ var _ = Describe("ovs-cni-marker", func() {
 			}()
 
 			Eventually(func() bool {
-				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
+				node, err := clusterAPI.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				capacity, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				if !reported {
@@ -51,7 +51,7 @@ var _ = Describe("ovs-cni-marker", func() {
 			Expect(err).NotTo(HaveOccurred(), "Failed removing a test bridge: %v: %v", err, out)
 
 			Eventually(func() bool {
-				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
+				node, err := clusterAPI.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
 				_, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				return reported
@@ -63,7 +63,7 @@ var _ = Describe("ovs-cni-marker", func() {
 	Describe("Health Check", func() {
 		It("Should not restart ovs-cni-marker container", func() {
 			Consistently(func() bool {
-				pods, err := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(),
+				pods, err := clusterAPI.Clientset.CoreV1().Pods("").List(context.TODO(),
 					metav1.ListOptions{LabelSelector: "app=ovs-cni"})
 				Expect(err).ToNot(HaveOccurred(), "should fetch ovs-cni pods successfully")
 				Expect(pods.Items).ToNot(BeEmpty(), "ovs-cni pods should be running")

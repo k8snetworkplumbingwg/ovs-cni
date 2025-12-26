@@ -174,9 +174,9 @@ var testFunc = func(version string) {
 	testDel := func(conf string, mirrors []types.Mirror, r cnitypes.Result, ifName string, targetNs ns.NetNS) {
 		By("Checking that mirrors are still in ovsdb")
 		for _, mirror := range mirrors {
-			mirrorDb, err := GetMirrorAttribute(mirror.Name, "name")
+			mirrorDB, err := GetMirrorAttribute(mirror.Name, "name")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(mirrorDb).To(Equal(mirror.Name))
+			Expect(mirrorDB).To(Equal(mirror.Name))
 		}
 
 		args := &skel.CmdArgs{

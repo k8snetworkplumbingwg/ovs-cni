@@ -53,17 +53,17 @@ type Marker struct {
 func NewMarker(nodeName string, ovsSocket string) (*Marker, error) {
 	config, err := rest.InClusterConfig()
 	if err != nil {
-		return nil, fmt.Errorf("Error while obtaining cluster config: %v", err)
+		return nil, fmt.Errorf("error while obtaining cluster config: %v", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, fmt.Errorf("Error building example clientset: %v", err)
+		return nil, fmt.Errorf("error building example clientset: %v", err)
 	}
 
 	ovsDriver, err := ovsdb.NewOvsDriver(ovsSocket)
 	if err != nil {
-		return nil, fmt.Errorf("Error creating the ovsdb connection: %v", err)
+		return nil, fmt.Errorf("error creating the ovsdb connection: %v", err)
 	}
 
 	return &Marker{clientset: clientset, nodeName: nodeName, ovsdb: ovsDriver}, nil

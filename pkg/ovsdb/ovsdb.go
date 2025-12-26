@@ -33,6 +33,15 @@ const (
 	ovsTable    = "Open_vSwitch"
 )
 
+const (
+	// DefaultOvsSocket Default OVS DB socket path
+	DefaultOvsSocket = "unix:/var/run/openvswitch/db.sock"
+	// PortTypeAccess OVS port type access
+	PortTypeAccess = "access"
+	// PortTypeTrunk OVS port type trunk
+	PortTypeTrunk = "trunk"
+)
+
 var (
 	errObjectNotFound = errors.New("object not found")
 )
@@ -67,8 +76,8 @@ const (
 	MirrorConsumer
 )
 
-// connectToOvsDb connect to ovsdb
-func connectToOvsDb(ovsSocket string) (client.Client, error) {
+// connectToOvsDB connect to ovsdb
+func connectToOvsDB(ovsSocket string) (client.Client, error) {
 	dbmodel, err := model.NewClientDBModel("Open_vSwitch",
 		map[string]model.Model{bridgeTable: &Bridge{}, ovsTable: &OpenvSwitch{}})
 	if err != nil {
@@ -92,10 +101,10 @@ func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
 	ovsDriver := new(OvsDriver)
 
 	if ovsSocket == "" {
-		ovsSocket = "unix:/var/run/openvswitch/db.sock"
+		ovsSocket = DefaultOvsSocket
 	}
 
-	ovsDB, err := connectToOvsDb(ovsSocket)
+	ovsDB, err := connectToOvsDB(ovsSocket)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ovsdb error: %v", err)
 	}
@@ -110,10 +119,10 @@ func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error)
 	ovsDriver := new(OvsBridgeDriver)
 
 	if socketFile == "" {
-		socketFile = "unix:/var/run/openvswitch/db.sock"
+		socketFile = DefaultOvsSocket
 	}
 
-	ovsDB, err := connectToOvsDb(socketFile)
+	ovsDB, err := connectToOvsDB(socketFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to ovsdb socket %s: error: %v", socketFile, err)
 	}
@@ -158,13 +167,13 @@ func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationRe
 // **************** OVS driver API ********************
 
 // CreatePort Create an internal port in OVS
-func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contPodUid string) error {
+func (ovsd *OvsBridgeDriver) CreatePort(intfName, contNetnsPath, contIfaceName, ovnPortName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contPodUID string) error {
 	intfUUID, intfOp, err := createInterfaceOperation(intfName, ofportRequest, ovnPortName, intfType)
 	if err != nil {
 		return err
 	}
 
-	portUUID, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, trunks, portType, intfUUID, contPodUid)
+	portUUID, portOp, err := createPortOperation(intfName, contNetnsPath, contIfaceName, vlanTag, trunks, portType, intfUUID, contPodUID)
 	if err != nil {
 		return err
 	}
@@ -525,7 +534,7 @@ func (ovsd *OvsDriver) IsMirrorConsumerAlreadyAttached(mirrorName string) (bool,
 func (ovsd *OvsDriver) CheckMirrorProducerWithPorts(mirrorName string, ingress, egress bool, portUUIDStr string) (bool, error) {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
-	var conditions []ovsdb.Condition = []ovsdb.Condition{}
+	var conditions = []ovsdb.Condition{}
 	conditionName := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
 	conditions = append(conditions, conditionName)
 	if ingress {
@@ -548,7 +557,7 @@ func (ovsd *OvsDriver) CheckMirrorProducerWithPorts(mirrorName string, ingress, 
 func (ovsd *OvsDriver) CheckMirrorConsumerWithPorts(mirrorName string, portUUIDStr string) (bool, error) {
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
-	var conditions []ovsdb.Condition = []ovsdb.Condition{}
+	var conditions = []ovsdb.Condition{}
 	conditionName := ovsdb.NewCondition("name", ovsdb.ConditionEqual, mirrorName)
 	conditions = append(conditions, conditionName)
 
@@ -853,7 +862,7 @@ func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName s
 	return intfUUID, &intfOp, nil
 }
 
-func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUUID ovsdb.UUID, contPodUid string) (ovsdb.UUID, *ovsdb.Operation, error) {
+func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUUID ovsdb.UUID, contPodUID string) (ovsdb.UUID, *ovsdb.Operation, error) {
 	portUUIDStr := intfName
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
@@ -862,7 +871,7 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 
 	port["vlan_mode"] = portType
 	var err error
-	if portType == "access" {
+	if portType == PortTypeAccess {
 		port["tag"] = vlanTag
 	} else if len(trunks) > 0 {
 		port["trunks"], err = ovsdb.NewOvsSet(trunks)
@@ -877,7 +886,7 @@ func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag 
 	}
 
 	oMap, err := ovsdb.NewOvsMap(map[string]string{
-		"contPodUid": contPodUid,
+		"contPodUid": contPodUID,
 		"contNetns":  contNetnsPath,
 		"contIface":  contIfaceName,
 		"owner":      ovsPortOwner,
@@ -982,7 +991,7 @@ func createMirrorOperation(mirrorName string) (ovsdb.UUID, *ovsdb.Operation, err
 func attachPortToMirrorProducerOperation(portUUID ovsdb.UUID, mirrorName string, ingress, egress bool) *ovsdb.Operation {
 	// mutate the Ingress and Egress columns of the row in the Mirror table
 	mutateSet, _ := ovsdb.NewOvsSet(portUUID)
-	var mutations []ovsdb.Mutation = []ovsdb.Mutation{}
+	var mutations = []ovsdb.Mutation{}
 	if ingress {
 		// select_src_port = Ports on which arriving packets are selected for mirroring
 		mutationIngress := ovsdb.NewMutation("select_src_port", ovsdb.MutateOperationInsert, mutateSet)
@@ -1038,7 +1047,7 @@ func attachMirrorOperation(mirrorUUID ovsdb.UUID, bridgeName string) *ovsdb.Oper
 
 func detachPortFromMirrorOperation(portUUID ovsdb.UUID, mirrorName string, mirrorType int) *ovsdb.Operation {
 	// mutate the Ports column of the row in the Bridge table
-	var mutations []ovsdb.Mutation = []ovsdb.Mutation{}
+	var mutations = []ovsdb.Mutation{}
 	switch mirrorType {
 	case MirrorProducer:
 		mutateSet, _ := ovsdb.NewOvsSet(portUUID)
@@ -1133,7 +1142,7 @@ func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
 
 // isMirrorEmpty Checks if a mirror db row has both output_port, select_src_port and select_dst_port empty
 func isMirrorEmpty(dbRow map[string]interface{}) (bool, error) {
-	// Workaround to check output_port, select_dst_port and select_src_port consistenly, processing all
+	// Workaround to check output_port, select_dst_port and select_src_port consistently, processing all
 	// of them as array of UUIDs.
 	// This is useful because ovn-org/libovsdb:
 	// - when dbRow["column"] is empty in ovsdb, it returns an empty ovsdb.OvsSet

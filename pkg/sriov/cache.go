@@ -78,7 +78,7 @@ func LoadHostIFNameFromCache(args *skel.CmdArgs) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("error reading cached Conf in %s with name %s", DefaultCNIDir, cRef)
 	}
-	return strings.Replace(string(confBytes), "\"", "", -1), cRefPath, nil
+	return strings.ReplaceAll(string(confBytes), "\"", ""), cRefPath, nil
 }
 
 // CleanCachedConf removed cached Conf from disk
