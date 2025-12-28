@@ -109,7 +109,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	for _, mirror := range netconf.Mirrors {
-
 		err = ovsDriver.CreateMirror(netconf.BrName, mirror.Name)
 		if err != nil {
 			return fmt.Errorf("cannot create mirror %s: %v ", mirror.Name, err)
@@ -170,7 +169,6 @@ func CmdDel(args *skel.CmdArgs) error {
 	}
 
 	for _, mirror := range netconf.Mirrors {
-
 		mirrorExist, err := ovsDriver.IsMirrorPresent(mirror.Name)
 		if err != nil {
 			return err

@@ -71,7 +71,7 @@ func GetPortUUIDFromResult(r cnitypes.Result) string {
 }
 
 // CheckPortsInMirrors extracts ports from results and check if every mirror contains those port UUIDs.
-// Since it's not possibile to have mirrors without both ingress and egress,
+// Since it's not possible to have mirrors without both ingress and egress,
 // it's enough finding the port in either ingress or egress.
 // It also verify the mirror owner using 'external_ids' attribute. You can skip this check with hasExternalOwner=true.
 func CheckPortsInMirrors(mirrors []types.Mirror, hasExternalOwner bool, ovsPortOwner string, results ...cnitypes.Result) bool {
@@ -148,7 +148,7 @@ func GetMirrorAttribute(mirrorName, attributeName string) (string, error) {
 func GetMirrorPorts(mirrorName string, attributeName SelectPort) ([]string, error) {
 	output, err := GetMirrorAttribute(mirrorName, string(attributeName))
 	if err != nil {
-		return make([]string, 0), fmt.Errorf("failed to get mirror %s ports: %v", mirrorName, string(output[:]))
+		return make([]string, 0), fmt.Errorf("failed to get mirror %s ports: %v", mirrorName, output)
 	}
 
 	// convert into a string, then remove "[" and "]" characters
@@ -185,7 +185,7 @@ func GetMirrorOutputPorts(mirrorName string) ([]string, error) {
 	// convert into a string removing the "\n" character at the end
 	stringOutput := string(output[0 : len(output)-1])
 
-	// outport_port field behaviour is quite inconsistent, because:
+	// outport_port field behavior is quite inconsistent, because:
 	// - if in empty, it returns an empty slice "[]" with a "\n" character at the end,
 	// - otherwise, it returns a string with a "\n" character at the end
 	if stringOutput == "[]" {

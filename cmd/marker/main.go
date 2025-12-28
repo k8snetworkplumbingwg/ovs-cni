@@ -26,6 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/golang/glog"
+
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/cache"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/marker"
 )
@@ -98,7 +99,6 @@ func main() {
 		if err != nil {
 			glog.Fatalf("Update failed: %v", err)
 		}
-
 	}, time.Duration(*updateInterval)*time.Second, 1.2, true, wait.NeverStop)
 }
 
@@ -110,7 +110,7 @@ func keepAlive(healthCheckFile string, healthCheckInterval int) {
 			if err != nil {
 				glog.Fatalf("failed to create file: %s, err: %v", healthCheckFile, err)
 			}
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 		} else {
 			currentTime := time.Now().Local()
 			err = os.Chtimes(healthCheckFile, currentTime, currentTime)
@@ -119,7 +119,6 @@ func keepAlive(healthCheckFile string, healthCheckInterval int) {
 					healthCheckFile, err)
 			}
 		}
-
 	}, time.Duration(healthCheckInterval)*time.Second)
 }
 
@@ -193,7 +192,9 @@ func validateOvsTcpConnection(address string) error {
 	conn, err := net.DialTimeout(TcpSocketType, address, SocketConnectionTimeout)
 	if err == nil {
 		glog.Info("Successfully connected to TCP socket")
-		conn.Close()
+		if err := conn.Close(); err != nil {
+			return fmt.Errorf("failed to close TCP connection to %s: %v", address, err)
+		}
 		return nil
 	}
 
