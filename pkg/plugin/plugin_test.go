@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 	"math/rand"
 	"net"
 	"os/exec"
@@ -27,6 +26,8 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -803,13 +804,13 @@ var testFunc = func(version string) {
 		})
 		Context("specify trunk with multiple ranges", func() {
 			trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 19, "maxID": 20} ]`
-			It("testSplitVlanIds method should return with specifed values in the range", func() {
+			It("testSplitVlanIds method should return with specified values in the range", func() {
 				testSplitVlanIds(trunks, []uint{10, 11, 12, 19, 20}, nil, false)
 			})
 		})
 		Context("specify trunk with multiple ids", func() {
 			trunks := `[ {"id": 15}, {"id": 19}, {"id": 40} ]`
-			It("testSplitVlanIds method should return with specifed id values", func() {
+			It("testSplitVlanIds method should return with specified id values", func() {
 				testSplitVlanIds(trunks, []uint{15, 19, 40}, nil, false)
 			})
 		})
