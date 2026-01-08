@@ -104,7 +104,7 @@ func ValidateLabelSelectorRequirement(sr metav1.LabelSelectorRequirement, opts L
 func ValidateLabelName(labelName string, fldPath *field.Path) field.ErrorList {
 	allErrs := field.ErrorList{}
 	for _, msg := range validation.IsQualifiedName(labelName) {
-		allErrs = append(allErrs, field.Invalid(fldPath, labelName, msg).WithOrigin("labelKey"))
+		allErrs = append(allErrs, field.Invalid(fldPath, labelName, msg))
 	}
 	return allErrs
 }
@@ -328,11 +328,11 @@ func ValidateCondition(condition metav1.Condition, fldPath *field.Path) field.Er
 	}
 
 	if condition.LastTransitionTime.IsZero() {
-		allErrs = append(allErrs, field.Required(fldPath.Child("lastTransitionTime"), ""))
+		allErrs = append(allErrs, field.Required(fldPath.Child("lastTransitionTime"), "must be set"))
 	}
 
 	if len(condition.Reason) == 0 {
-		allErrs = append(allErrs, field.Required(fldPath.Child("reason"), ""))
+		allErrs = append(allErrs, field.Required(fldPath.Child("reason"), "must be set"))
 	} else {
 		for _, currErr := range isValidConditionReason(condition.Reason) {
 			allErrs = append(allErrs, field.Invalid(fldPath.Child("reason"), condition.Reason, currErr))

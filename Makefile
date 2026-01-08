@@ -28,7 +28,6 @@ TLS_SETTING := $(if $(filter $(OCI_BIN),podman),--tls-verify=false,)
 GO_BUILD_OPTS ?= CGO_ENABLED=0 GO111MODULE=on
 GO_TAGS ?= -tags no_openssl
 GO_FLAGS ?= -mod vendor
-GOLANGCI_LINT_VERSION ?= v2.7.2
 
 all: lint build
 
@@ -43,7 +42,7 @@ $(BASE): ; $(info  setting GOPATH...)
 
 GOLANGCI = $(GOBIN)/golangci-lint
 $(GOBIN)/golangci-lint: $(GO) | $(BASE) ; $(info  building golangci-lint...)
-	$Q $(GO) install -mod=mod github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+	$Q $(GO) install -mod=mod github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.6
 
 build: format $(patsubst %, build-%, $(COMPONENTS))
 
