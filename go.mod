@@ -1,5 +1,7 @@
 module github.com/k8snetworkplumbingwg/ovs-cni
 
+go 1.24.11
+
 require (
 	dario.cat/mergo v1.0.0
 	github.com/containernetworking/cni v1.2.3
@@ -109,5 +111,3 @@ replace (
 	k8s.io/metrics => k8s.io/metrics v0.32.0
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.32.0
 )
-
-go 1.23.0
