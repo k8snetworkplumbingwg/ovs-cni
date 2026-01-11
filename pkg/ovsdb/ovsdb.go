@@ -28,7 +28,6 @@ import (
 )
 
 const ovsPortOwner = "ovs-cni.network.kubevirt.io"
-const defaultOVSSocket = "unix:/var/run/openvswitch/db.sock"
 const (
 	bridgeTable = "Bridge"
 	ovsTable    = "Open_vSwitch"
@@ -93,7 +92,7 @@ func NewOvsDriver(ovsSocket string) (*OvsDriver, error) {
 	ovsDriver := new(OvsDriver)
 
 	if ovsSocket == "" {
-		ovsSocket = defaultOVSSocket
+		ovsSocket = "unix:/var/run/openvswitch/db.sock"
 	}
 
 	ovsDB, err := connectToOvsDb(ovsSocket)
@@ -111,7 +110,7 @@ func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error)
 	ovsDriver := new(OvsBridgeDriver)
 
 	if socketFile == "" {
-		socketFile = defaultOVSSocket
+		socketFile = "unix:/var/run/openvswitch/db.sock"
 	}
 
 	ovsDB, err := connectToOvsDb(socketFile)
@@ -1134,7 +1133,7 @@ func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
 
 // isMirrorEmpty Checks if a mirror db row has both output_port, select_src_port and select_dst_port empty
 func isMirrorEmpty(dbRow map[string]interface{}) (bool, error) {
-	// Workaround to check output_port, select_dst_port and select_src_port consistently, processing all
+	// Workaround to check output_port, select_dst_port and select_src_port consistenly, processing all
 	// of them as array of UUIDs.
 	// This is useful because ovn-org/libovsdb:
 	// - when dbRow["column"] is empty in ovsdb, it returns an empty ovsdb.OvsSet

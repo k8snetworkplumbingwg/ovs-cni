@@ -16,17 +16,18 @@ limitations under the License.
 
 package features
 
-// Every feature gate should have an entry here following this template:
-//
-// // owner: @username
-// // alpha: v1.4
-// MyFeature featuregate.Feature = "MyFeature"
-//
-// Feature gates should be listed in alphabetical, case-sensitive
-// (upper before any lower case character) order. This reduces the risk
-// of code conflicts because changes are more likely to be scattered
-// across the file.
 const (
+	// Every feature gate should add method here following this template:
+	//
+	// // owner: @username
+	// // alpha: v1.4
+	// MyFeature featuregate.Feature = "MyFeature"
+	//
+	// Feature gates should be listed in alphabetical, case-sensitive
+	// (upper before any lower case character) order. This reduces the risk
+	// of code conflicts because changes are more likely to be scattered
+	// across the file.
+
 	// owner: @benluddy
 	// kep: https://kep.k8s.io/4222
 	// alpha: 1.32
@@ -47,12 +48,6 @@ const (
 	// apply patch requests becomes "application/apply-patch+cbor" instead of
 	// "application/apply-patch+yaml".
 	ClientsPreferCBOR Feature = "ClientsPreferCBOR"
-
-	// owner: @deads2k
-	// beta: v1.33
-	//
-	// Refactor informers to deliver watch stream events in order instead of out of order.
-	InOrderInformers Feature = "InOrderInformers"
 
 	// owner: @nilekhc
 	// alpha: v1.30
@@ -77,7 +72,6 @@ const (
 var defaultKubernetesFeatureGates = map[Feature]FeatureSpec{
 	ClientsAllowCBOR:        {Default: false, PreRelease: Alpha},
 	ClientsPreferCBOR:       {Default: false, PreRelease: Alpha},
-	InOrderInformers:        {Default: true, PreRelease: Beta},
 	InformerResourceVersion: {Default: false, PreRelease: Alpha},
 	WatchListClient:         {Default: false, PreRelease: Beta},
 }

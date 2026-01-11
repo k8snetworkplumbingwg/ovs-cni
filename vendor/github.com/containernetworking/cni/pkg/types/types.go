@@ -56,12 +56,8 @@ func (n *IPNet) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Use PluginConf instead of NetConf, the NetConf
-// backwards-compat alias will be removed in a future release.
-type NetConf = PluginConf
-
-// PluginConf describes a plugin configuration for a specific network.
-type PluginConf struct {
+// NetConfType describes a network.
+type NetConfType struct {
 	CNIVersion string `json:"cniVersion,omitempty"`
 
 	Name         string          `json:"name,omitempty"`
@@ -77,6 +73,9 @@ type PluginConf struct {
 	ValidAttachments []GCAttachment `json:"cni.dev/valid-attachments,omitempty"`
 }
 
+// NetConf is defined as different type as custom MarshalJSON() and issue #1096
+type NetConf NetConfType
+
 // GCAttachment is the parameters to a GC call -- namely,
 // the container ID and ifname pair that represents a
 // still-valid attachment.
@@ -87,8 +86,11 @@ type GCAttachment struct {
 
 // Note: DNS should be omit if DNS is empty but default Marshal function
 // will output empty structure hence need to write a Marshal function
-func (n *PluginConf) MarshalJSON() ([]byte, error) {
-	bytes, err := json.Marshal(*n)
+func (n *NetConfType) MarshalJSON() ([]byte, error) {
+	// use type alias to escape recursion for json.Marshal() to MarshalJSON()
+	type fixObjType = NetConf
+
+	bytes, err := json.Marshal(fixObjType(*n))
 	if err != nil {
 		return nil, err
 	}
@@ -118,10 +120,10 @@ func (i *IPAM) IsEmpty() bool {
 type NetConfList struct {
 	CNIVersion string `json:"cniVersion,omitempty"`
 
-	Name         string        `json:"name,omitempty"`
-	DisableCheck bool          `json:"disableCheck,omitempty"`
-	DisableGC    bool          `json:"disableGC,omitempty"`
-	Plugins      []*PluginConf `json:"plugins,omitempty"`
+	Name         string     `json:"name,omitempty"`
+	DisableCheck bool       `json:"disableCheck,omitempty"`
+	DisableGC    bool       `json:"disableGC,omitempty"`
+	Plugins      []*NetConf `json:"plugins,omitempty"`
 }
 
 // Result is an interface that provides the result of plugin execution
