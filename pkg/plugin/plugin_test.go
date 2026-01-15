@@ -735,6 +735,70 @@ var testFunc = func(version string) {
 				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
 			})
 		})
+		Context("specified OvnPort via args.cni", func() {
+			It("should successfully complete ADD, CHECK and DEL commands with args.cni OvnPort", func() {
+				const ovsOutput = "external_ids        : {iface-id=test-port-from-args}"
+
+				// OvnPort specified in args.cni (CNI convention) instead of CNI_ARGS
+				conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"args": {
+					"cni": {
+						"OvnPort": "test-port-from-args"
+					}
+				}}`, version, bridgeName)
+
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				By("Calling ADD command with args.cni OvnPort")
+				hostIfName, result := testAdd(conf, false, false, "", targetNs)
+				hostIface := result.(*current.Result).Interfaces[0]
+
+				By("Verifying iface-id was set from args.cni")
+				output, err := exec.Command("ovs-vsctl", "--column=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
+
+				By("Calling CHECK command")
+				testCheck(conf, result, targetNs)
+
+				By("Calling DEL command")
+				testDel(conf, hostIfName, targetNs, true)
+			})
+			It("should prefer args.cni OvnPort over CNI_ARGS", func() {
+				// args.cni should take precedence per CNI conventions
+				const ovsOutput = "external_ids        : {iface-id=args-cni-port}"
+
+				conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s",
+				"args": {
+					"cni": {
+						"OvnPort": "args-cni-port"
+					}
+				}}`, version, bridgeName)
+
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				// Pass a different ovnPort via CNI_ARGS - args.cni should win
+				result := attach(targetNs, conf, IFNAME, "", "cni-args-port")
+				hostIface := result.Interfaces[0]
+				output, err := exec.Command("ovs-vsctl", "--column=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(string(output[:len(output)-1])).To(Equal(ovsOutput))
+			})
+		})
 		Context("specified OfportRequest", func() {
 			It("should configure an ovs interface with a specific ofport", func() {
 				// Pick a random ofport 5000-6000
