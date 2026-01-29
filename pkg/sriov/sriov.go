@@ -215,7 +215,7 @@ func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface,
 
 	err = contNetns.Do(func(hostNS ns.NetNS) error {
 		contIface.Name = ifName
-		_, err = renameLink(vfNetdevice, contIface.Name)
+		_, err = RenameLink(vfNetdevice, contIface.Name)
 		if err != nil {
 			return err
 		}
@@ -356,7 +356,7 @@ func MoveVFToNetns(ifname string, netns ns.NetNS) error {
 	return nil
 }
 
-func renameLink(curName, newName string) (netlink.Link, error) {
+func RenameLink(curName, newName string) (netlink.Link, error) {
 	link, err := netlink.LinkByName(curName)
 	if err != nil {
 		return nil, err
@@ -388,7 +388,7 @@ func ReleaseVF(args *skel.CmdArgs, origIfName string) error {
 
 	return contNetns.Do(func(_ ns.NetNS) error {
 		// rename VF device back to its original name
-		linkObj, err := renameLink(args.IfName, origIfName)
+		linkObj, err := RenameLink(args.IfName, origIfName)
 		if err != nil {
 			return err
 		}
@@ -415,7 +415,7 @@ func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 		// until link is available.
 		return ip.ErrLinkNotFound
 	}
-	_, err = renameLink(vfNetdevices[0], origIfName)
+	_, err = RenameLink(vfNetdevices[0], origIfName)
 	if err != nil {
 		return err
 	}
