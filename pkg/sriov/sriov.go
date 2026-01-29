@@ -208,7 +208,7 @@ func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface,
 	}
 
 	// Move smart VF to Container namespace
-	err = moveIfToNetns(vfNetdevice, contNetns)
+	err = MoveVFToNetns(vfNetdevice, contNetns)
 	if err != nil {
 		return err
 	}
@@ -342,7 +342,7 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName, mac string, mt
 	return hostIface, contIface, nil
 }
 
-func moveIfToNetns(ifname string, netns ns.NetNS) error {
+func MoveVFToNetns(ifname string, netns ns.NetNS) error {
 	vfDev, err := netlink.LinkByName(ifname)
 	if err != nil {
 		return fmt.Errorf("failed to lookup vf device %v: %q", ifname, err)
