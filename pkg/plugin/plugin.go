@@ -306,6 +306,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// use the right bridge name in CmdDel
 	netconf.BrName = bridgeName
 
+	// Create bridge if it does not exist
+	if err := ovsDriver.CreateBridge(bridgeName); err != nil {
+		return fmt.Errorf("failed to create ovs bridge %s: %v", bridgeName, err)
+	}
+
 	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
 	if err != nil {
 		return err
@@ -658,6 +663,20 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	// Remove bridge if there are no ports left, except br-int
+	if bridgeName != "br-int" {
+		isEmpty, err := ovsDriver.IsBridgeEmpty(bridgeName)
+		if err != nil {
+			log.Printf("Warning: failed to check if bridge %s is empty: %v", bridgeName, err)
+		} else if isEmpty {
+			log.Printf("Bridge %s is empty (no active container ports), deleting it...", bridgeName)
+			if err := ovsDriver.DeleteBridge(bridgeName); err != nil {
+				log.Printf("Warning: failed to delete empty bridge %s: %v", bridgeName, err)
+			} else {
+				log.Printf("Successfully deleted empty OVS bridge: %s", bridgeName)
+			}
+		}
+	}
 	return err
 }
 
