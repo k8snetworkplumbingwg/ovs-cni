@@ -347,7 +347,8 @@ func (ovsd *OvsDriver) IsBridgeEmpty(bridgeName string) (bool, error) {
 		portCond := ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, portUUID)
 		portRow, err := ovsd.findByCondition("Port", portCond, []string{"name", "interfaces"})
 		if err != nil {
-			continue
+			// If we can't query the port, assume not empty/failure.
+			return false, fmt.Errorf("failed to query port %s: %v", portUUID.GoUUID, err)
 		}
 
 		portName := fmt.Sprintf("%v", portRow["name"])
@@ -358,14 +359,17 @@ func (ovsd *OvsDriver) IsBridgeEmpty(bridgeName string) (bool, error) {
 		}
 
 		intfUUIDs, err := convertToArray(portRow["interfaces"])
-		if err != nil || len(intfUUIDs) == 0 {
+		if err != nil {
+			return false, fmt.Errorf("failed to get interfaces for port %s: %v", portName, err)
+		}
+		if len(intfUUIDs) == 0 {
 			continue
 		}
 		intfUUID := intfUUIDs[0].(ovsdb.UUID)
 		intfCond := ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, intfUUID)
 		intfRow, err := ovsd.findByCondition("Interface", intfCond, []string{"type"})
 		if err != nil {
-			continue
+			return false, fmt.Errorf("failed to query interface %s: %v", intfUUID.GoUUID, err)
 		}
 
 		intfType := fmt.Sprintf("%v", intfRow["type"])
