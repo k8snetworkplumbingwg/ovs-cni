@@ -15,16 +15,16 @@
 package controller
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	corev1listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 
@@ -39,6 +39,7 @@ type VxlanController struct {
 	kubeClient kubernetes.Interface
 	ovsDriver  *ovsdb.OvsDriver
 	informer   cache.SharedIndexInformer
+	nodeLister corev1listers.NodeLister
 }
 
 // RunVxlanController initializes and starts the controller
@@ -57,12 +58,14 @@ func RunVxlanController(nodeName, ovsSocket string) error {
 	}
 	informerFactory := informers.NewSharedInformerFactory(clientset, time.Minute*10)
 	nodeInformer := informerFactory.Core().V1().Nodes().Informer()
+	nodeLister := informerFactory.Core().V1().Nodes().Lister()
 
 	ctrl := &VxlanController{
 		myNodeName: nodeName,
 		kubeClient: clientset,
 		ovsDriver:  ovsDriver,
 		informer:   nodeInformer,
+		nodeLister: nodeLister,
 	}
 
 	// Register event handlers for node lifecycle events (Add, Update, Delete)
@@ -196,7 +199,7 @@ func (c *VxlanController) reconcileNodeChange(oldNode, newNode *corev1.Node) {
 
 // connectToPeersWithBridge iterates over all nodes to find peers with the same bridge and establishes connectivity
 func (c *VxlanController) connectToPeersWithBridge(brName string) {
-	nodeList, err := c.kubeClient.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	nodes, err := c.nodeLister.List(labels.Everything())
 	if err != nil {
 		glog.Errorf("Failed to list nodes for bridge %q sync: %v", brName, err)
 		return
@@ -204,17 +207,17 @@ func (c *VxlanController) connectToPeersWithBridge(brName string) {
 
 	bDriver := c.ovsDriver.NewBridgeDriverFromExisting(brName)
 
-	for _, node := range nodeList.Items {
+	for _, node := range nodes {
 		if node.Name == c.myNodeName {
 			continue
 		}
 
-		bridges := getOvsBridgesFromNode(&node)
+		bridges := getOvsBridgesFromNode(node)
 		if !bridges[brName] {
 			continue
 		}
 
-		peerIP := getNodeInternalIP(&node)
+		peerIP := getNodeInternalIP(node)
 		if peerIP == "" {
 			glog.Warningf("Peer %s has bridge %q but no InternalIP, skipping", node.Name, brName)
 			continue
