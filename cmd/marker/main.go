@@ -82,7 +82,7 @@ func main() {
 	go func() {
 		glog.Info("Starting VXLAN controller in background...")
 		if err := controller.RunVxlanController(*nodeName, endpoint); err != nil {
-			glog.Errorf("VXLAN controller stopped/failed: %v", err)
+			glog.Fatalf("VXLAN controller stopped/failed: %v", err)
 		}
 	}()
 
