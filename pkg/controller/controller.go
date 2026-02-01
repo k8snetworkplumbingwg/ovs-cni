@@ -1,3 +1,5 @@
+// Copyright 2026 Dai Sheng
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -63,9 +65,11 @@ func RunVxlanController(nodeName, ovsSocket string) error {
 		informer:   nodeInformer,
 	}
 
-	// Register event handler for node updates
+	// Register event handlers for node lifecycle events (Add, Update, Delete)
 	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc:    ctrl.onNodeAdd,
 		UpdateFunc: ctrl.onNodeUpdate,
+		DeleteFunc: ctrl.onNodeDelete,
 	})
 
 	stopCh := make(chan struct{})
@@ -81,12 +85,59 @@ func RunVxlanController(nodeName, ovsSocket string) error {
 	return nil
 }
 
+func (c *VxlanController) onNodeAdd(obj interface{}) {
+	node := obj.(*corev1.Node)
+	// Treat Add as a change from nil to newNode
+	c.reconcileNodeChange(nil, node)
+}
+
 func (c *VxlanController) onNodeUpdate(oldObj, newObj interface{}) {
 	oldNode := oldObj.(*corev1.Node)
 	newNode := newObj.(*corev1.Node)
+	c.reconcileNodeChange(oldNode, newNode)
+}
 
-	oldBridges := getOvsBridgesFromNode(oldNode)
-	newBridges := getOvsBridgesFromNode(newNode)
+func (c *VxlanController) onNodeDelete(obj interface{}) {
+	node, ok := obj.(*corev1.Node)
+	if !ok {
+		// Handle DeletedFinalStateUnknown (happens when the watcher misses the delete event
+		// but we get it from the cache expiration)
+		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+		if !ok {
+			glog.Errorf("Couldn't get object from tombstone %#v", obj)
+			return
+		}
+		node, ok = tombstone.Obj.(*corev1.Node)
+		if !ok {
+			glog.Errorf("Tombstone contained object that is not a Node %#v", obj)
+			return
+		}
+	}
+	// Treat Delete as a change from oldNode to nil
+	c.reconcileNodeChange(node, nil)
+}
+
+// reconcileNodeChange handles the logic for diffing bridge state and applying changes.
+// It handles Add (oldNode=nil), Update (both!=nil), and Delete (newNode=nil).
+func (c *VxlanController) reconcileNodeChange(oldNode, newNode *corev1.Node) {
+	var oldBridges, newBridges map[string]bool
+	var targetNodeName string
+	var peerIP string
+
+	if oldNode != nil {
+		oldBridges = getOvsBridgesFromNode(oldNode)
+		targetNodeName = oldNode.Name
+	} else {
+		oldBridges = make(map[string]bool)
+	}
+
+	if newNode != nil {
+		newBridges = getOvsBridgesFromNode(newNode)
+		targetNodeName = newNode.Name
+		peerIP = getNodeInternalIP(newNode)
+	} else {
+		newBridges = make(map[string]bool)
+	}
 
 	addedBridges := diffBridges(newBridges, oldBridges)
 	removedBridges := diffBridges(oldBridges, newBridges)
@@ -96,7 +147,11 @@ func (c *VxlanController) onNodeUpdate(oldObj, newObj interface{}) {
 	}
 
 	// Scenario A: Local node change (local bridge created, need to connect to peers)
-	if newNode.Name == c.myNodeName {
+	if targetNodeName == c.myNodeName {
+		// If local node is deleted (newNode == nil), we don't need to do anything as the pod is terminating anyway.
+		if newNode == nil {
+			return
+		}
 		for brName := range addedBridges {
 			glog.Infof("Local node created bridge %q. Searching for peers...", brName)
 			c.connectToPeersWithBridge(brName)
@@ -106,34 +161,35 @@ func (c *VxlanController) onNodeUpdate(oldObj, newObj interface{}) {
 	}
 
 	// Scenario B: Peer node change (need to check if we have the same bridge locally)
-	peerIP := getNodeInternalIP(newNode)
-	if peerIP == "" {
-		return
-	}
 
 	// Handle remote bridge creation
-	for brName := range addedBridges {
-		if exist, _ := c.ovsDriver.IsBridgePresent(brName); exist {
-			portName := fmt.Sprintf("vx-%s-%s", brName, newNode.Name)
-			glog.Infof("Remote node %s created bridge %q. Establishing VXLAN %s to %s", newNode.Name, brName, portName, peerIP)
+	if newNode != nil && peerIP != "" {
+		for brName := range addedBridges {
+			if exist, _ := c.ovsDriver.IsBridgePresent(brName); exist {
+				portName := fmt.Sprintf("vx-%s-%s", brName, targetNodeName)
+				glog.Infof("Remote node %s created bridge %q. Establishing VXLAN %s to %s", targetNodeName, brName, portName, peerIP)
 
-			bDriver := c.ovsDriver.NewBridgeDriverFromExisting(brName)
+				bDriver := c.ovsDriver.NewBridgeDriverFromExisting(brName)
 
-			if err := bDriver.CreateVxlanPort(portName, peerIP); err != nil {
-				glog.Errorf("Failed to create VXLAN port %s: %v", portName, err)
+				if err := bDriver.CreateVxlanPort(portName, peerIP); err != nil {
+					glog.Errorf("Failed to create VXLAN port %s: %v", portName, err)
+				}
 			}
 		}
 	}
 
 	// Handle remote bridge deletion
 	for brName := range removedBridges {
-		portName := fmt.Sprintf("vx-%s-%s", brName, newNode.Name)
-		glog.Infof("Remote node %s deleted bridge %q. Tearing down VXLAN %s", newNode.Name, brName, portName)
+		portName := fmt.Sprintf("vx-%s-%s", brName, targetNodeName)
 
-		bDriver := c.ovsDriver.NewBridgeDriverFromExisting(brName)
+		if exist, _ := c.ovsDriver.IsBridgePresent(brName); exist {
+			glog.Infof("Remote node %s removed bridge %q (or node deleted). Tearing down VXLAN %s", targetNodeName, brName, portName)
 
-		if err := bDriver.DeletePort(portName); err != nil {
-			glog.Warningf("Failed to delete VXLAN port %s: %v", portName, err)
+			bDriver := c.ovsDriver.NewBridgeDriverFromExisting(brName)
+
+			if err := bDriver.DeletePort(portName); err != nil {
+				glog.Warningf("Failed to delete VXLAN port %s: %v", portName, err)
+			}
 		}
 	}
 }
@@ -179,6 +235,9 @@ func (c *VxlanController) connectToPeersWithBridge(brName string) {
 // getOvsBridgesFromNode extracts OVS bridge names from Node.Status.Capacity
 func getOvsBridgesFromNode(node *corev1.Node) map[string]bool {
 	bridges := make(map[string]bool)
+	if node == nil {
+		return bridges
+	}
 	for resourceName := range node.Status.Capacity {
 		if strings.HasPrefix(resourceName.String(), resourcePrefix) {
 			brName := strings.TrimPrefix(resourceName.String(), resourcePrefix)
@@ -200,6 +259,9 @@ func diffBridges(setA, setB map[string]bool) map[string]bool {
 }
 
 func getNodeInternalIP(node *corev1.Node) string {
+	if node == nil {
+		return ""
+	}
 	for _, address := range node.Status.Addresses {
 		if address.Type == corev1.NodeInternalIP {
 			return address.Address
