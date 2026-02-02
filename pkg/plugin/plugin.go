@@ -45,6 +45,7 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/vdpa"
 )
 
 const (
@@ -344,14 +345,28 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
+	vdpaDev, err := vdpa.GetVdpaDeviceFromID(netconf.DeviceID)
+	if err != nil {
+		return err
+	}
+	vdpaDevType, err := vdpa.GetDeviceType(vdpaDev)
+	if err != nil {
+		return err
+	}
+
 	// Cache NetConf for CmdDel
 	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName),
-		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName, UserspaceMode: userspaceMode}); err != nil {
+		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName, UserspaceMode: userspaceMode, VdpaType: vdpaDevType}); err != nil {
 		return fmt.Errorf("error saving NetConf %q", err)
 	}
 
 	var hostIface, contIface *current.Interface
-	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+	if vdpaDevType == types.VdpaDeviceTypeKernelVhost {
+		hostIface, contIface, err = vdpa.SetupVdpaInterface(contNetns, args.IfName, netconf.DeviceID, mac, vdpaDev, netconf.MTU)
+		if err != nil {
+			return err
+		}
+	} else if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
 		if err != nil {
 			return err
@@ -389,7 +404,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// run the IPAM plugin
 	// userspace driver does not support IPAM plugin,
 	// because there is no network interface for the VF on the host
-	if netconf.IPAM.Type != "" && !userspaceMode {
+	if netconf.IPAM.Type != "" && !userspaceMode && vdpaDevType != types.VdpaDeviceTypeKernelVhost {
 		var r cnitypes.Result
 		r, err = ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
 		defer func() {
@@ -598,7 +613,8 @@ func CmdDel(args *skel.CmdArgs) error {
 				log.Printf("Error: %v\n", err)
 			}
 			// there is no network interface in case of userspace driver, so OrigIfName is empty
-			if !cache.UserspaceMode {
+			// For vhost_vdpa devices backed by sriov mgmtdevs is the same
+			if !cache.UserspaceMode && cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
 				if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 					return err
 				}
@@ -630,7 +646,8 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 		// there is no network interface in case of userspace driver, so OrigIfName is empty
-		if !cache.UserspaceMode {
+		// For vhost_vdpa devices backed by sriov mgmtdevs is the same
+		if !cache.UserspaceMode && cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
 			err = sriov.ReleaseVF(args, cache.OrigIfName)
 			if err != nil {
 				// try to reset vf into original state as much as possible in case of error

@@ -98,15 +98,26 @@ type Trunk struct {
 	ID    *uint `json:"id,omitempty"`
 }
 
+// VdpaDeviceType contains the type of vdpa device that an interface is
+// running on, if any.
+type VdpaDeviceType string
+
+const (
+	VdpaDeviceTypeNone        = ""
+	VdpaDeviceTypeKernelVhost = "VdpaKernelVhost"
+)
+
 // CachedNetConf containing NetConfig, original smartnic vf interface name
-// and kernel/userspace device driver mode of the smartnic vf interface
-// (the last two are set only in case of ovs hareware offload scenario).
+// kernel/userspace device driver mode of the smartnic vf interface and
+// the vdpa device type (the last three are set only in case of ovs
+// hardware offload scenario).
 // this is intended to be used only for storing and retrieving config
 // to/from a data store (example file cache).
 type CachedNetConf struct {
 	Netconf       *NetConf
 	OrigIfName    string
 	UserspaceMode bool
+	VdpaType      VdpaDeviceType
 }
 
 // CachedPrevResultNetConf containing PrevResult.
