@@ -16,6 +16,7 @@ package controller
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -176,6 +177,15 @@ func (c *VxlanController) reconcileNodeChange(oldNode, newNode *corev1.Node) {
 
 				if err := bDriver.CreateVxlanPort(portName, peerIP); err != nil {
 					glog.Errorf("Failed to create VXLAN port %s: %v", portName, err)
+				} else {
+					// Apply Split Horizon: Disable flooding on this tunnel port
+					if err := disablePortFlooding(brName, portName); err != nil {
+						glog.Errorf("CRITICAL: Failed to set no-flood on %s: %v. Deleting port to prevent broadcast storms.", portName, err)
+						// ROLLBACK: Delete the unsafe port immediately
+						if delErr := bDriver.DeletePort(portName); delErr != nil {
+							glog.Errorf("EMERGENCY: Failed to remove unsafe port %s: %v. Manual intervention required!", portName, delErr)
+						}
+					}
 				}
 			}
 		}
@@ -229,11 +239,31 @@ func (c *VxlanController) connectToPeersWithBridge(brName string) {
 
 		if err := bDriver.CreateVxlanPort(portName, peerIP); err != nil {
 			glog.Errorf("Failed to establish VXLAN tunnel %s to %s: %v", portName, node.Name, err)
+		} else {
+			// Apply Split Horizon: Disable flooding on this tunnel port
+			if err := disablePortFlooding(brName, portName); err != nil {
+				glog.Errorf("CRITICAL: Failed to set no-flood on %s: %v. Deleting port to prevent broadcast storms.", portName, err)
+				// ROLLBACK: Delete the unsafe port immediately
+				if delErr := bDriver.DeletePort(portName); delErr != nil {
+					glog.Errorf("EMERGENCY: Failed to remove unsafe port %s: %v. Manual intervention required!", portName, delErr)
+				}
+			}
 		}
 	}
 }
 
 // --- Helper functions ---
+
+// disablePortFlooding runs ovs-ofctl to prevent NORMAL action from flooding traffic back to this port.
+// This implements "Split Horizon" for full-mesh topologies to prevent loops.
+func disablePortFlooding(brName, portName string) error {
+	// Command: ovs-ofctl mod-port <bridge> <port> no-flood
+	cmd := exec.Command("ovs-ofctl", "mod-port", brName, portName, "no-flood")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to disable flooding on %s: %v (%s)", portName, err, string(output))
+	}
+	return nil
+}
 
 // getOvsBridgesFromNode extracts OVS bridge names from Node.Status.Capacity
 func getOvsBridgesFromNode(node *corev1.Node) map[string]bool {

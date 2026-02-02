@@ -1012,8 +1012,10 @@ func createBridgeOperation(brName string) (ovsdb.UUID, *ovsdb.Operation, error) 
 	br := make(map[string]interface{})
 	br["name"] = brName
 	br["datapath_type"] = "system"
-	// enable stp by default
-	br["rstp_enable"] = true
+	br["datapath_type"] = "system"
+	// Disable STP/RSTP for Full-Mesh topology to prevent port blocking
+	br["rstp_enable"] = false
+	br["stp_enable"] = false
 
 	brOp := ovsdb.Operation{
 		Op:       "insert",
