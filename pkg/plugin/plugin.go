@@ -277,6 +277,17 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	// Check for OvnPort and MAC in args.cni (CNI convention)
+	// args.cni takes precedence over CNI_ARGS per CNI spec
+	if netconf.Args != nil && netconf.Args.CNI != nil {
+		if netconf.Args.CNI.OvnPort != "" {
+			ovnPort = netconf.Args.CNI.OvnPort
+		}
+		if netconf.Args.CNI.MAC != "" {
+			mac = netconf.Args.CNI.MAC
+		}
+	}
+
 	var vlanTagNum uint = 0
 	trunks := make([]uint, 0)
 	portType := "access"
@@ -558,6 +569,12 @@ func CmdDel(args *skel.CmdArgs) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	// Check for OvnPort in args.cni (CNI convention) - takes precedence
+	if cache.Netconf.Args != nil && cache.Netconf.Args.CNI != nil {
+		if cache.Netconf.Args.CNI.OvnPort != "" {
+			ovnPort = cache.Netconf.Args.CNI.OvnPort
+		}
+	}
 	ovsDriver, err := ovsdb.NewOvsDriver(cache.Netconf.SocketFile)
 	if err != nil {
 		return err
@@ -678,6 +695,12 @@ func CmdCheck(args *skel.CmdArgs) error {
 	var ovnPort string
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
+	}
+	// Check for OvnPort in args.cni (CNI convention) - takes precedence
+	if netconf.Args != nil && netconf.Args.CNI != nil {
+		if netconf.Args.CNI.OvnPort != "" {
+			ovnPort = netconf.Args.CNI.OvnPort
+		}
 	}
 	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
 	if err != nil {
