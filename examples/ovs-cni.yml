@@ -67,7 +67,7 @@ spec:
           - $(NODE_NAME)
           - -ovs-socket
           - unix:/host/var/run/openvswitch/db.sock
-          - -healthcheck-interval=60
+          - -healthcheck-interval=15
         volumeMounts:
           - name: ovs-var-run
             mountPath: /host/var/run/openvswitch
@@ -112,6 +112,8 @@ rules:
   - get
   - update
   - patch
+  - list
+  - watch
 ---
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strings"
 
 	"github.com/ovn-org/libovsdb/client"
 	"github.com/ovn-org/libovsdb/model"
@@ -135,6 +136,15 @@ func NewOvsBridgeDriver(bridgeName, socketFile string) (*OvsBridgeDriver, error)
 	return ovsDriver, nil
 }
 
+// NewBridgeDriverFromExisting creates a bridge-scoped driver using an EXISTING connection
+// This is extremely lightweight and prevents socket connection leaks
+func (ovsd *OvsDriver) NewBridgeDriverFromExisting(bridgeName string) *OvsBridgeDriver {
+	return &OvsBridgeDriver{
+		OvsDriver:     *ovsd,
+		OvsBridgeName: bridgeName,
+	}
+}
+
 // Wrapper for ovsDB transaction
 func (ovsd *OvsDriver) ovsdbTransact(ops []ovsdb.Operation) ([]ovsdb.OperationResult, error) {
 	// Perform OVSDB transaction
@@ -227,6 +237,152 @@ func getExternalIDs(row map[string]interface{}) (map[string]string, error) {
 		extIDs[key.(string)] = value.(string)
 	}
 	return extIDs, nil
+}
+
+// CreateVxlanPort creates a VXLAN tunnel port on the bridge pointing to a remote IP
+func (ovsd *OvsBridgeDriver) CreateVxlanPort(portName string, remoteIP string) error {
+	intfUUID, intfOp, err := createVxlanInterfaceOperation(portName, remoteIP)
+	if err != nil {
+		return fmt.Errorf("failed to create vxlan interface op: %w", err)
+	}
+
+	// We pass empty strings for container-related parameters but keep ovsPortOwner
+	// so that existing DeletePort logic can seamlessly delete VXLAN ports.
+	portUUID, portOp, err := createPortOperation(portName, "", "", 0, nil, "", intfUUID, "")
+	if err != nil {
+		return fmt.Errorf("failed to create vxlan port op: %w", err)
+	}
+
+	mutateOp := attachPortOperation(portUUID, ovsd.OvsBridgeName)
+
+	operations := []ovsdb.Operation{*intfOp, *portOp, *mutateOp}
+
+	_, err = ovsd.ovsdbTransact(operations)
+	if err != nil {
+		return fmt.Errorf("failed to create vxlan port %s to %s: %w", portName, remoteIP, err)
+	}
+
+	return nil
+}
+
+// CreateBridge Create a bridge in OVS
+func (ovsd *OvsDriver) CreateBridge(brName string) error {
+	exist, err := ovsd.IsBridgePresent(brName)
+	if err != nil {
+		return fmt.Errorf("failed to check if bridge %s exists: %w", brName, err)
+	}
+	if exist {
+		return nil
+	}
+
+	log.Printf("Bridge %s does not exist, creating it now...", brName)
+
+	brUUID, brOp, err := createBridgeOperation(brName)
+	if err != nil {
+		return err
+	}
+
+	mutateOp := attachBridgeOperation(brUUID)
+
+	operations := []ovsdb.Operation{*brOp, *mutateOp}
+
+	_, err = ovsd.ovsdbTransact(operations)
+	if err != nil {
+		return fmt.Errorf("failed to create bridge %s: %w", brName, err)
+	}
+	log.Printf("Successfully created OVS bridge: %s", brName)
+	return nil
+}
+
+// DeleteBridge Delete a bridge from OVS
+func (ovsd *OvsDriver) DeleteBridge(brName string) error {
+	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, brName)
+	row, err := ovsd.findByCondition(bridgeTable, condition, []string{"_uuid"})
+	if err != nil {
+		if errors.Is(err, errObjectNotFound) {
+			return nil
+		}
+		return fmt.Errorf("failed to find bridge %s: %w", brName, err)
+	}
+
+	brUUID := row["_uuid"].(ovsdb.UUID)
+	delOp := deleteBridgeOperation(brName)
+	detachOp := detachBridgeOperation(brUUID)
+
+	operations := []ovsdb.Operation{*delOp, *detachOp}
+
+	_, err = ovsd.ovsdbTransact(operations)
+	if err != nil {
+		return fmt.Errorf("failed to delete bridge %s: %w", brName, err)
+	}
+
+	return nil
+}
+
+// IsBridgeEmpty returns true if the bridge contains ONLY the default internal port
+// (same name as bridge) and VXLAN tunnel ports. If any other ports (e.g., Pod veth)
+// are present, it returns false.
+func (ovsd *OvsDriver) IsBridgeEmpty(bridgeName string) (bool, error) {
+	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, bridgeName)
+	brRow, err := ovsd.findByCondition(bridgeTable, condition, []string{"ports"})
+	if err != nil {
+		if errors.Is(err, errObjectNotFound) {
+			return true, nil
+		}
+		return false, err
+	}
+
+	portUUIDs, err := convertToArray(brRow["ports"])
+	if err != nil {
+		return false, fmt.Errorf("cannot convert ports to array: %w", err)
+	}
+
+	if len(portUUIDs) == 0 {
+		return true, nil
+	}
+
+	for _, portUUIDInf := range portUUIDs {
+		portUUID := portUUIDInf.(ovsdb.UUID)
+
+		portCond := ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, portUUID)
+		portRow, err := ovsd.findByCondition("Port", portCond, []string{"name", "interfaces"})
+		if err != nil {
+			// If we can't query the port, assume not empty/failure.
+			return false, fmt.Errorf("failed to query port %s: %v", portUUID.GoUUID, err)
+		}
+
+		portName := fmt.Sprintf("%v", portRow["name"])
+
+		// Exemption 1: Port name equals bridge name (OVS internal port)
+		if portName == bridgeName {
+			continue
+		}
+
+		intfUUIDs, err := convertToArray(portRow["interfaces"])
+		if err != nil {
+			return false, fmt.Errorf("failed to get interfaces for port %s: %v", portName, err)
+		}
+		if len(intfUUIDs) == 0 {
+			continue
+		}
+		intfUUID := intfUUIDs[0].(ovsdb.UUID)
+		intfCond := ovsdb.NewCondition("_uuid", ovsdb.ConditionEqual, intfUUID)
+		intfRow, err := ovsd.findByCondition("Interface", intfCond, []string{"type"})
+		if err != nil {
+			return false, fmt.Errorf("failed to query interface %s: %v", intfUUID.GoUUID, err)
+		}
+
+		intfType := fmt.Sprintf("%v", intfRow["type"])
+
+		// Exemption 2: Interface type is VXLAN (Tunnel created by Controller)
+		if intfType == "vxlan" {
+			continue
+		}
+
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // BridgeList returns available ovs bridge names
@@ -785,6 +941,38 @@ func (ovsd *OvsDriver) findByCondition(table string, condition ovsdb.Condition, 
 	return operationResult.Rows[0], nil
 }
 
+// create Vxlan interface
+func createVxlanInterfaceOperation(intfName string, remoteIP string) (ovsdb.UUID, *ovsdb.Operation, error) {
+	safeName := strings.ReplaceAll(intfName, "-", "_")
+	intfUUIDStr := fmt.Sprintf("Intf%s", safeName)
+	intfUUID := ovsdb.UUID{GoUUID: intfUUIDStr}
+
+	// Configure specific options for Vxlan
+	// using udp 4790, for avoiding conflict with Calico Vxlan port
+	optionsMap, err := ovsdb.NewOvsMap(map[string]string{
+		"remote_ip": remoteIP,
+		"key":       "flow",
+		"dst_port":  "4790",
+	})
+	if err != nil {
+		return ovsdb.UUID{}, nil, err
+	}
+
+	intf := make(map[string]interface{})
+	intf["name"] = intfName
+	intf["type"] = "vxlan"
+	intf["options"] = optionsMap
+
+	intfOp := ovsdb.Operation{
+		Op:       "insert",
+		Table:    "Interface",
+		Row:      intf,
+		UUIDName: intfUUIDStr,
+	}
+
+	return intfUUID, &intfOp, nil
+}
+
 // isMirrorExistsByConditions find a mirror by a list conditions.
 // It returns true, only if there is a single row as result.
 func (ovsd *OvsDriver) isMirrorExistsByConditions(conditions []ovsdb.Condition) (bool, error) {
@@ -814,6 +1002,72 @@ func (ovsd *OvsDriver) isMirrorExistsByConditions(conditions []ovsdb.Condition) 
 	}
 
 	return true, nil
+}
+
+func createBridgeOperation(brName string) (ovsdb.UUID, *ovsdb.Operation, error) {
+	safeUUIDName := strings.ReplaceAll(brName, "-", "_")
+	brUUIDStr := fmt.Sprintf("Br%s", safeUUIDName)
+	brUUID := ovsdb.UUID{GoUUID: brUUIDStr}
+
+	br := make(map[string]interface{})
+	br["name"] = brName
+	br["datapath_type"] = "system"
+	br["datapath_type"] = "system"
+	// Disable STP/RSTP for Full-Mesh topology to prevent port blocking
+	br["rstp_enable"] = false
+	br["stp_enable"] = false
+
+	brOp := ovsdb.Operation{
+		Op:       "insert",
+		Table:    bridgeTable,
+		Row:      br,
+		UUIDName: brUUIDStr,
+	}
+
+	return brUUID, &brOp, nil
+}
+
+func attachBridgeOperation(brUUID ovsdb.UUID) *ovsdb.Operation {
+	// mutate the brediges column of the row in the Bridge table
+	mutateSet, _ := ovsdb.NewOvsSet(brUUID)
+	mutation := ovsdb.NewMutation("bridges", ovsdb.MutateOperationInsert, mutateSet)
+	condition := ovsdb.NewCondition("_uuid", ovsdb.ConditionNotEqual, brUUID)
+	mutateOp := ovsdb.Operation{
+		Op:        "mutate",
+		Table:     ovsTable,
+		Mutations: []ovsdb.Mutation{*mutation},
+		Where:     []ovsdb.Condition{condition},
+	}
+
+	return &mutateOp
+}
+
+// deleteBridgeOperation generates an operation to delete a bridge from the Bridge table
+func deleteBridgeOperation(brName string) *ovsdb.Operation {
+	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, brName)
+	brOp := ovsdb.Operation{
+		Op:    "delete",
+		Table: bridgeTable,
+		Where: []ovsdb.Condition{condition},
+	}
+
+	return &brOp
+}
+
+// detachBridgeOperation generates an operation to remove the bridge UUID from the Open_vSwitch root table
+func detachBridgeOperation(brUUID ovsdb.UUID) *ovsdb.Operation {
+	mutateSet, _ := ovsdb.NewOvsSet(brUUID)
+	mutation := ovsdb.NewMutation("bridges", ovsdb.MutateOperationDelete, mutateSet)
+	condition := ovsdb.NewCondition("_uuid", ovsdb.ConditionNotEqual, brUUID)
+
+	mutateOp := ovsdb.Operation{
+		Op:        "mutate",
+		Table:     ovsTable,
+		Mutations: []ovsdb.Mutation{*mutation},
+		Where:     []ovsdb.Condition{condition},
+	}
+
+	return &mutateOp
 }
 
 func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName string, intfType string) (ovsdb.UUID, *ovsdb.Operation, error) {
@@ -854,13 +1108,16 @@ func createInterfaceOperation(intfName string, ofportRequest uint, ovnPortName s
 }
 
 func createPortOperation(intfName, contNetnsPath, contIfaceName string, vlanTag uint, trunks []uint, portType string, intfUUID ovsdb.UUID, contPodUid string) (ovsdb.UUID, *ovsdb.Operation, error) {
-	portUUIDStr := intfName
+	safeUUIDName := strings.ReplaceAll(intfName, "-", "_")
+	portUUIDStr := fmt.Sprintf("Port%s", safeUUIDName)
 	portUUID := ovsdb.UUID{GoUUID: portUUIDStr}
 
 	port := make(map[string]interface{})
 	port["name"] = intfName
 
-	port["vlan_mode"] = portType
+	if portType != "" {
+		port["vlan_mode"] = portType
+	}
 	var err error
 	if portType == "access" {
 		port["tag"] = vlanTag
