@@ -1,7 +1,7 @@
 module github.com/k8snetworkplumbingwg/ovs-cni
 
 require (
-	dario.cat/mergo v1.0.0
+	dario.cat/mergo v1.0.2
 	github.com/containernetworking/cni v1.2.3
 	github.com/containernetworking/plugins v1.5.1
 	github.com/golang/glog v1.2.5
