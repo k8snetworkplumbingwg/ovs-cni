@@ -45,6 +45,7 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/vdpa"
 )
 
 // EnvArgs args containing common, desired mac and ovs port name
@@ -340,6 +341,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
+	vdpaDev, err := vdpa.GetVdpaDeviceFromID(netconf.DeviceID)
+	if err != nil {
+		return err
+	}
+	vdpaDevType, err := vdpa.GetDeviceType(vdpaDev)
+	if err != nil {
+		return err
+	}
+
 	// Cache NetConf for CmdDel
 	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName),
 		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName, UserspaceMode: userspaceMode}); err != nil {
@@ -347,7 +357,12 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	var hostIface, contIface *current.Interface
-	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+	if vdpaDevType == vdpa.VdpaDeviceTypeKernelVhost {
+		hostIface, contIface, err = vdpa.SetupVdpaInterface(contNetns, args.IfName, netconf.DeviceID, mac, vdpaDev, netconf.MTU)
+		if err != nil {
+			return err
+		}
+	} else if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
 		if err != nil {
 			return err
@@ -385,7 +400,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// run the IPAM plugin
 	// userspace driver does not support IPAM plugin,
 	// because there is no network interface for the VF on the host
-	if netconf.IPAM.Type != "" && !userspaceMode {
+	if netconf.IPAM.Type != "" && !userspaceMode && vdpaDevType != vdpa.VdpaDeviceTypeKernelVhost {
 		var r cnitypes.Result
 		r, err = ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
 		defer func() {
