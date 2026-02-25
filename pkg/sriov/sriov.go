@@ -391,10 +391,9 @@ func ReleaseVF(args *skel.CmdArgs, origIfName string) error {
 		}
 		return nil
 	})
-
 }
 
-// ResetVF reset the VF which accidently moved into default network namespace by a container failure
+// ResetVF reset the VF which accidentally moved into default network namespace by a container failure
 func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 	// get smart VF netdevice from PCI
 	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
