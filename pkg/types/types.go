@@ -28,6 +28,13 @@ type NetConfs interface {
 	NetConf | MirrorNetConf
 }
 
+// CNIArgs contains arguments passed via args.cni in the CNI config
+// This follows CNI conventions: https://www.cni.dev/docs/conventions/
+type CNIArgs struct {
+	OvnPort string `json:"OvnPort,omitempty"`
+	MAC     string `json:"MAC,omitempty"`
+}
+
 // NetConf extends types.NetConf for ovs-cni
 type NetConf struct {
 	types.NetConf
@@ -42,6 +49,10 @@ type NetConf struct {
 	SocketFile             string   `json:"socket_file"`
 	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
+	// Args contains CNI args passed via args.cni in the config
+	Args *struct {
+		CNI *CNIArgs `json:"cni,omitempty"`
+	} `json:"args,omitempty"`
 }
 
 // netConfAlias is used to avoid infinite recursion when marshaling NetConf.
