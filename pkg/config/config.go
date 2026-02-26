@@ -26,6 +26,7 @@ import (
 	"dario.cat/mergo"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/cni/pkg/version"
+
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
@@ -164,7 +165,7 @@ func loadFlatNetConf[T types.NetConfs](configPath string) (*T, error) {
 			if err != nil {
 				return nil, fmt.Errorf("open ovs config file %s error: %v", confFile, err)
 			}
-			defer jsonFile.Close()
+			defer func() { _ = jsonFile.Close() }()
 			jsonBytes, err := io.ReadAll(jsonFile)
 			if err != nil {
 				return nil, fmt.Errorf("load ovs config file %s: error: %v", confFile, err)

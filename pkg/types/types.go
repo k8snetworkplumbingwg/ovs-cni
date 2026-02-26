@@ -17,6 +17,8 @@
 package types
 
 import (
+	"encoding/json"
+
 	"github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 )
@@ -42,6 +44,20 @@ type NetConf struct {
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
 }
 
+// netConfAlias is used to avoid infinite recursion when marshaling NetConf.
+// The embedded types.NetConf has a custom MarshalJSON that only marshals its own fields,
+// which would cause OVS-specific fields (like BrName) to be lost during marshaling.
+type netConfAlias NetConf
+
+// MarshalJSON implements custom JSON marshaling for NetConf.
+// This is necessary because the embedded types.NetConf (which is types.PluginConf)
+// has its own MarshalJSON method that only marshals PluginConf fields, causing
+// OVS-specific fields like BrName to be lost. By defining our own MarshalJSON,
+// we ensure all fields are properly marshaled.
+func (n NetConf) MarshalJSON() ([]byte, error) {
+	return json.Marshal(netConfAlias(n))
+}
+
 // MirrorNetConf extends types.NetConf for ovs-mirrors
 type MirrorNetConf struct {
 	types.NetConf
@@ -55,6 +71,17 @@ type MirrorNetConf struct {
 	ConfigurationPath string    `json:"configuration_path"`
 	SocketFile        string    `json:"socket_file"`
 	Mirrors           []*Mirror `json:"mirrors"`
+}
+
+// mirrorNetConfAlias is used to avoid infinite recursion when marshaling MirrorNetConf.
+type mirrorNetConfAlias MirrorNetConf
+
+// MarshalJSON implements custom JSON marshaling for MirrorNetConf.
+// This is necessary for the same reason as NetConf.MarshalJSON - the embedded
+// types.NetConf has a custom MarshalJSON that would cause mirror-specific fields
+// to be lost during marshaling.
+func (n MirrorNetConf) MarshalJSON() ([]byte, error) {
+	return json.Marshal(mirrorNetConfAlias(n))
 }
 
 // Mirror configuration

@@ -1,0 +1,85 @@
+# Tested with golangci-lint ver. 2.x
+version: "2"
+
+run:
+  timeout: 10m
+
+linters:
+  default: none
+  enable:
+    - asciicheck        # checks for non-ASCII identifiers
+    - bidichk           # checks for dangerous unicode sequences (security)
+    - bodyclose
+    - copyloopvar
+    - depguard
+    - dogsled
+    - errcheck
+    - errname           # checks error naming conventions
+    - exhaustive
+    - gocheckcompilerdirectives  # validates go compiler directives
+    - goconst
+    - goprintffuncname
+    - govet
+    - ineffassign
+    - makezero          # finds slice declarations with non-zero initial length
+    - misspell
+    - reassign          # checks package variable reassignment
+    - staticcheck
+    - unconvert
+    - unused
+    - whitespace
+
+  settings:
+    depguard:
+      rules:
+        main:
+          deny:
+            - pkg: github.com/sirupsen/logrus
+              desc: "logging is allowed only by logutils.Log"
+    goconst:
+      min-len: 2
+      min-occurrences: 2
+    misspell:
+      locale: US
+    staticcheck:
+      checks:
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1005
+        - -ST1023
+        - -QF1001
+        - -QF1003
+        - -QF1004
+        - -QF1008
+        - -QF1011
+      dot-import-whitelist:
+        - github.com/onsi/ginkgo/v2
+        - github.com/onsi/gomega
+        - github.com/onsi/gomega/gstruct
+
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    paths:
+      - vendor/
+      - tests/
+    rules:
+      - path: _test\.go
+        linters:
+          - errcheck
+          - gosec
+          - dupl
+          - lll
+          - goconst
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/k8snetworkplumbingwg/ovs-cni
