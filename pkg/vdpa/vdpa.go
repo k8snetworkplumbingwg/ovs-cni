@@ -70,6 +70,15 @@ func getVdpaMacAddr(vdpaDevice *kvdpa.VdpaDevice) (net.HardwareAddr, error) {
 	return cfg.Net.Cfg.MACAddr, nil
 }
 
+func getVdpaMTU(vdpaDevice *kvdpa.VdpaDevice) (uint16, error) {
+	cfg, err := netlink.VDPAGetDevConfigByName((*vdpaDevice).Name())
+	if err != nil {
+		return 0, err
+	}
+
+	return cfg.Net.Cfg.MTU, nil
+}
+
 func SetupVdpaInterface(
 	contNetns ns.NetNS,
 	ifName,
@@ -162,4 +171,67 @@ func setupKernelVdpaVhost(
 	contIface.Sandbox = contNetns.Path()
 
 	return hostIface, contIface, nil
+}
+
+func ValidateVdpaDevice(intf current.Interface, pciAddr string, vdpaType types.VdpaDeviceType) error {
+	switch vdpaType {
+	case types.VdpaDeviceTypeNone:
+		return fmt.Errorf("non-vdpa devices can not be configured as such")
+	case types.VdpaDeviceTypeKernelVhost:
+		return validateKernelVdpaVhost(intf, pciAddr)
+	default:
+		return fmt.Errorf("unknown vdpa device type")
+	}
+}
+
+func validateKernelVdpaVhost(intf current.Interface, pciAddr string) error {
+	vdpaDev, err := GetVdpaDeviceFromID(pciAddr)
+	if err != nil {
+		return err
+	}
+
+	if intf.Mac != "" {
+		macAddr, err := getVdpaMacAddr(vdpaDev)
+		if err != nil {
+			return err
+		}
+
+		if intf.Mac != macAddr.String() {
+			return fmt.Errorf(
+				"Interface %s Mac %s does not match %s Mac: %s",
+				intf.Name, intf.Mac, (*vdpaDev).Name(), macAddr.String(),
+			)
+		}
+	}
+
+	if intf.Mtu != 0 {
+		mtu, err := getVdpaMTU(vdpaDev)
+		if err != nil {
+			return err
+		}
+		if intf.Mtu != int(mtu) {
+			return fmt.Errorf(
+				"Interface %s MTU %d does not match %s MTU: %d",
+				intf.Name, intf.Mtu, (*vdpaDev).Name(), mtu,
+			)
+		}
+
+		vfNetName, err := sriov.GetNetVF(pciAddr)
+		if err != nil {
+			return err
+		}
+		vfLink, err := netlink.LinkByName(vfNetName)
+		if err != nil {
+			return err
+		}
+		vfMtu := vfLink.Attrs().MTU
+		if intf.Mtu != vfMtu {
+			return fmt.Errorf(
+				"Interface %s MTU %d does not match %s MTU: %d",
+				intf.Name, intf.Mtu, vfNetName, vfMtu,
+			)
+		}
+	}
+
+	return nil
 }

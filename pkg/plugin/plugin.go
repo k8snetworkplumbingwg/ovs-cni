@@ -730,7 +730,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	// run the IPAM plugin
 	// userspace driver does not support IPAM plugin,
 	// because there is no network interface for the VF on the host
-	if netconf.NetConf.IPAM.Type != "" && !cache.UserspaceMode {
+	if netconf.NetConf.IPAM.Type != "" && !cache.UserspaceMode && cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
 		err = ipam.ExecCheck(netconf.NetConf.IPAM.Type, args.StdinData)
 		if err != nil {
 			return fmt.Errorf("failed to check with IPAM plugin type %q: %v", netconf.NetConf.IPAM.Type, err)
@@ -771,32 +771,39 @@ func CmdCheck(args *skel.CmdArgs) error {
 			contIntf.Sandbox, args.Netns)
 	}
 
-	netns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer func() { _ = netns.Close() }()
+	if cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
+		netns, err := ns.GetNS(args.Netns)
+		if err != nil {
+			return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		}
+		defer func() { _ = netns.Close() }()
 
-	// Check prevResults for ips and routes against values found in the container
-	if err := netns.Do(func(_ ns.NetNS) error {
-		// Check interface against values found in the container
-		err := validateInterface(contIntf, false, ovsHWOffloadEnable)
+		// Check prevResults for ips and routes against values found in the container
+		if err := netns.Do(func(_ ns.NetNS) error {
+			// Check interface against values found in the container
+			err := validateInterface(contIntf, false, ovsHWOffloadEnable)
+			if err != nil {
+				return err
+			}
+
+			err = ip.ValidateExpectedInterfaceIPs(args.IfName, result.IPs)
+			if err != nil {
+				return err
+			}
+
+			err = ip.ValidateExpectedRoute(result.Routes)
+			if err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	} else {
+		err := vdpa.ValidateVdpaDevice(contIntf, netconf.DeviceID, cache.VdpaType)
 		if err != nil {
 			return err
 		}
-
-		err = ip.ValidateExpectedInterfaceIPs(args.IfName, result.IPs)
-		if err != nil {
-			return err
-		}
-
-		err = ip.ValidateExpectedRoute(result.Routes)
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return err
 	}
 
 	// ovs specific check
