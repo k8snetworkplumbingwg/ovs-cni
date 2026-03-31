@@ -78,6 +78,10 @@ make cluster-down       # Tear down cluster
 - **Multi-arch:** amd64, arm64, ppc64le, s390x
 - **Base:** UBI 9 minimal (runtime), CentOS Stream 9 (builder)
 
+## Git
+
+- **Always sign off commits with `git commit -s`.** This project requires DCO (Developer Certificate of Origin) sign-off.
+
 ## CI
 
 GitHub Actions workflows in `.github/workflows/`:
