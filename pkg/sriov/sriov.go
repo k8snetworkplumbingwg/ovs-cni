@@ -13,10 +13,13 @@
 package sriov
 
 import (
+	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	current "github.com/containernetworking/cni/pkg/types/100"
@@ -368,21 +371,130 @@ func renameLink(curName, newName string) (netlink.Link, error) {
 	return link, nil
 }
 
+func linkByNameIfExists(ifName string) (netlink.Link, bool, error) {
+	link, err := netlink.LinkByName(ifName)
+	if err != nil {
+		if _, ok := err.(netlink.LinkNotFoundError); ok {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	return link, true, nil
+}
+
+func deleteLinkIfExists(ifName string) error {
+	err := ip.DelLinkByName(ifName)
+	if err == nil || err == ip.ErrLinkNotFound {
+		return nil
+	}
+	return err
+}
+
+func isFileExistsErr(err error) bool {
+	return errors.Is(err, os.ErrExist) || errors.Is(err, syscall.EEXIST)
+}
+
+func reconcileExistingTargetInContNetns(hostNs ns.NetNS, currentName, targetName string) error {
+	targetLink, targetFound, err := linkByNameIfExists(targetName)
+	if err != nil {
+		return fmt.Errorf("failed to lookup target interface %s: %v", targetName, err)
+	}
+	if !targetFound {
+		return ip.ErrLinkNotFound
+	}
+
+	// Delete the stale source link first so that a partial failure
+	// (target not yet moved) can be retried cleanly.
+	if err := deleteLinkIfExists(currentName); err != nil {
+		return fmt.Errorf("failed to delete stale source interface %s: %v", currentName, err)
+	}
+
+	// Some kernel versions require the link to be down before moving
+	// between network namespaces.
+	if err := netlink.LinkSetDown(targetLink); err != nil {
+		return fmt.Errorf("failed to set link %s down before netns move: %v", targetName, err)
+	}
+
+	if err := netlink.LinkSetNsFd(targetLink, int(hostNs.Fd())); err != nil {
+		return fmt.Errorf("failed to move existing target interface %s to host netns: %v", targetName, err)
+	}
+
+	return nil
+}
+
 // ReleaseVF release the VF from container namespace into host namespace
-func ReleaseVF(args *skel.CmdArgs, origIfName string) error {
+func ReleaseVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 	hostNs, err := ns.GetCurrentNS()
 	if err != nil {
 		return fmt.Errorf("failed to get host netns: %v", err)
 	}
+	defer func() { _ = hostNs.Close() }()
+
 	contNetns, err := ns.GetNS(args.Netns)
 	if err != nil {
 		return fmt.Errorf("failed to open container netns %q: %v", args.Netns, err)
 	}
+	defer func() { _ = contNetns.Close() }()
+
+	log.Printf("ReleaseVF pre-rename: contNetns=%s hostNetns=%s currentName=%s targetName=%s deviceID=%s",
+		contNetns.Path(), hostNs.Path(), args.IfName, origIfName, deviceID)
 
 	return contNetns.Do(func(_ ns.NetNS) error {
+		if _, found, err := linkByNameIfExists(args.IfName); err != nil {
+			return fmt.Errorf("failed to lookup source interface %s: %v", args.IfName, err)
+		} else if !found {
+			if err := reconcileExistingTargetInContNetns(hostNs, args.IfName, origIfName); err == nil {
+				log.Printf("ReleaseVF source missing: moved existing target to host: contNetns=%s currentName=%s targetName=%s deviceID=%s",
+					contNetns.Path(), args.IfName, origIfName, deviceID)
+				return nil
+			} else if !errors.Is(err, ip.ErrLinkNotFound) {
+				return err
+			}
+
+			hostHasTarget := false
+			if err := hostNs.Do(func(_ ns.NetNS) error {
+				_, foundInHost, err := linkByNameIfExists(origIfName)
+				if err != nil {
+					return err
+				}
+				hostHasTarget = foundInHost
+				return nil
+			}); err != nil {
+				return fmt.Errorf("failed to verify target interface %s in host netns: %v", origIfName, err)
+			}
+
+			if hostHasTarget {
+				// Already restored to host netns by a prior cleanup.
+				return nil
+			}
+
+			// Neither source nor target names are present where expected yet.
+			return ip.ErrLinkNotFound
+		}
+
+		if _, found, err := linkByNameIfExists(origIfName); err != nil {
+			return fmt.Errorf("failed to lookup target interface %s: %v", origIfName, err)
+		} else if found {
+			if err := reconcileExistingTargetInContNetns(hostNs, args.IfName, origIfName); err != nil {
+				return err
+			}
+			log.Printf("ReleaseVF conflict reconciled: moved existing target and removed stale source: contNetns=%s currentName=%s targetName=%s deviceID=%s",
+				contNetns.Path(), args.IfName, origIfName, deviceID)
+			return nil
+		}
+
 		// rename VF device back to its original name
 		linkObj, err := renameLink(args.IfName, origIfName)
 		if err != nil {
+			if isFileExistsErr(err) {
+				if reconcileErr := reconcileExistingTargetInContNetns(hostNs, args.IfName, origIfName); reconcileErr == nil {
+					log.Printf("ReleaseVF idempotent rename conflict: reconciled after EEXIST: contNetns=%s currentName=%s targetName=%s deviceID=%s",
+						contNetns.Path(), args.IfName, origIfName, deviceID)
+					return nil
+				} else if !errors.Is(reconcileErr, ip.ErrLinkNotFound) {
+					return reconcileErr
+				}
+			}
 			return err
 		}
 		// move VF device to host netns
@@ -395,6 +507,19 @@ func ReleaseVF(args *skel.CmdArgs, origIfName string) error {
 
 // ResetVF reset the VF which accidentally moved into default network namespace by a container failure
 func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
+	hostNs, err := ns.GetCurrentNS()
+	if err == nil {
+		defer func() { _ = hostNs.Close() }()
+		log.Printf("ResetVF pre-rename: netns=%s currentName=%s targetName=%s deviceID=%s", hostNs.Path(), args.IfName, origIfName, deviceID)
+	}
+
+	if _, found, err := linkByNameIfExists(origIfName); err != nil {
+		return fmt.Errorf("failed to lookup target interface %s: %v", origIfName, err)
+	} else if found {
+		// The VF is already restored under the expected name.
+		return nil
+	}
+
 	// get smart VF netdevice from PCI
 	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
 	if err != nil {
@@ -409,6 +534,11 @@ func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 	}
 	_, err = renameLink(vfNetdevices[0], origIfName)
 	if err != nil {
+		if isFileExistsErr(err) {
+			if _, found, lookupErr := linkByNameIfExists(origIfName); lookupErr == nil && found {
+				return nil
+			}
+		}
 		return err
 	}
 
