@@ -432,7 +432,7 @@ func ReleaseVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 
 	contNetns, err := ns.GetNS(args.Netns)
 	if err != nil {
-		return fmt.Errorf("failed to open container netns %q: %v", args.Netns, err)
+		return fmt.Errorf("failed to open container netns %q: %w", args.Netns, err)
 	}
 	defer func() { _ = contNetns.Close() }()
 

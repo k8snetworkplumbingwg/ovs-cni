@@ -543,10 +543,20 @@ func releaseVFWithRetry(args *skel.CmdArgs, deviceID, origIfName string) error {
 		if err == nil {
 			return nil
 		}
+
+		// If the container namespace no longer exists, the kernel has already
+		// moved the VF back to the host namespace. Per the CNI spec, DEL
+		// should succeed when resources are already gone.
+		var nsPathErr ns.NSPathNotExistErr
+		if errors.As(err, &nsPathErr) {
+			log.Printf("ReleaseVF: container netns gone, VF %s (deviceID=%s) assumed restored to host", origIfName, deviceID)
+			return nil
+		}
+
 		lastErr = err
 
 		log.Printf("ReleaseVF attempt %d failed for VF %s (deviceID=%s): %v", attempt, origIfName, deviceID, err)
-		if resetErr := sriov.ResetVF(args, deviceID, origIfName); resetErr != nil {
+		if resetErr := sriov.ResetVF(args, deviceID, origIfName); resetErr == nil || errors.Is(resetErr, ip.ErrLinkNotFound) {
 			log.Printf("Failed best-effort cleanup of VF %s: %v", origIfName, resetErr)
 		}
 
