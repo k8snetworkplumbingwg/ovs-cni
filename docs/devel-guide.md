@@ -101,7 +101,7 @@ Use following commands to control it.
 make cluster-up
 
 # Run a command on a cluster node
-./cluster/ssh.sh ovs-cni-worker -- ovs-vsctl show
+./cluster/exec.sh ovs-cni-worker -- ovs-vsctl show
 
 # Communicate with the Kubernetes cluster using kubectl
 ./cluster/kubectl.sh

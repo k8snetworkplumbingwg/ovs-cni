@@ -20,10 +20,10 @@ Build ovs-cni from local sources and install it on the cluster.
 make cluster-sync
 ```
 
-You can run commands on cluster nodes using `cluster/ssh.sh`.
+You can run commands on cluster nodes using `cluster/exec.sh`.
 
 ```shell
-cluster/ssh.sh ovs-cni-worker -- ovs-vsctl show
+cluster/exec.sh ovs-cni-worker -- ovs-vsctl show
 ```
 
 Finally if you want to use `kubectl` to access the cluster, start proxy.

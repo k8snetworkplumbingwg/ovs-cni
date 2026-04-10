@@ -68,7 +68,7 @@ make cluster-up         # Create kind cluster with OVS and Multus
 make cluster-sync       # Build and deploy ovs-cni to the cluster
 make cluster-down       # Tear down cluster
 ./cluster/kubectl.sh    # kubectl with correct kubeconfig
-./cluster/ssh.sh <node> -- <command>  # Run command on a cluster node via docker exec
+./cluster/exec.sh <node> -- <command>  # Run command on a cluster node via docker exec
 ```
 
 ## Container image
