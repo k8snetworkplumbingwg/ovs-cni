@@ -38,10 +38,10 @@ func WorkerNode() string {
 }
 
 func RunAtNode(node string, command ...string) (string, error) {
-	ssh := "./cluster/exec.sh"
-	sshCommand := []string{node, "--"}
-	sshCommand = append(sshCommand, command...)
-	output, err := cmd.Run(ssh, sshCommand...)
+	execScript := "./cluster/exec.sh"
+	execArgs := []string{node, "--"}
+	execArgs = append(execArgs, command...)
+	output, err := cmd.Run(execScript, execArgs...)
 	return output, err
 }
 
