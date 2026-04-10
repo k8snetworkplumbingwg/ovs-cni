@@ -20,7 +20,13 @@ source ./cluster/cluster.sh
 
 make docker-build
 
-kind load docker-image --name ${KIND_CLUSTER_NAME} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
+if [ "${OCI_BIN}" = "podman" ]; then
+    ${OCI_BIN} save ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -o /tmp/ovs-cni-plugin.tar
+    kind load image-archive --name ${KIND_CLUSTER_NAME} /tmp/ovs-cni-plugin.tar
+    rm -f /tmp/ovs-cni-plugin.tar
+else
+    kind load docker-image --name ${KIND_CLUSTER_NAME} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
+fi
 
 ./cluster/kubectl.sh delete --ignore-not-found -f examples/ovs-cni.yml
 ./cluster/kubectl.sh apply -f examples/ovs-cni.yml

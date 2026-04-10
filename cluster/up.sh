@@ -20,7 +20,7 @@ SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
 source ${SCRIPTS_PATH}/cluster.sh
 
 echo 'Building custom kind node image with OVS'
-docker build -t ${KIND_NODE_IMAGE} ${SCRIPTS_PATH}/kind-node/
+${OCI_BIN} build -t ${KIND_NODE_IMAGE} ${SCRIPTS_PATH}/kind-node/
 
 echo 'Creating kind cluster'
 kind create cluster \
@@ -34,7 +34,7 @@ echo 'Waiting for nodes to be ready'
 
 echo 'Starting Open vSwitch on nodes'
 for n in $(./cluster/kubectl.sh get nodes --no-headers -o custom-columns=NAME:.metadata.name); do
-    docker exec "${n}" systemctl start openvswitch-switch
+    ${OCI_BIN} exec "${n}" systemctl start openvswitch-switch
 done
 
 echo 'Deploying Multus'
