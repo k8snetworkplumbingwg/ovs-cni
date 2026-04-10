@@ -24,12 +24,13 @@ IMAGE_TAG=${IMAGE_TAG:-latest}
 make docker-build
 
 if [ "${OCI_BIN}" = "podman" ]; then
-    ${OCI_BIN} save ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -o /tmp/ovs-cni-plugin.tar
-    kind load image-archive --name ${KIND_CLUSTER_NAME} /tmp/ovs-cni-plugin.tar
-    rm -f /tmp/ovs-cni-plugin.tar
+    TMP_IMAGE=$(mktemp /tmp/ovs-cni-plugin.XXXXXX)
+    ${OCI_BIN} save ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -o "${TMP_IMAGE}"
+    kind load image-archive --name ${KIND_CLUSTER_NAME} "${TMP_IMAGE}"
+    rm -f "${TMP_IMAGE}"
 else
     kind load docker-image --name ${KIND_CLUSTER_NAME} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
 fi
 
-./cluster/kubectl.sh delete --ignore-not-found -f examples/ovs-cni.yml
-./cluster/kubectl.sh apply -f examples/ovs-cni.yml
+sed "s|ghcr.io/k8snetworkplumbingwg/ovs-cni-plugin:latest|${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}|g" examples/ovs-cni.yml | ./cluster/kubectl.sh delete --ignore-not-found -f -
+sed "s|ghcr.io/k8snetworkplumbingwg/ovs-cni-plugin:latest|${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}|g" examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -

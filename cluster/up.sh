@@ -23,6 +23,7 @@ echo 'Building custom kind node image with OVS'
 ${OCI_BIN} build -t ${KIND_NODE_IMAGE} ${SCRIPTS_PATH}/kind-node/
 
 echo 'Creating kind cluster'
+mkdir -p "$(dirname "$(cluster::kubeconfig)")"
 kind create cluster \
     --name ${KIND_CLUSTER_NAME} \
     --image ${KIND_NODE_IMAGE} \
@@ -40,5 +41,6 @@ done
 echo 'Deploying Multus'
 MULTUS_VERSION=v4.0.1
 MULTUS_MANIFEST=https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/${MULTUS_VERSION}/deployments/multus-daemonset.yml
+# update the tag until https://github.com/k8snetworkplumbingwg/multus-cni/issues/1170 is fixed
 curl -L ${MULTUS_MANIFEST} | sed "s/:snapshot/:${MULTUS_VERSION}/g" | ./cluster/kubectl.sh apply -f -
 ./cluster/kubectl.sh -n kube-system rollout status daemonset kube-multus-ds --timeout 300s

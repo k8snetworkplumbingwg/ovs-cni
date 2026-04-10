@@ -28,5 +28,5 @@ if [ "${OCI_BIN}" = "podman" ]; then
 fi
 
 function cluster::kubeconfig() {
-    echo -n "${HOME}/.kube/kind-config-${KIND_CLUSTER_NAME}"
+    echo -n "${PWD}/.kube/kind-config-${KIND_CLUSTER_NAME}"
 }
