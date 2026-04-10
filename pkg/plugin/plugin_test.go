@@ -845,6 +845,44 @@ var testFunc = func(version string) {
 			})
 		})
 
+		Context("validate interface error state", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s"
+			}`, version, bridgeName)
+
+			It("should detect when an OVS interface is in error state", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				hostIfName, _ := testAdd(conf, false, false, "", targetNs)
+
+				// Delete the host veth to put the OVS interface in error state.
+				err := ip.DelLinkByName(hostIfName)
+				Expect(err).NotTo(HaveOccurred())
+
+				waitForIfaceError(hostIfName, 10, 100*time.Millisecond)
+
+				// Call validateOvs directly to exercise the InterfaceHasError path.
+				args := &skel.CmdArgs{
+					ContainerID: "dummy",
+					Netns:       targetNs.Path(),
+					IfName:      IFNAME,
+					StdinData:   []byte(conf),
+				}
+				netconf, err := config.LoadConf(args.StdinData)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = validateOvs(args, netconf, hostIfName)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("error state"))
+			})
+		})
+
 		Context("purge ports with failed interfaces", func() {
 			conf := fmt.Sprintf(`{
 				"cniVersion": "%s",
