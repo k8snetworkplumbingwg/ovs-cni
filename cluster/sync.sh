@@ -18,16 +18,18 @@ set -ex
 
 source ./cluster/cluster.sh
 
-REGISTRY=${REGISTRY:-ghcr.io/k8snetworkplumbingwg}
-IMAGE_TAG=${IMAGE_TAG:-latest}
+export REGISTRY=${REGISTRY:-ghcr.io/k8snetworkplumbingwg}
+export IMAGE_TAG=${IMAGE_TAG:-latest}
 
 make docker-build
 
 if [ "${OCI_BIN}" = "podman" ]; then
     TMP_IMAGE=$(mktemp /tmp/ovs-cni-plugin.XXXXXX)
+    trap "rm -f \"${TMP_IMAGE}\"" EXIT
     ${OCI_BIN} save ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -o "${TMP_IMAGE}"
     kind load image-archive --name ${KIND_CLUSTER_NAME} "${TMP_IMAGE}"
     rm -f "${TMP_IMAGE}"
+    trap - EXIT
 else
     kind load docker-image --name ${KIND_CLUSTER_NAME} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
 fi
