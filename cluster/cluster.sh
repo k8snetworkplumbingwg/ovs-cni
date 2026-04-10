@@ -13,7 +13,7 @@
 # limitations under the License.
 
 export KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-ovs-cni}
-export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-kindest/node-ovs:latest}
+export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-localhost/kindest/node-ovs:latest}
 
 OCI_BIN=${OCI_BIN:-$(if podman ps >/dev/null 2>&1; then echo podman; elif docker ps >/dev/null 2>&1; then echo docker; fi)}
 export OCI_BIN

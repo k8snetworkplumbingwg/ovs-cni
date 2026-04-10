@@ -18,6 +18,9 @@ set -ex
 
 source ./cluster/cluster.sh
 
+REGISTRY=${REGISTRY:-ghcr.io/k8snetworkplumbingwg}
+IMAGE_TAG=${IMAGE_TAG:-latest}
+
 make docker-build
 
 if [ "${OCI_BIN}" = "podman" ]; then
