@@ -74,12 +74,12 @@ var testMirrorFunc = func(version string) {
 						cidrCons     = "10.1.0.1/24"
 					)
 					BeforeEach(func() {
-						consAdditionalCommands := "apk add tcpdump; tcpdump -i net1 > /tcpdump.log;"
+						consAdditionalCommands := "apk add tcpdump; tcpdump -l -i net1 > /tcpdump.log 2>&1;"
 						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
-						Eventually(func() error {
-							_, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
-							return err
-						}, 120*time.Second, time.Second).Should(Succeed(), "tcpdump did not start in time")
+						Eventually(func() string {
+							out, _ := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							return out
+						}, 120*time.Second, time.Second).Should(ContainSubstring("listening on"), "tcpdump did not start in time")
 
 						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
 						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
@@ -100,10 +100,13 @@ var testMirrorFunc = func(version string) {
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
 
 						By("Confirming that the communication was recorded")
-						tcpDumpResult, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
-						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to read 'tcdump' log file from pod '%s'", podConsName))
-						Expect(tcpDumpResult).To(ContainSubstring("IP " + ipPodProd1.String() + " > " + ipPodProd2.String() + ": ICMP echo request"))
-						Expect(tcpDumpResult).To(ContainSubstring("IP " + ipPodProd2.String() + " > " + ipPodProd1.String() + ": ICMP echo reply"))
+						Eventually(func() string {
+							out, _ := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							return out
+						}, 30*time.Second, time.Second).Should(And(
+							ContainSubstring("IP "+ipPodProd1.String()+" > "+ipPodProd2.String()+": ICMP echo request"),
+							ContainSubstring("IP "+ipPodProd2.String()+" > "+ipPodProd1.String()+": ICMP echo reply"),
+						), fmt.Sprintf("tcpdump on pod '%s' should have captured mirrored ICMP traffic", podConsName))
 					})
 				})
 			})
