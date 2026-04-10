@@ -1,4 +1,4 @@
-ARG KIND_NODE_IMAGE=kindest/node:v1.34.0
+ARG KIND_NODE_IMAGE=docker.io/kindest/node:v1.34.0
 FROM ${KIND_NODE_IMAGE}
 
 RUN apt-get update && \
