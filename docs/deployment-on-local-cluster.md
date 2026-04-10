@@ -1,19 +1,17 @@
 # Deployment on Local Cluster
 
-This project allows you to spin up virtualized Kubernets/OpenShift cluster. In
-this guide we will create a local Kubernetes cluster with two nodes,
-preinstalled Multus and Open vSwitch, and then install ovs-cni from local
-sources.
+This project allows you to spin up a local Kubernetes cluster using kind. In
+this guide we will create a local Kubernetes cluster with a control-plane and
+a worker node, preinstalled Multus and Open vSwitch, and then install ovs-cni
+from local sources.
 
 If you want to deploy ovs-cni on your arbitrary cluster, go to [deployment on
 arbitrary cluster guide](deployment-on-arbitrary-cluster.md).
 
-Start local cluster. If you want to use OpenShift instead of Kubernetes or
-different amount of nodes, check [development
-guide](devel-guide.md#local-cluster).
+Start local cluster.
 
 ```shell
-KUBEVIRT_NUM_NODES=2 make cluster-up
+make cluster-up
 ```
 
 Build ovs-cni from local sources and install it on the cluster.
@@ -22,10 +20,10 @@ Build ovs-cni from local sources and install it on the cluster.
 make cluster-sync
 ```
 
-You can ssh into created nodes using `cluster/cli.sh`.
+You can run commands on cluster nodes using `cluster/ssh.sh`.
 
 ```shell
-cluster/cli.sh ssh node01
+cluster/ssh.sh ovs-cni-worker -- ovs-vsctl show
 ```
 
 Finally if you want to use `kubectl` to access the cluster, start proxy.

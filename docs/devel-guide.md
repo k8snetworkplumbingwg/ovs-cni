@@ -89,30 +89,24 @@ OVS_CNI_MARKER_IMAGE_VERSION # default latest
 
 ## Local Cluster
 
-This project uses [kubevirtci](https://github.com/kubevirt/kubevirtci) to
-deploy local cluster.
+This project uses [kind](https://kind.sigs.k8s.io/) with a custom node image
+(OVS pre-installed) to deploy a local cluster.
 
 ### Usage
 
 Use following commands to control it.
 
-*note:* Default Provider is one node (master + worker) of kubernetes 1.11.1
-with multus cni plugin.
-
 ```shell
 # Deploy local Kubernetes cluster
 make cluster-up
 
-# SSH to node01 and open interactive shell
-./cluster/cli.sh ssh node01
-
-# SSH to node01 and run command
-./cluster/cli.sh ssh node01 echo 'Hello World'
+# Run a command on a cluster node
+./cluster/ssh.sh ovs-cni-worker -- ovs-vsctl show
 
 # Communicate with the Kubernetes cluster using kubectl
 ./cluster/kubectl.sh
 
-# Build project, build images, push them to cluster's registry and install them
+# Build project, build images, load them into the cluster and install them
 make build cluster-sync
 
 # Destroy the cluster

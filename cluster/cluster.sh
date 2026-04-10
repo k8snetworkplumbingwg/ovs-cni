@@ -18,6 +18,11 @@ export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-localhost/kindest/node-ovs:latest}
 OCI_BIN=${OCI_BIN:-$(if podman ps >/dev/null 2>&1; then echo podman; elif docker ps >/dev/null 2>&1; then echo docker; fi)}
 export OCI_BIN
 
+if [ -z "${OCI_BIN}" ]; then
+    echo "ERROR: No container runtime found. Install docker or podman." >&2
+    exit 1
+fi
+
 if [ "${OCI_BIN}" = "podman" ]; then
     export KIND_EXPERIMENTAL_PROVIDER=podman
 fi
