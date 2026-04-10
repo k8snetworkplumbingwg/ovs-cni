@@ -41,6 +41,10 @@ $(BASE): ; $(info  setting GOPATH...)
 	@mkdir -p $(dir $@)
 	@ln -sf $(CURDIR) $@
 
+KIND = $(BIN_DIR)/kind
+$(KIND):
+	hack/install-kind.sh $(BIN_DIR)
+
 GOLANGCI = $(GOBIN)/golangci-lint
 $(GOBIN)/golangci-lint: $(GO) | $(BASE) ; $(info  building golangci-lint...)
 	$Q $(GO) install -mod=mod github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
@@ -94,13 +98,13 @@ dep: $(GO)
 manifests:
 	./hack/build-manifests.sh
 
-cluster-up:
+cluster-up: $(KIND)
 	./cluster/up.sh
 
-cluster-down:
+cluster-down: $(KIND)
 	./cluster/down.sh
 
-cluster-sync: build
+cluster-sync: build $(KIND)
 	./cluster/sync.sh
 
 .PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync lint

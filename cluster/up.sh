@@ -16,20 +16,29 @@
 
 set -ex
 
-source ./cluster/cluster.sh
-cluster::install
+SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
+source ${SCRIPTS_PATH}/cluster.sh
 
-$(cluster::path)/cluster-up/up.sh
+echo 'Building custom kind node image with OVS'
+${OCI_BIN} build -t ${KIND_NODE_IMAGE} ${SCRIPTS_PATH}/kind-node/
 
-echo 'Installing Open vSwitch on nodes'
-for node in $(./cluster/kubectl.sh get nodes --no-headers | awk '{print $1}'); do
-    ./cluster/cli.sh ssh ${node} -- sudo systemctl daemon-reload
-    ./cluster/cli.sh ssh ${node} -- sudo systemctl enable openvswitch
-    ./cluster/cli.sh ssh ${node} -- sudo systemctl restart openvswitch
-    ./cluster/cli.sh ssh ${node} -- sudo systemctl restart NetworkManager
+echo 'Creating kind cluster'
+mkdir -p "$(dirname "$(cluster::kubeconfig)")"
+kind create cluster \
+    --name ${KIND_CLUSTER_NAME} \
+    --image ${KIND_NODE_IMAGE} \
+    --config ${SCRIPTS_PATH}/kind-config.yaml \
+    --kubeconfig "$(cluster::kubeconfig)"
+
+echo 'Waiting for nodes to be ready'
+./cluster/kubectl.sh wait --for=condition=Ready nodes --all --timeout=300s
+
+echo 'Starting Open vSwitch on nodes'
+for n in $(./cluster/kubectl.sh get nodes --no-headers -o custom-columns=NAME:.metadata.name); do
+    ${OCI_BIN} exec "${n}" systemctl start openvswitch-switch
 done
 
-echo 'Deploying multus'
+echo 'Deploying Multus'
 MULTUS_VERSION=v4.0.1
 MULTUS_MANIFEST=https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/${MULTUS_VERSION}/deployments/multus-daemonset.yml
 # update the tag until https://github.com/k8snetworkplumbingwg/multus-cni/issues/1170 is fixed

@@ -17,37 +17,22 @@
 set -ex
 
 source ./cluster/cluster.sh
-cluster::install
 
-function check_deleted() {
-    OUTPUT=$(./cluster/kubectl.sh get --ignore-not-found $1)
-    if [ $? -eq 0 ]; then
-        echo $(echo "$OUTPUT" | wc -l)
-    else
-        echo 100
-    fi
-}
+export REGISTRY=${REGISTRY:-ghcr.io/k8snetworkplumbingwg}
+export IMAGE_TAG=${IMAGE_TAG:-latest}
 
-registry_port=$(./cluster/cli.sh ports registry | tr -d '\r')
-registry=localhost:$registry_port
+make docker-build
 
-REGISTRY=$registry make docker-build
-REGISTRY=$registry make docker-push
+if [ "${OCI_BIN}" = "podman" ]; then
+    TMP_IMAGE=$(mktemp /tmp/ovs-cni-plugin.XXXXXX)
+    trap "rm -f \"${TMP_IMAGE}\"" EXIT
+    ${OCI_BIN} save ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -o "${TMP_IMAGE}"
+    kind load image-archive --name ${KIND_CLUSTER_NAME} "${TMP_IMAGE}"
+    rm -f "${TMP_IMAGE}"
+    trap - EXIT
+else
+    kind load docker-image --name ${KIND_CLUSTER_NAME} ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}
+fi
 
-ovs_cni_manifest="./examples/ovs-cni.yml"
-
-sed 's/ghcr.io\/k8snetworkplumbingwg/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh delete --ignore-not-found -f -
-
-# Delete daemon sets that were deprecated/renamed
-./cluster/kubectl.sh -n kube-system delete --ignore-not-found ds ovs-cni-plugin-amd64
-./cluster/kubectl.sh -n kube-system delete --ignore-not-found ds ovs-vsctl-amd64
-for i in $(seq 1 ${KUBEVIRT_NUM_NODES}); do
-    ./cluster/cli.sh ssh "node$(printf "%02d" ${i})" -- rm -rf /opt/cni/bin/ovs-cni
-done
-
-# Wait until all objects are deleted
-until [ $(check_deleted "-f $ovs_cni_manifest") -eq 1 ]; do sleep 1; done
-until [ $(check_deleted "ds ovs-cni-plugin-amd64") -eq 1 ]; do sleep 1; done
-until [ $(check_deleted "ds ovs-vsctl-amd64") -eq 1 ]; do sleep 1; done
-
-sed 's/ghcr.io\/k8snetworkplumbingwg/registry:5000/g' examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -
+sed "s|ghcr.io/k8snetworkplumbingwg/ovs-cni-plugin:latest|${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}|g" examples/ovs-cni.yml | ./cluster/kubectl.sh delete --ignore-not-found -f -
+sed "s|ghcr.io/k8snetworkplumbingwg/ovs-cni-plugin:latest|${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG}|g" examples/ovs-cni.yml | ./cluster/kubectl.sh apply -f -

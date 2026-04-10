@@ -18,6 +18,6 @@ set -ex
 
 SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
 source ${SCRIPTS_PATH}/cluster.sh
-cluster::install
 
-$(cluster::path)/cluster-up/down.sh
+kind delete cluster --name ${KIND_CLUSTER_NAME} 2>/dev/null || true
+rm -f "$(cluster::kubeconfig)"

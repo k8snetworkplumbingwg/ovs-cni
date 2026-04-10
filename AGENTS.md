@@ -22,7 +22,7 @@ pkg/                    # Core libraries
   utils/                #   Utilities and cache helpers
   testhelpers/          #   Shared test utilities
 tests/                  # E2E/functional tests (require running cluster)
-cluster/                # Local K8s cluster management (kubevirtci)
+cluster/                # Local K8s cluster management (kind)
 hack/                   # Build scripts, CI helpers
 manifests/              # K8s manifest templates
 examples/               # Example deployments and NetworkAttachmentDefinitions
@@ -61,14 +61,14 @@ Binaries output to `cmd/<component>/` (built in-place by `go build`).
 
 ## Local development cluster
 
-Uses kubevirtci to spin up a local Kubernetes cluster with Multus pre-installed.
+Uses kind with a custom node image (OVS pre-installed) to spin up a local Kubernetes cluster with Multus.
 
 ```bash
-make cluster-up         # Deploy local K8s cluster
+make cluster-up         # Create kind cluster with OVS and Multus
 make cluster-sync       # Build and deploy ovs-cni to the cluster
 make cluster-down       # Tear down cluster
 ./cluster/kubectl.sh    # kubectl with correct kubeconfig
-./cluster/cli.sh ssh node01  # SSH into cluster node
+./cluster/exec.sh <node> -- <command>  # Run command on a cluster node via docker exec
 ```
 
 ## Container image
