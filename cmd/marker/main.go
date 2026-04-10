@@ -28,6 +28,7 @@ import (
 	"github.com/golang/glog"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/cache"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/controller"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/marker"
 )
 
@@ -77,6 +78,14 @@ func main() {
 	}
 
 	go keepAlive(healthCheckFile, *healthCheckInterval)
+
+	// Start controller
+	go func() {
+		glog.Info("Starting VXLAN controller in background...")
+		if err := controller.RunVxlanController(*nodeName, endpoint); err != nil {
+			glog.Fatalf("VXLAN controller stopped/failed: %v", err)
+		}
+	}()
 
 	markerCache := cache.Cache{}
 	wait.JitterUntil(func() {
