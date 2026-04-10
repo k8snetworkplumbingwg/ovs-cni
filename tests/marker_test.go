@@ -29,17 +29,19 @@ import (
 var _ = Describe("ovs-cni-marker", func() {
 	Describe("bridge resource reporting", func() {
 		It("should be reported only when available on node", func() {
-			out, err := node.RunAtNode("node01", "sudo ovs-vsctl add-br br-test")
+			workerNode := node.WorkerNode()
+
+			out, err := node.RunAtNode(workerNode, "ovs-vsctl", "add-br", "br-test")
 			Expect(err).NotTo(HaveOccurred(), "Failed creating a test bridge: %v: %v", err, out)
 			defer func() {
-				out, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+				out, err = node.RunAtNode(workerNode, "ovs-vsctl", "--if-exists", "del-br", "br-test")
 				Expect(err).NotTo(HaveOccurred(), "Failed cleaning up a test bridge: %v: %v", err, out)
 			}()
 
 			Eventually(func() bool {
-				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
+				k8sNode, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), workerNode, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				capacity, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
+				capacity, reported := k8sNode.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				if !reported {
 					return false
 				}
@@ -47,13 +49,13 @@ var _ = Describe("ovs-cni-marker", func() {
 				return capacityInt == int64(1000)
 			}, 180*time.Second, 5*time.Second).Should(Equal(true))
 
-			out, err = node.RunAtNode("node01", "sudo ovs-vsctl --if-exists del-br br-test")
+			out, err = node.RunAtNode(workerNode, "ovs-vsctl", "--if-exists", "del-br", "br-test")
 			Expect(err).NotTo(HaveOccurred(), "Failed removing a test bridge: %v: %v", err, out)
 
 			Eventually(func() bool {
-				node, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), "node01", metav1.GetOptions{})
+				k8sNode, err := clusterApi.Clientset.CoreV1().Nodes().Get(context.TODO(), workerNode, metav1.GetOptions{})
 				Expect(err).ToNot(HaveOccurred())
-				_, reported := node.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
+				_, reported := k8sNode.Status.Capacity["ovs-cni.network.kubevirt.io/br-test"]
 				return reported
 
 			}, 180*time.Second, 5*time.Second).Should(Equal(false))

@@ -11,7 +11,7 @@ build/_output
 .version
 
 # local cluster
-_kubevirtci/
+.kube/
 
 # testing
 _out

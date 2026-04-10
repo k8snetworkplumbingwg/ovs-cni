@@ -12,41 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-export KUBEVIRT_PROVIDER=${KUBEVIRT_PROVIDER:-'k8s-1.34'}
-export KUBEVIRTCI_TAG=${KUBEVIRTCI_TAG:-2509181951-8264c60a}
-
-# The CLUSTER_PATH var is used in cluster folder and points to the _kubevirtci where the cluster is deployed from.
-CLUSTER_PATH=${CLUSTER_PATH:-"${PWD}/_kubevirtci/"}
-
-function cluster::_get_tag() {
-    git -C ${CLUSTER_PATH} describe --tags
-}
-
-function cluster::install() {
-    if [ -d ${CLUSTER_PATH} ]; then
-        if [[ $(cluster::_get_tag) != ${KUBEVIRTCI_TAG} ]]; then
-            rm -rf ${CLUSTER_PATH}
-        fi
-    fi
-
-    if [ ! -d ${CLUSTER_PATH} ]; then
-        git clone https://github.com/kubevirt/kubevirtci.git ${CLUSTER_PATH}
-        (
-            cd ${CLUSTER_PATH}
-            git checkout ${KUBEVIRTCI_TAG}
-        )
-    fi
-}
-
-function cluster::path() {
-    echo -n ${CLUSTER_PATH}
-}
+export KIND_CLUSTER_NAME=${KIND_CLUSTER_NAME:-ovs-cni}
+export KIND_NODE_IMAGE=${KIND_NODE_IMAGE:-kindest/node-ovs:latest}
 
 function cluster::kubeconfig() {
-    if [ ${KUBEVIRT_PROVIDER} != "external" ]; then
-        echo -n ${CLUSTER_PATH}/_ci-configs/${KUBEVIRT_PROVIDER}/.kubeconfig
-    else
-        [[ -n $KUBECONFIG ]] || (echo "missing KUBECONFIG"; exit 1)
-        echo -n ${KUBECONFIG}
-    fi
+    echo -n "${HOME}/.kube/kind-config-${KIND_CLUSTER_NAME}"
 }

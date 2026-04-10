@@ -2,8 +2,10 @@
 
 set -e
 
-SCRIPTS_PATH="$(dirname "$(realpath "$0")")"
-source ${SCRIPTS_PATH}/cluster.sh
-cluster::install
+node="$1"
+shift
 
-$(cluster::path)/cluster-up/cli.sh ssh "$@"
+# Skip the "--" separator if present
+if [ "$1" = "--" ]; then shift; fi
+
+docker exec "$node" "$@"
