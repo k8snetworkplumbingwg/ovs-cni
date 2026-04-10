@@ -21,4 +21,4 @@ set -e
 source ./cluster/cluster.sh
 
 KUBECONFIG=${KUBECONFIG:-$(cluster::kubeconfig)}
-${GO} test ./tests/... $E2E_TEST_ARGS --kubeconfig ${KUBECONFIG}
+${GO} test -v ./tests $E2E_TEST_ARGS --kubeconfig "${KUBECONFIG}"
