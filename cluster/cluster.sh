@@ -25,6 +25,11 @@ fi
 
 if [ "${OCI_BIN}" = "podman" ]; then
     export KIND_EXPERIMENTAL_PROVIDER=podman
+    # When podman uses the journald log-driver with the file events-backend,
+    # "podman logs --follow" fails. Kind uses log following during cluster
+    # creation, so override the log driver to k8s-file.
+    CLUSTER_SH_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export CONTAINERS_CONF_OVERRIDE="${CLUSTER_SH_DIR}/podman-containers.conf"
 fi
 
 function cluster::kubeconfig() {
