@@ -406,11 +406,15 @@ func (ovsd *OvsBridgeDriver) DeleteMirror(bridgeName, mirrorName string) error {
 
 	mirrorUUID := row["_uuid"].(ovsdb.UUID)
 
-	deleteOp := deleteMirrorOperation(mirrorName)
 	detachFromBridgeOp := detachMirrorFromBridgeOperation(mirrorUUID, bridgeName)
+	deleteOp := deleteMirrorOperation(mirrorName)
 
 	// Perform OVS transaction
-	operations := []ovsdb.Operation{*deleteOp, *detachFromBridgeOp}
+	// Detach the mirror from the bridge first, then delete the mirror row.
+	// This ordering ensures the bridge no longer references the mirror
+	// before the mirror row is removed, avoiding referential integrity
+	// violations in the OVS database.
+	operations := []ovsdb.Operation{*detachFromBridgeOp, *deleteOp}
 
 	_, err = ovsd.ovsdbTransact(operations)
 	return err
@@ -1093,14 +1097,40 @@ func detachMirrorFromBridgeOperation(mirrorUUID ovsdb.UUID, bridgeName string) *
 	return &mutateOp
 }
 
-// findEmptyMirrors returns the empty mirrors (no select_src_port, select_dst_port and output ports)
-func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
-	var names []string
+// findEmptyMirrors returns the empty mirrors on the current bridge
+// (no select_src_port, select_dst_port and output ports).
+// Only mirrors belonging to the current bridge are considered, preventing
+// referential integrity violations when deleting mirrors from other bridges.
+func (ovsd *OvsBridgeDriver) findEmptyMirrors() ([]string, error) {
+	// First, get the set of mirror UUIDs belonging to this bridge
+	bridgeCondition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, ovsd.OvsBridgeName)
+	bridgeRow, err := ovsd.findByCondition("Bridge", bridgeCondition, []string{"mirrors"})
+	if err != nil {
+		// Bridge not found or has no mirrors column — nothing to clean
+		return nil, nil
+	}
 
-	// get all mirrors
+	mirrorRefs, err := convertToArray(bridgeRow["mirrors"])
+	if err != nil {
+		// Unexpected type in mirrors column — treat as no mirrors
+		return nil, nil
+	}
+
+	if len(mirrorRefs) == 0 {
+		return nil, nil
+	}
+
+	bridgeMirrorUUIDs := make(map[string]bool, len(mirrorRefs))
+	for _, ref := range mirrorRefs {
+		if u, ok := ref.(ovsdb.UUID); ok {
+			bridgeMirrorUUIDs[u.GoUUID] = true
+		}
+	}
+
+	// Get all mirrors
 	selectOp := ovsdb.Operation{
 		Op:      "select",
-		Columns: []string{"name", "output_port", "select_src_port", "select_dst_port"},
+		Columns: []string{"name", "_uuid", "output_port", "select_src_port", "select_dst_port"},
 		Table:   "Mirror",
 	}
 	transactionResult, err := ovsd.ovsdbTransact([]ovsdb.Operation{selectOp})
@@ -1115,8 +1145,17 @@ func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
 		return nil, errors.New(operationResult.Error)
 	}
 
-	// extract mirror names with both output_port, select_src_port and select_dst_port empty
+	// Extract mirror names that belong to this bridge and are empty
+	var names []string
 	for _, row := range operationResult.Rows {
+		rowUUID, ok := row["_uuid"].(ovsdb.UUID)
+		if !ok {
+			continue
+		}
+		if !bridgeMirrorUUIDs[rowUUID.GoUUID] {
+			continue
+		}
+
 		isEmpty, err := isMirrorEmpty(row)
 		if err != nil {
 			return nil, fmt.Errorf("cannot convert select_src_port to an array error: %v", err)
@@ -1127,7 +1166,7 @@ func (ovsd *OvsDriver) findEmptyMirrors() ([]string, error) {
 	}
 
 	if len(names) > 0 {
-		log.Printf("found %d empty mirrors", len(names))
+		log.Printf("found %d empty mirrors on bridge %s", len(names), ovsd.OvsBridgeName)
 	}
 	return names, nil
 }

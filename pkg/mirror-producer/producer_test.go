@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -65,8 +66,16 @@ var testFunc = func(version string) {
 		output, err := exec.Command("ovs-vsctl", "add-br", bridgeName).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
 
-		bridgeLink, err := netlink.LinkByName(bridgeName)
-		Expect(err).NotTo(HaveOccurred(), "Interface of testing OVS bridge was not found in the system")
+		// Poll for the bridge interface to appear in netlink. After
+		// ovs-vsctl returns, the kernel datapath interface may not be
+		// visible immediately, especially under CI load.
+		var bridgeLink netlink.Link
+		Eventually(func() error {
+			var linkErr error
+			bridgeLink, linkErr = netlink.LinkByName(bridgeName)
+			return linkErr
+		}, 5*time.Second, 100*time.Millisecond).Should(Succeed(),
+			"Interface of testing OVS bridge was not found in the system")
 
 		err = netlink.LinkSetUp(bridgeLink)
 		Expect(err).NotTo(HaveOccurred(), "Was not able to set bridge UP")
