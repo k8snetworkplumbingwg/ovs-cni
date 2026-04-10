@@ -721,6 +721,35 @@ func (ovsd *OvsDriver) FindInterfacesWithError() ([]string, error) {
 	return names, nil
 }
 
+// InterfaceHasError checks whether a specific interface is in error state
+func (ovsd *OvsDriver) InterfaceHasError(ifaceName string) (bool, error) {
+	condition := ovsdb.NewCondition("name", ovsdb.ConditionEqual, ifaceName)
+	selectOp := ovsdb.Operation{
+		Op:      "select",
+		Columns: []string{"name", "error"},
+		Table:   "Interface",
+		Where:   []ovsdb.Condition{condition},
+	}
+	transactionResult, err := ovsd.ovsdbTransact([]ovsdb.Operation{selectOp})
+	if err != nil {
+		return false, err
+	}
+	if len(transactionResult) != 1 {
+		return false, fmt.Errorf("no transaction result")
+	}
+	operationResult := transactionResult[0]
+	if operationResult.Error != "" {
+		return false, errors.New(operationResult.Error)
+	}
+
+	for _, row := range operationResult.Rows {
+		if hasError(row) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func hasError(row map[string]interface{}) bool {
 	v := row["error"]
 	switch x := v.(type) {

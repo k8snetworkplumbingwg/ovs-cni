@@ -118,8 +118,14 @@ var testFunc = func(version string) {
 		output, err := exec.Command("ovs-vsctl", "add-br", bridgeName).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
 
-		bridgeLink, err := netlink.LinkByName(bridgeName)
-		Expect(err).NotTo(HaveOccurred(), "Interface of testing OVS bridge was not found in the system")
+		// After ovs-vsctl creates the bridge, the kernel interface may not
+		// be immediately available. Retry the lookup briefly to avoid a
+		// race between OVS and the kernel network stack.
+		var bridgeLink netlink.Link
+		Eventually(func() error {
+			bridgeLink, err = netlink.LinkByName(bridgeName)
+			return err
+		}, 5*time.Second, 100*time.Millisecond).Should(Succeed(), "Interface of testing OVS bridge was not found in the system")
 
 		err = netlink.LinkSetUp(bridgeLink)
 		Expect(err).NotTo(HaveOccurred(), "Was not able to set bridge UP")
