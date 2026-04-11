@@ -35,7 +35,7 @@ echo 'Waiting for nodes to be ready'
 
 echo 'Starting Open vSwitch on nodes'
 for n in $(./cluster/kubectl.sh get nodes --no-headers -o custom-columns=NAME:.metadata.name); do
-    ${OCI_BIN} exec "${n}" systemctl start openvswitch-switch
+    ${OCI_BIN} exec "${n}" /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random
 done
 
 echo 'Deploying Multus'
