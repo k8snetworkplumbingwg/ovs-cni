@@ -85,6 +85,7 @@ make cluster-down       # Tear down cluster
 ## CI
 
 GitHub Actions workflows in `.github/workflows/`:
+- `lint-build.yaml` - Quality check: lint, build, and unit tests on PRs and pushes to main
 - `image-build-test.yaml` - Build validation on PRs (multi-arch)
 - `image-push-main.yaml` - Push `:latest` on merge to main
 - `image-push-release.yaml` - Push release tags

@@ -34,6 +34,29 @@ jobs:
       - name: Build
         run: make build
 
+  test:
+    needs: [lint, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Open vSwitch
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y openvswitch-switch
+
+      - name: Start Open vSwitch services
+        run: sudo /usr/share/openvswitch/scripts/ovs-ctl start --system-id=random
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
+
+      - name: Run unit tests
+        run: make test
+
   e2e:
     runs-on: ubuntu-latest
     needs: [lint, build]
