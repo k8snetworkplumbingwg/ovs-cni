@@ -471,6 +471,9 @@ var testFunc = func(version string) {
 			// check the specific container interface for errors.
 			// The bridge's own internal interface is excluded because its
 			// error field may be transiently non-empty right after creation.
+			// Bridges from other test suites (e.g. mirror tests) are also
+			// skipped -- they are not our ports to clean up and may appear
+			// when packages run in parallel against the same OVS instance.
 			Eventually(func() ([]string, error) {
 				out, e := exec.Command("ovs-vsctl", "--format=csv", "--no-headings",
 					"--columns=name", "find", "Interface", `error!=""`).CombinedOutput()
@@ -480,10 +483,16 @@ var testFunc = func(version string) {
 				var stale []string
 				for _, name := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 					name = strings.TrimSpace(name)
-					if name != "" && name != bridgeName {
-						exec.Command("ovs-vsctl", "--if-exists", "del-port", name).CombinedOutput()
-						stale = append(stale, name)
+					if name == "" || name == bridgeName {
+						continue
 					}
+					// Skip interfaces that are OVS bridges from other test
+					// suites (e.g. bridge-mir-cons, bridge-mir-prod).
+					if exec.Command("ovs-vsctl", "br-exists", name).Run() == nil {
+						continue
+					}
+					exec.Command("ovs-vsctl", "--if-exists", "del-port", name).CombinedOutput()
+					stale = append(stale, name)
 				}
 				return stale, nil
 			}, 5*time.Second, 200*time.Millisecond).Should(BeEmpty(),

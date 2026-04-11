@@ -72,7 +72,7 @@ build-host-local-plugin:
 	fi
 
 test: $(GO) build-host-local-plugin
-	$(GO) test -mod=readonly ./cmd/... ./pkg/... -v --ginkgo.v
+	$(GO) test -p 1 -mod=readonly ./cmd/... ./pkg/... -v --ginkgo.v
 
 docker-test:
 	hack/test-dockerized.sh
