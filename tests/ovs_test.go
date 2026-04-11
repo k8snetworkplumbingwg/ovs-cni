@@ -47,9 +47,11 @@ var testFunc = func(version string) {
 		Context("when an OVS bridge is configured on a node", func() {
 			const bridgeName = "br-test"
 			BeforeEach(func() {
+				clusterApi.NewTestNamespace()
 				node.AddOvsBridgeOnNode(bridgeName)
 			})
 			AfterEach(func() {
+				clusterApi.DeleteTestNamespaceAsync()
 				node.RemoveOvsBridgeOnNode(bridgeName)
 			})
 
@@ -57,9 +59,6 @@ var testFunc = func(version string) {
 				const nadName = "ovs-net"
 				BeforeEach(func() {
 					clusterApi.CreateNetworkAttachmentDefinition(nadName, bridgeName, `{ "cniVersion": "`+version+`", "type": "ovs", "bridge": "`+bridgeName+`", "vlan": 100 }`)
-				})
-				AfterEach(func() {
-					clusterApi.RemoveNetworkAttachmentDefinition(nadName)
 				})
 
 				Context("and two pods are connected through it", func() {
@@ -70,11 +69,11 @@ var testFunc = func(version string) {
 						cidrPod2 = "10.0.0.2/24"
 					)
 					BeforeEach(func() {
-						clusterApi.CreatePrivilegedPodWithIP(pod1Name, nadName, bridgeName, cidrPod1, "")
-						clusterApi.CreatePrivilegedPodWithIP(pod2Name, nadName, bridgeName, cidrPod2, "")
-					})
-					AfterEach(func() {
-						clusterApi.DeletePodsInTestNamespace()
+						// Create both pods without waiting, then wait for both in parallel
+						clusterApi.CreatePrivilegedPodOnly(pod1Name, nadName, bridgeName, cidrPod1, "")
+						clusterApi.CreatePrivilegedPodOnly(pod2Name, nadName, bridgeName, cidrPod2, "")
+						clusterApi.WaitForPodReady(pod1Name)
+						clusterApi.WaitForPodReady(pod2Name)
 					})
 
 					Specify("they should be able to communicate over the network", func() {

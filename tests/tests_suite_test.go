@@ -42,12 +42,11 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	clusterApi = clusterapi.NewClusterAPI(*kubeconfig)
-	clusterApi.RemoveTestNamespace()
-	clusterApi.CreateTestNamespace()
+	clusterApi.CleanupTestNamespaces()
 })
 
 var _ = AfterSuite(func() {
-	clusterApi.RemoveTestNamespace()
+	clusterApi.CleanupTestNamespaces()
 })
 
 func init() {
