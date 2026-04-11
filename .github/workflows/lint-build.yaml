@@ -14,7 +14,7 @@ jobs:
 
       - name: Install Go
         run: |
-          make build/_output/bin/go/bin/go
+          make install-go
           echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
 
       - name: Lint

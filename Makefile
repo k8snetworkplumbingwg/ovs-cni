@@ -34,6 +34,8 @@ all: lint build
 
 GO := $(GOBIN)/go
 
+install-go: $(GO)
+
 $(GO):
 	hack/install-go.sh $(BIN_DIR)
 
@@ -107,4 +109,4 @@ cluster-down: $(KIND)
 cluster-sync: build $(KIND)
 	./cluster/sync.sh
 
-.PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync lint
+.PHONY: build format test docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync lint install-go
