@@ -18,6 +18,7 @@ package tests_test
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/tests/kubernetes/node"
@@ -31,9 +32,12 @@ var _ = Describe("ovs-mirror 0.4.0", func() { testMirrorFunc("0.4.0") })
 var _ = Describe("ovs-mirror 1.0.0", func() { testMirrorFunc("1.0.0") })
 
 var testMirrorFunc = func(version string) {
+	// Use a unique bridge per CNI version so that async namespace cleanup
+	// from one test cannot interfere with the next test's OVS mirror state.
+	bridgeName := "br-mrr" + strings.ReplaceAll(version, ".", "")
+
 	Describe("ovs traffic mirroring tests", func() {
 		Context("when an OVS bridge is configured on a node", func() {
-			const bridgeName = "br-test"
 			BeforeEach(func() {
 				clusterApi.NewTestNamespace()
 				node.AddOvsBridgeOnNode(bridgeName)
