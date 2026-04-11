@@ -366,6 +366,13 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
 		return err
 	}
+
+	// Refetch the host interface MAC since OVS may change it when
+	// attaching the port to the bridge.
+	if err = refetchIface(hostIface); err != nil {
+		return err
+	}
+
 	defer func() {
 		if err != nil {
 			// Unlike veth pair, OVS port will not be automatically removed
