@@ -118,8 +118,14 @@ var testFunc = func(version string) {
 		output, err := exec.Command("ovs-vsctl", "add-br", bridgeName).CombinedOutput()
 		Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
 
-		bridgeLink, err := netlink.LinkByName(bridgeName)
-		Expect(err).NotTo(HaveOccurred(), "Interface of testing OVS bridge was not found in the system")
+		// After ovs-vsctl creates the bridge, the kernel interface may not
+		// be immediately available. Retry the lookup briefly to avoid a
+		// race between OVS and the kernel network stack.
+		var bridgeLink netlink.Link
+		Eventually(func() error {
+			bridgeLink, err = netlink.LinkByName(bridgeName)
+			return err
+		}, 5*time.Second, 100*time.Millisecond).Should(Succeed(), "Interface of testing OVS bridge was not found in the system")
 
 		err = netlink.LinkSetUp(bridgeLink)
 		Expect(err).NotTo(HaveOccurred(), "Was not able to set bridge UP")
@@ -836,6 +842,44 @@ var testFunc = func(version string) {
 			trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 1, "maxID": 5000} ]`
 			It("testSplitVlanIds method should throw appropriate error", func() {
 				testSplitVlanIds(trunks, nil, errors.New("incorrect trunk maxID parameter"), false)
+			})
+		})
+
+		Context("validate interface error state", func() {
+			conf := fmt.Sprintf(`{
+				"cniVersion": "%s",
+				"name": "mynet",
+				"type": "ovs",
+				"bridge": "%s"
+			}`, version, bridgeName)
+
+			It("should detect when an OVS interface is in error state", func() {
+				targetNs := newNS()
+				defer func() {
+					closeNS(targetNs)
+				}()
+
+				hostIfName, _ := testAdd(conf, false, false, "", targetNs)
+
+				// Delete the host veth to put the OVS interface in error state.
+				err := ip.DelLinkByName(hostIfName)
+				Expect(err).NotTo(HaveOccurred())
+
+				waitForIfaceError(hostIfName, 10, 100*time.Millisecond)
+
+				// Call validateOvs directly to exercise the InterfaceHasError path.
+				args := &skel.CmdArgs{
+					ContainerID: "dummy",
+					Netns:       targetNs.Path(),
+					IfName:      IFNAME,
+					StdinData:   []byte(conf),
+				}
+				netconf, err := config.LoadConf(args.StdinData)
+				Expect(err).NotTo(HaveOccurred())
+
+				err = validateOvs(args, netconf, hostIfName)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("error state"))
 			})
 		})
 
