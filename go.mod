@@ -18,7 +18,6 @@ require (
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.3
-	kubevirt.io/qe-tools v0.1.8
 )
 
 require (
