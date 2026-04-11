@@ -467,7 +467,8 @@ var testFunc = func(version string) {
 
 			// Clean up any stale OVS ports whose interfaces are in error
 			// state. This prevents false negatives in CmdCheck's
-			// validateOvs, which calls the global FindInterfacesWithError.
+			// validateOvs, which calls InterfaceHasError(hostIfname) to
+			// check the specific container interface for errors.
 			// The bridge's own internal interface is excluded because its
 			// error field may be transiently non-empty right after creation.
 			Eventually(func() ([]string, error) {
