@@ -90,22 +90,9 @@ func (api *ClusterAPI) DeleteTestNamespaceAsync() {
 }
 
 // CleanupTestNamespaces removes all namespaces with test prefixes from previous runs
+// and waits for them to be fully terminated. Used in BeforeSuite to ensure a clean state.
 func (api *ClusterAPI) CleanupTestNamespaces() {
-	By("Cleaning up test namespaces")
-	nsList, err := api.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
-	Expect(err).ToNot(HaveOccurred())
-
-	hasTestNs := false
-	for _, ns := range nsList.Items {
-		if strings.HasPrefix(ns.Name, "test-ns-") || ns.Name == "test-namespace" {
-			hasTestNs = true
-			_ = api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), ns.Name, metav1.DeleteOptions{})
-		}
-	}
-
-	if !hasTestNs {
-		return
-	}
+	api.deleteTestNamespaces()
 
 	EventuallyWithOffset(1, func() bool {
 		nsList, err := api.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
@@ -119,6 +106,24 @@ func (api *ClusterAPI) CleanupTestNamespaces() {
 		}
 		return true
 	}, 5*time.Minute, 5*time.Second).Should(BeTrue(), "Should succeed cleaning up test namespaces")
+}
+
+// DeleteTestNamespacesAsync fires delete requests for all test namespaces without
+// waiting for completion. Used in AfterSuite when the cluster will be torn down.
+func (api *ClusterAPI) DeleteTestNamespacesAsync() {
+	api.deleteTestNamespaces()
+}
+
+func (api *ClusterAPI) deleteTestNamespaces() {
+	By("Cleaning up test namespaces")
+	nsList, err := api.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	for _, ns := range nsList.Items {
+		if strings.HasPrefix(ns.Name, "test-ns-") || ns.Name == "test-namespace" {
+			_ = api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), ns.Name, metav1.DeleteOptions{})
+		}
+	}
 }
 
 // CreatePrivilegedPodOnly creates a pod without waiting for it to become ready.

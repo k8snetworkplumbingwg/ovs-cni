@@ -46,7 +46,7 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
-	clusterApi.CleanupTestNamespaces()
+	clusterApi.DeleteTestNamespacesAsync()
 })
 
 func init() {
