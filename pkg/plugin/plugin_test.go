@@ -470,11 +470,11 @@ var testFunc = func(version string) {
 			// validateOvs, which calls the global FindInterfacesWithError.
 			// The bridge's own internal interface is excluded because its
 			// error field may be transiently non-empty right after creation.
-			Eventually(func() []string {
+			Eventually(func() ([]string, error) {
 				out, e := exec.Command("ovs-vsctl", "--format=csv", "--no-headings",
 					"--columns=name", "find", "Interface", `error!=""`).CombinedOutput()
 				if e != nil {
-					return nil
+					return nil, e
 				}
 				var stale []string
 				for _, name := range strings.Split(strings.TrimSpace(string(out)), "\n") {
@@ -484,7 +484,7 @@ var testFunc = func(version string) {
 						stale = append(stale, name)
 					}
 				}
-				return stale
+				return stale, nil
 			}, 5*time.Second, 200*time.Millisecond).Should(BeEmpty(),
 				"stale OVS interfaces in error state should be cleaned up")
 		})
