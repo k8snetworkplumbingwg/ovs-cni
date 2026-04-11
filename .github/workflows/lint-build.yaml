@@ -41,6 +41,9 @@ jobs:
       - name: Check out the repo
         uses: actions/checkout@v6
 
+      - name: Load openvswitch kernel module
+        run: sudo modprobe openvswitch
+
       - name: Install Open vSwitch
         run: |
           sudo apt-get update
