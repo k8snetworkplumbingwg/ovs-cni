@@ -55,7 +55,7 @@ jobs:
           echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
 
       - name: Run unit tests
-        run: make test
+        run: sudo -E make test
 
   e2e:
     runs-on: ubuntu-latest
