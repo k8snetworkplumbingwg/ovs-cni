@@ -1,0 +1,35 @@
+name: Quality check
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
+
+      - name: Lint
+        run: make lint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
+
+      - name: Build
+        run: make build
