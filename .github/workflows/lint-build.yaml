@@ -33,3 +33,36 @@ jobs:
 
       - name: Build
         run: make build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [lint, build]
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
+
+      - name: Create Kind cluster with OVS and Multus
+        run: make cluster-up
+
+      - name: Build and deploy ovs-cni to the cluster
+        run: make cluster-sync
+
+      - name: Run functional tests
+        run: make E2E_TEST_ARGS="-ginkgo.v -test.v -test.timeout 20m -ginkgo.noColor -ginkgo.junit-report /tmp/junit-functest.xml" functest
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: functest-results
+          path: /tmp/junit-functest.xml
+          if-no-files-found: ignore
+
+      - name: Tear down Kind cluster
+        if: always()
+        run: make cluster-down
