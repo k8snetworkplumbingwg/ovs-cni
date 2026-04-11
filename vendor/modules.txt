@@ -672,10 +672,6 @@ k8s.io/utils/clock
 k8s.io/utils/internal/third_party/forked/golang/net
 k8s.io/utils/net
 k8s.io/utils/ptr
-# kubevirt.io/qe-tools v0.1.8
-## explicit; go 1.16
-kubevirt.io/qe-tools/pkg/ginkgo-reporters
-kubevirt.io/qe-tools/pkg/polarion-xml
 # sigs.k8s.io/json v0.0.0-20241014173422-cfa47c3a1cc8
 ## explicit; go 1.23
 sigs.k8s.io/json
