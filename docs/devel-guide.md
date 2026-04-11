@@ -25,14 +25,13 @@ make dep
 
 ```shell
 # Run all unit tests
-make test
+make unit-tests
 
-# Run unit tests of a specific package
-make test-cmd-foo
-make test-pkg-bar
+# Run CNI plugin tests (requires OVS, runs in privileged container)
+make cni-tests
 
-# Some tests might need root privileges, run them with sudo
-sudo --preserve-env make test
+# Run Kubernetes e2e tests against a running cluster
+make kubernetes-tests
 ```
 
 ## Containers

@@ -1,4 +1,4 @@
-package testhelpers
+package cni
 
 import (
 	"encoding/json"

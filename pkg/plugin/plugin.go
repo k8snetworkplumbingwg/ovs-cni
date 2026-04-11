@@ -213,7 +213,7 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
-func splitVlanIds(trunks []*types.Trunk) ([]uint, error) {
+func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 	vlans := make(map[uint]bool)
 	for _, item := range trunks {
 		var minID uint = 0
@@ -287,7 +287,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
 		portType = portTypeTrunk
 		if len(netconf.Trunk) > 0 {
-			trunkVlanIds, err := splitVlanIds(netconf.Trunk)
+			trunkVlanIds, err := SplitVlanIds(netconf.Trunk)
 			if err != nil {
 				return err
 			}
@@ -783,7 +783,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	}
 
 	// ovs specific check
-	if err := validateOvs(args, netconf, hostIntf.Name); err != nil {
+	if err := ValidateOvs(args, netconf, hostIntf.Name); err != nil {
 		return err
 	}
 
@@ -848,7 +848,7 @@ func validateInterface(intf current.Interface, isHost bool, hwOffload bool) erro
 	return nil
 }
 
-func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) error {
+func ValidateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) error {
 	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(netconf.BrName, netconf.SocketFile)
 	if err != nil {
 		return err
@@ -895,7 +895,7 @@ func validateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 	// check trunk
 	netconfTrunks := make([]uint, 0)
 	if len(netconf.Trunk) > 0 {
-		trunkVlanIds, err := splitVlanIds(netconf.Trunk)
+		trunkVlanIds, err := SplitVlanIds(netconf.Trunk)
 		if err != nil {
 			return err
 		}

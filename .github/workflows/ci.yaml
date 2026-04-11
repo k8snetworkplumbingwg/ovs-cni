@@ -34,7 +34,40 @@ jobs:
       - name: Build
         run: make build
 
-  e2e:
+  unit-tests:
+    runs-on: ubuntu-latest
+    needs: [lint, build]
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
+
+      - name: Run unit tests
+        run: make unit-tests
+
+  cni-tests:
+    runs-on: ubuntu-latest
+    needs: [lint, build]
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
+
+      - name: Load openvswitch kernel module
+        run: sudo modprobe openvswitch
+
+      - name: Run CNI tests
+        run: make OCI_BIN=docker cni-tests
+
+  kubernetes-tests:
     runs-on: ubuntu-latest
     needs: [lint, build]
     steps:
@@ -55,8 +88,8 @@ jobs:
       - name: Build and deploy ovs-cni to the cluster
         run: make cluster-sync
 
-      - name: Run functional tests
-        run: make E2E_TEST_ARGS="-ginkgo.v -test.v -test.timeout 20m -ginkgo.noColor --ginkgo.junit-report=/tmp/junit-functest.xml" functest
+      - name: Run Kubernetes tests
+        run: make E2E_TEST_ARGS="-ginkgo.v -test.v -test.timeout 20m -ginkgo.noColor --ginkgo.junit-report=/tmp/junit-functest.xml" kubernetes-tests
 
       - name: Upload test results
         if: always()
