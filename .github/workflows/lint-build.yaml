@@ -1,4 +1,4 @@
-name: lint-build
+name: Quality check
 on:
   push:
     branches:
@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  lint-build:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
@@ -19,6 +19,17 @@ jobs:
 
       - name: Lint
         run: make lint
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v6
+
+      - name: Install Go
+        run: |
+          make install-go
+          echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
 
       - name: Build
         run: make build
