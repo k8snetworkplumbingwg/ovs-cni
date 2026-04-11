@@ -46,6 +46,9 @@ jobs:
           make install-go
           echo "$(pwd)/build/_output/bin/go/bin" >> "$GITHUB_PATH"
 
+      - name: Load openvswitch kernel module
+        run: sudo modprobe openvswitch
+
       - name: Create Kind cluster with OVS and Multus
         run: make cluster-up
 
