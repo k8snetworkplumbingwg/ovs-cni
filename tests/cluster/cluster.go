@@ -121,7 +121,8 @@ func (api *ClusterAPI) deleteTestNamespaces() {
 
 	for _, ns := range nsList.Items {
 		if strings.HasPrefix(ns.Name, "test-ns-") || ns.Name == "test-namespace" {
-			_ = api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), ns.Name, metav1.DeleteOptions{})
+			err := api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), ns.Name, metav1.DeleteOptions{})
+			Expect(err).To(SatisfyAny(BeNil(), WithTransform(apierrors.IsNotFound, BeTrue())), "Should succeed deleting namespace")
 		}
 	}
 }
@@ -191,10 +192,12 @@ func (api *ClusterAPI) DeletePodsInTestNamespace() {
 		Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("Should succeed deleting pod %s", pod.Name))
 	}
 
-	Eventually(func() []corev1.Pod {
+	Eventually(func() ([]corev1.Pod, error) {
 		podsList, err := api.Clientset.CoreV1().Pods(api.Namespace).List(context.TODO(), metav1.ListOptions{})
-		Expect(err).ToNot(HaveOccurred(), "Should succeed getting pod list in test namespace after deletion")
-		return podsList.Items
+		if err != nil {
+			return nil, err
+		}
+		return podsList.Items, nil
 	}, 6*time.Minute, time.Second).Should(BeEmpty(), "Failed to Delete pods")
 }
 
