@@ -53,7 +53,7 @@ jobs:
         run: make cluster-sync
 
       - name: Run functional tests
-        run: make E2E_TEST_ARGS="-ginkgo.v -test.v -test.timeout 20m -ginkgo.noColor -ginkgo.junit-report /tmp/junit-functest.xml" functest
+        run: make E2E_TEST_ARGS="-ginkgo.v -test.v -test.timeout 20m -ginkgo.noColor --ginkgo.junit-report=/tmp/junit-functest.xml" functest
 
       - name: Upload test results
         if: always()
