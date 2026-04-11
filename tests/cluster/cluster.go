@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	netv1 "github.com/k8snetworkplumbingwg/network-attachment-definition-client/pkg/apis/k8s.cni.cncf.io/v1"
@@ -48,9 +49,10 @@ type ClusterAPI struct {
 	Clientset  *kubernetes.Clientset
 	NetClient  *netclient.K8sCniCncfIoV1Client
 	RestConfig *restclient.Config
+	Namespace  string
 }
 
-const testNamespace = "test-namespace"
+var namespaceSeq int32
 
 // NewClusterAPI creates and returns new cluster API object
 func NewClusterAPI(kubeconfig string) *ClusterAPI {
@@ -68,27 +70,66 @@ func NewClusterAPI(kubeconfig string) *ClusterAPI {
 	}
 }
 
-// CreateTestNamespace creates a test namespace on the k8s cluster
-func (api *ClusterAPI) CreateTestNamespace() {
-	By(fmt.Sprintf("Creating %s namespace", testNamespace))
-	_, err := api.Clientset.CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testNamespace}}, metav1.CreateOptions{})
+// NewTestNamespace creates a uniquely-named test namespace and sets it on the API.
+// Using unique namespaces per test allows asynchronous cleanup, avoiding the need
+// to wait for pod termination before the next test can start.
+func (api *ClusterAPI) NewTestNamespace() {
+	seq := atomic.AddInt32(&namespaceSeq, 1)
+	api.Namespace = fmt.Sprintf("test-ns-%d", seq)
+	By(fmt.Sprintf("Creating %s namespace", api.Namespace))
+	_, err := api.Clientset.CoreV1().Namespaces().Create(context.TODO(), &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: api.Namespace}}, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred(), "Should succeed creating test namespace")
 }
 
-// RemoveTestNamespace removes the test namespace from the k8s cluster
-func (api *ClusterAPI) RemoveTestNamespace() {
-	By(fmt.Sprintf("Waiting for namespace %s to be removed, this can take a while ...", testNamespace))
-	err := api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), testNamespace, metav1.DeleteOptions{})
-	Expect(err).To(SatisfyAny(BeNil(), WithTransform(apierrors.IsNotFound, BeTrue())), "Should succeed deleting namespace if exists")
-
-	EventuallyWithOffset(1, func() error {
-		_, err := api.Clientset.CoreV1().Namespaces().Get(context.TODO(), testNamespace, metav1.GetOptions{})
-		return err
-	}, 120*time.Second, 5*time.Second).Should(SatisfyAll(HaveOccurred(), WithTransform(apierrors.IsNotFound, BeTrue())), "Should succeed terminating the namespace")
+// DeleteTestNamespaceAsync deletes the current test namespace without waiting for
+// completion. Kubernetes will garbage-collect all namespaced resources (pods, NADs).
+func (api *ClusterAPI) DeleteTestNamespaceAsync() {
+	By(fmt.Sprintf("Deleting %s namespace asynchronously", api.Namespace))
+	err := api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), api.Namespace, metav1.DeleteOptions{})
+	Expect(err).To(SatisfyAny(BeNil(), WithTransform(apierrors.IsNotFound, BeTrue())), "Should succeed deleting namespace")
 }
 
-// CreatePrivilegedPodWithIP creates a pod attached with ovs via secondary network
-func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, cidr, additionalCommands string) {
+// CleanupTestNamespaces removes all namespaces with test prefixes from previous runs
+// and waits for them to be fully terminated. Used in BeforeSuite to ensure a clean state.
+func (api *ClusterAPI) CleanupTestNamespaces() {
+	api.deleteTestNamespaces()
+
+	EventuallyWithOffset(1, func() bool {
+		nsList, err := api.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return false
+		}
+		for _, ns := range nsList.Items {
+			if strings.HasPrefix(ns.Name, "test-ns-") || ns.Name == "test-namespace" {
+				return false
+			}
+		}
+		return true
+	}, 5*time.Minute, 5*time.Second).Should(BeTrue(), "Should succeed cleaning up test namespaces")
+}
+
+// DeleteTestNamespacesAsync fires delete requests for all test namespaces without
+// waiting for completion. Used in AfterSuite when the cluster will be torn down.
+func (api *ClusterAPI) DeleteTestNamespacesAsync() {
+	api.deleteTestNamespaces()
+}
+
+func (api *ClusterAPI) deleteTestNamespaces() {
+	By("Cleaning up test namespaces")
+	nsList, err := api.Clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	Expect(err).ToNot(HaveOccurred())
+
+	for _, ns := range nsList.Items {
+		if strings.HasPrefix(ns.Name, "test-ns-") || ns.Name == "test-namespace" {
+			err := api.Clientset.CoreV1().Namespaces().Delete(context.TODO(), ns.Name, metav1.DeleteOptions{})
+			Expect(err).To(SatisfyAny(BeNil(), WithTransform(apierrors.IsNotFound, BeTrue())), "Should succeed deleting namespace")
+		}
+	}
+}
+
+// CreatePrivilegedPodOnly creates a pod without waiting for it to become ready.
+// Use WaitForPodReady to wait for readiness after creating multiple pods in parallel.
+func (api *ClusterAPI) CreatePrivilegedPodOnly(podName, nadName, bridgeName, cidr, additionalCommands string) {
 	By(fmt.Sprintf("Creating pod %s with priviliged premission and ip %s", podName, cidr))
 	privileged := true
 	resourceList := make(corev1.ResourceList)
@@ -96,7 +137,7 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 
 	podObject := &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name:      podName,
-		Namespace: testNamespace,
+		Namespace: api.Namespace,
 		// This annotation makes sure the pod is assigned to a node that has this ovs bridge resource
 		Annotations: map[string]string{"k8s.v1.cni.cncf.io/networks": nadName},
 	},
@@ -106,12 +147,15 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 			Resources:       corev1.ResourceRequirements{Limits: resourceList},
 			SecurityContext: &corev1.SecurityContext{Privileged: &privileged}}}}}
 
-	_, err := api.Clientset.CoreV1().Pods(testNamespace).Create(context.TODO(), podObject, metav1.CreateOptions{})
+	_, err := api.Clientset.CoreV1().Pods(api.Namespace).Create(context.TODO(), podObject, metav1.CreateOptions{})
 	Expect(err).ToNot(HaveOccurred(), "Should succeed creating pod object")
+}
 
-	By("Waiting for pod container to be in Running state")
+// WaitForPodReady waits for a specific pod to be in Ready state
+func (api *ClusterAPI) WaitForPodReady(podName string) {
+	By(fmt.Sprintf("Waiting for pod %s to be ready", podName))
 	Eventually(func() bool {
-		pod, err := api.Clientset.CoreV1().Pods(testNamespace).Get(context.TODO(), podName, metav1.GetOptions{})
+		pod, err := api.Clientset.CoreV1().Pods(api.Namespace).Get(context.TODO(), podName, metav1.GetOptions{})
 		if err != nil {
 			return false
 		}
@@ -130,21 +174,30 @@ func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, c
 	}, 2*time.Minute, 5*time.Second).Should(BeTrue(), "Should succeed getting pod container to Ready state")
 }
 
+// CreatePrivilegedPodWithIP creates a pod attached with ovs via secondary network
+// and waits for it to become ready.
+func (api *ClusterAPI) CreatePrivilegedPodWithIP(podName, nadName, bridgeName, cidr, additionalCommands string) {
+	api.CreatePrivilegedPodOnly(podName, nadName, bridgeName, cidr, additionalCommands)
+	api.WaitForPodReady(podName)
+}
+
 // DeletePodsInTestNamespace deletes all the pods in the test namespace
 func (api *ClusterAPI) DeletePodsInTestNamespace() {
-	By(fmt.Sprintf("Cleaning Pods in %s namespace", testNamespace))
-	podList, err := api.Clientset.CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{})
+	By(fmt.Sprintf("Cleaning Pods in %s namespace", api.Namespace))
+	podList, err := api.Clientset.CoreV1().Pods(api.Namespace).List(context.TODO(), metav1.ListOptions{})
 	Expect(err).ToNot(HaveOccurred(), "Should succeed getting pod list in test namespace")
 
 	for _, pod := range podList.Items {
-		err = api.Clientset.CoreV1().Pods(testNamespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
+		err = api.Clientset.CoreV1().Pods(api.Namespace).Delete(context.TODO(), pod.Name, metav1.DeleteOptions{})
 		Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("Should succeed deleting pod %s", pod.Name))
 	}
 
-	Eventually(func() []corev1.Pod {
-		podsList, err := api.Clientset.CoreV1().Pods(testNamespace).List(context.TODO(), metav1.ListOptions{})
-		Expect(err).ToNot(HaveOccurred(), "Should succeed getting pod list in test namespace after deletion")
-		return podsList.Items
+	Eventually(func() ([]corev1.Pod, error) {
+		podsList, err := api.Clientset.CoreV1().Pods(api.Namespace).List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return podsList.Items, nil
 	}, 6*time.Minute, time.Second).Should(BeEmpty(), "Failed to Delete pods")
 }
 
@@ -154,7 +207,7 @@ func (api *ClusterAPI) CreateNetworkAttachmentDefinition(nadName, bridgeName, co
 	nad := &netv1.NetworkAttachmentDefinition{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:        nadName,
-			Namespace:   testNamespace,
+			Namespace:   api.Namespace,
 			Annotations: map[string]string{"k8s.v1.cni.cncf.io/resourceName": "ovs-cni.network.kubevirt.io/" + bridgeName},
 		},
 		Spec: netv1.NetworkAttachmentDefinitionSpec{
@@ -169,13 +222,13 @@ func (api *ClusterAPI) CreateNetworkAttachmentDefinition(nadName, bridgeName, co
 // RemoveNetworkAttachmentDefinition deletes nad object from test namespace
 func (api *ClusterAPI) RemoveNetworkAttachmentDefinition(nadName string) {
 	By("Cleaning NetworkAttachmentDefinition")
-	err := api.NetClient.NetworkAttachmentDefinitions(testNamespace).Delete(context.TODO(), nadName, metav1.DeleteOptions{})
+	err := api.NetClient.NetworkAttachmentDefinitions(api.Namespace).Delete(context.TODO(), nadName, metav1.DeleteOptions{})
 	Expect(err).ToNot(HaveOccurred(), "Should succeed deleting nad NetworkAttachmentDefinition")
 }
 
 // PingFromPod run the ping command on the pod container towards targetIP
 func (api *ClusterAPI) PingFromPod(podName, containerName, targetIP string) error {
-	out, _, err := api.execOnPod(podName, containerName, testNamespace, "ping -c 5 "+targetIP)
+	out, _, err := api.execOnPod(podName, containerName, api.Namespace, "ping -c 5 "+targetIP)
 	if err != nil {
 		return errors.Wrapf(err, "Failed to run exec on pod %s", podName)
 	}
@@ -189,7 +242,7 @@ func (api *ClusterAPI) PingFromPod(podName, containerName, targetIP string) erro
 
 // ReadFileFromPod run the cat command on the pod container to read the content of a file
 func (api *ClusterAPI) ReadFileFromPod(podName, containerName, filePath string) (string, error) {
-	out, _, err := api.execOnPod(podName, containerName, testNamespace, "cat "+filePath)
+	out, _, err := api.execOnPod(podName, containerName, api.Namespace, "cat "+filePath)
 	if err != nil {
 		return "", errors.Wrapf(err, "Failed to run exec on pod %s", podName)
 	}

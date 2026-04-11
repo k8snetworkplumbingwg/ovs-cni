@@ -35,9 +35,11 @@ var testMirrorFunc = func(version string) {
 		Context("when an OVS bridge is configured on a node", func() {
 			const bridgeName = "br-test"
 			BeforeEach(func() {
+				clusterApi.NewTestNamespace()
 				node.AddOvsBridgeOnNode(bridgeName)
 			})
 			AfterEach(func() {
+				clusterApi.DeleteTestNamespaceAsync()
 				node.RemoveOvsBridgeOnNode(bridgeName)
 			})
 
@@ -59,11 +61,6 @@ var testMirrorFunc = func(version string) {
 					clusterApi.CreateNetworkAttachmentDefinition(nadConsumerName, bridgeName, `{ "cniVersion": "`+version+`", "plugins": `+pluginsConsumer+`}`)
 				})
 
-				AfterEach(func() {
-					clusterApi.RemoveNetworkAttachmentDefinition(nadProducerName)
-					clusterApi.RemoveNetworkAttachmentDefinition(nadConsumerName)
-				})
-
 				Context("and 3 pods (2 producers and 1 consumer) are connected through it", func() {
 					const (
 						podProd1Name = "pod-prod-1"
@@ -74,6 +71,7 @@ var testMirrorFunc = func(version string) {
 						cidrCons     = "10.1.0.1/24"
 					)
 					BeforeEach(func() {
+						// Consumer must be ready first so tcpdump can start capturing
 						consAdditionalCommands := "apk add tcpdump; tcpdump -l -i net1 > /tcpdump.log 2>&1;"
 						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
 						Eventually(func() string {
@@ -81,11 +79,11 @@ var testMirrorFunc = func(version string) {
 							return out
 						}, 120*time.Second, time.Second).Should(ContainSubstring("listening on"), "tcpdump did not start in time")
 
-						clusterApi.CreatePrivilegedPodWithIP(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
-						clusterApi.CreatePrivilegedPodWithIP(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
-					})
-					AfterEach(func() {
-						clusterApi.DeletePodsInTestNamespace()
+						// Create both producer pods without waiting, then wait for both
+						clusterApi.CreatePrivilegedPodOnly(podProd1Name, nadProducerName, bridgeName, cidrPodProd1, "")
+						clusterApi.CreatePrivilegedPodOnly(podProd2Name, nadProducerName, bridgeName, cidrPodProd2, "")
+						clusterApi.WaitForPodReady(podProd1Name)
+						clusterApi.WaitForPodReady(podProd2Name)
 					})
 
 					Specify("consumer pod should be able to monitor network traffic between producer pods", func() {

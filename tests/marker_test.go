@@ -77,7 +77,7 @@ var _ = Describe("ovs-cni-marker", func() {
 					}
 				}
 				return true
-			}, 240*time.Second, 60*time.Second).Should(Equal(true))
+			}, 60*time.Second, 15*time.Second).Should(Equal(true))
 		})
 	})
 })
