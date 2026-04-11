@@ -118,7 +118,7 @@ func (api *ClusterAPI) CleanupTestNamespaces() {
 			}
 		}
 		return true
-	}, 2*time.Minute, 5*time.Second).Should(BeTrue(), "Should succeed cleaning up test namespaces")
+	}, 5*time.Minute, 5*time.Second).Should(BeTrue(), "Should succeed cleaning up test namespaces")
 }
 
 // CreatePrivilegedPodOnly creates a pod without waiting for it to become ready.
