@@ -84,14 +84,6 @@ func getEnvArgs(envArgsString string) (*EnvArgs, error) {
 	return nil, nil
 }
 
-func getHardwareAddr(ifName string) string {
-	ifLink, err := netlink.LinkByName(ifName)
-	if err != nil {
-		return ""
-	}
-	return ifLink.Attrs().HardwareAddr.String()
-}
-
 // IPAddrToHWAddr takes the four octets of IPv4 address (aa.bb.cc.dd, for example) and uses them in creating
 // a MAC address (0A:58:AA:BB:CC:DD).  For IPv6, create a hash from the IPv6 string and use that for MAC Address.
 // Assumption: the caller will ensure that an empty net.IP{} will NOT be passed.
