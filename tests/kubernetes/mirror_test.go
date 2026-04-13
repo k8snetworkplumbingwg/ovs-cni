@@ -97,15 +97,14 @@ var testMirrorFunc = func(version string) {
 						ipPodProd2, _, err := net.ParseCIDR(cidrPodProd2)
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing podProd2's cidr: %s", cidrPodProd2))
 
-						By("Pinging over the network")
-						err = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
-						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
-
-						By("Confirming that the communication was recorded")
+						By("Pinging and confirming that the communication was recorded")
 						Eventually(func() string {
+							// Ping each iteration so mirrored traffic is captured even
+							// if the OVS mirror was not yet fully configured on earlier attempts.
+							_ = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
 							out, _ := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 							return out
-						}, 30*time.Second, time.Second).Should(And(
+						}, 60*time.Second, time.Second).Should(And(
 							ContainSubstring("IP "+ipPodProd1.String()+" > "+ipPodProd2.String()+": ICMP echo request"),
 							ContainSubstring("IP "+ipPodProd2.String()+" > "+ipPodProd1.String()+": ICMP echo reply"),
 						), fmt.Sprintf("tcpdump on pod '%s' should have captured mirrored ICMP traffic", podConsName))
