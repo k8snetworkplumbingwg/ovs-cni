@@ -88,10 +88,6 @@ cni-tests: $(GO)
 kubernetes-tests: $(GO)
 	GO=$(GO) hack/functests.sh
 
-# Backward-compatible aliases for CI and external scripts
-test: unit-tests
-functest: kubernetes-tests
-
 docker-build:
 	hack/get_version.sh > .version
 	$(OCI_BIN) build --build-arg goarch=${GOARCH} -t ${REGISTRY}/ovs-cni-plugin:${IMAGE_TAG} -f ./cmd/Dockerfile .
@@ -116,4 +112,4 @@ cluster-down: $(KIND)
 cluster-sync: build $(KIND)
 	./cluster/sync.sh
 
-.PHONY: build format unit-tests cni-tests kubernetes-tests test functest docker-build docker-push dep clean-dep manifests cluster-up cluster-down cluster-sync lint install-go
+.PHONY: build format unit-tests cni-tests kubernetes-tests docker-build docker-push dep manifests cluster-up cluster-down cluster-sync lint install-go
