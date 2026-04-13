@@ -209,7 +209,11 @@ func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string,
 }
 
 func refetchIface(iface *current.Interface) error {
-	iface.Mac = getHardwareAddr(iface.Name)
+	link, err := netlink.LinkByName(iface.Name)
+	if err != nil {
+		return fmt.Errorf("failed to refetch interface %s: %v", iface.Name, err)
+	}
+	iface.Mac = link.Attrs().HardwareAddr.String()
 	return nil
 }
 
