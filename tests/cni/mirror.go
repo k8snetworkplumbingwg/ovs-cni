@@ -10,7 +10,7 @@ import (
 	types040 "github.com/containernetworking/cni/pkg/types/040"
 	current "github.com/containernetworking/cni/pkg/types/100"
 
-	ginko "github.com/onsi/ginkgo/v2"
+	ginkgo "github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
@@ -58,13 +58,13 @@ func GetPortUUIDFromResult(r cnitypes.Result) string {
 
 	// Both mirror-producer and mirror-consumer must return the same interfaces of the previous one in the chain (ovs-cni plugin),
 	// because they don't modify interfaces, but they only update ovsdb.
-	ginko.By("Checking that result interfaces are equal to those returned by ovs-cni plugin")
+	ginkgo.By("Checking that result interfaces are equal to those returned by ovs-cni plugin")
 	hostIface := resultMirror.Interfaces[0]
 	contIface := resultMirror.Interfaces[1]
 	gomega.Expect(resultMirror.Interfaces[0]).To(gomega.Equal(hostIface))
 	gomega.Expect(resultMirror.Interfaces[1]).To(gomega.Equal(contIface))
 
-	ginko.By("Getting port uuid for the hostIface")
+	ginkgo.By("Getting port uuid for the hostIface")
 	portUUID, err := GetPortUUIDByName(hostIface.Name)
 	gomega.Expect(err).NotTo(gomega.HaveOccurred())
 	return portUUID
@@ -83,7 +83,7 @@ func CheckPortsInMirrors(mirrors []types.Mirror, hasExternalOwner bool, ovsPortO
 	}
 
 	for _, mirror := range mirrors {
-		ginko.By(fmt.Sprintf("Checking that mirror %s is in ovsdb", mirror.Name))
+		ginkgo.By(fmt.Sprintf("Checking that mirror %s is in ovsdb", mirror.Name))
 		mirrorNameOvsdb, err := GetMirrorAttribute(mirror.Name, "name")
 		gomega.Expect(err).NotTo(gomega.HaveOccurred())
 		gomega.Expect(mirrorNameOvsdb).To(gomega.Equal(mirror.Name))
@@ -95,7 +95,7 @@ func CheckPortsInMirrors(mirrors []types.Mirror, hasExternalOwner bool, ovsPortO
 		}
 
 		if mirror.Ingress {
-			ginko.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_src_port column", mirror.Name))
+			ginkgo.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_src_port column", mirror.Name))
 			srcPorts, err := GetMirrorSrcPorts(mirror.Name)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			for _, portUUID := range portUUIDs {
@@ -104,7 +104,7 @@ func CheckPortsInMirrors(mirrors []types.Mirror, hasExternalOwner bool, ovsPortO
 		}
 
 		if mirror.Egress {
-			ginko.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_dst_port column", mirror.Name))
+			ginkgo.By(fmt.Sprintf("Checking that mirror %s has all ports created by ovs-cni plugin in select_dst_port column", mirror.Name))
 			dstPorts, err := GetMirrorDstPorts(mirror.Name)
 			gomega.Expect(err).NotTo(gomega.HaveOccurred())
 			for _, portUUID := range portUUIDs {
