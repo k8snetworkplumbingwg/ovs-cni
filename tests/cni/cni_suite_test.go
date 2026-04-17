@@ -15,7 +15,11 @@
 package cni
 
 import (
+	"bufio"
+	"fmt"
+	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -32,6 +36,26 @@ const (
 	consumerBridgeName = "bridge-mir-cons"
 	producerBridgeName = "bridge-mir-prod"
 )
+
+// init redirects os.Stderr through a filter that suppresses libovsdb
+// debug/info log lines (connect, transact) which otherwise produce ~4000
+// lines of noise per test run. All other stderr output passes through.
+func init() {
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		return
+	}
+	os.Stderr = w
+	go func() {
+		scanner := bufio.NewScanner(r)
+		for scanner.Scan() {
+			if !strings.Contains(scanner.Text(), "libovsdb:") {
+				fmt.Fprintln(origStderr, scanner.Text())
+			}
+		}
+	}()
+}
 
 func TestCNI(t *testing.T) {
 	RegisterFailHandler(Fail)
