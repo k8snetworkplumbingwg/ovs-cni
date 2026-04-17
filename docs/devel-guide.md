@@ -28,10 +28,14 @@ make dep
 make unit-tests
 
 # Run CNI plugin tests (requires OVS, runs in privileged container)
-make cni-tests
+# Note: may require root privileges
+sudo make cni-tests
 
 # Run Kubernetes e2e tests against a running cluster
+make cluster-up
+make cluster-sync
 make kubernetes-tests
+make cluster-down
 ```
 
 ## Containers
