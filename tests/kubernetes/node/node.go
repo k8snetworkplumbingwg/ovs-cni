@@ -26,7 +26,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/k8snetworkplumbingwg/ovs-cni/tests/cmd"
+	"github.com/k8snetworkplumbingwg/ovs-cni/tests/kubernetes/cmd"
 )
 
 // WorkerNode returns the name of the worker node used for tests.

@@ -37,14 +37,13 @@ Go toolchain is auto-installed to `build/_output/bin/go/` by `hack/install-go.sh
 ```bash
 make build              # Format, vet, build all 4 binaries
 make lint               # golangci-lint v2 (config in .golangci.yml)
-make test               # Unit tests (Ginkgo/Gomega) - may need sudo for netns tests
-make functest           # E2E tests against a running cluster
-make docker-build       # Container image with all binaries
-make docker-test        # Run tests inside Docker
+make unit-tests          # Unit tests (Ginkgo/Gomega)
+make cni-tests           # CNI plugin tests (run in privileged container with OVS)
+make kubernetes-tests    # E2E tests against a running cluster
+make docker-build        # Container image with all binaries
 ```
 
 Build individual components: `make build-plugin`, `make build-marker`, etc.
-Test individual packages: `make test-pkg-plugin`, `make test-cmd-marker`, etc.
 
 Binaries output to `cmd/<component>/` (built in-place by `go build`).
 
@@ -85,6 +84,7 @@ make cluster-down       # Tear down cluster
 ## CI
 
 GitHub Actions workflows in `.github/workflows/`:
+- `lint-build.yaml` - Lint, build, unit tests, CNI tests, and Kubernetes e2e tests
 - `image-build-test.yaml` - Build validation on PRs (multi-arch)
 - `image-push-main.yaml` - Push `:latest` on merge to main
 - `image-push-release.yaml` - Push release tags

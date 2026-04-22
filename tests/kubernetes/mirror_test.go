@@ -18,9 +18,10 @@ package tests_test
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
-	"github.com/k8snetworkplumbingwg/ovs-cni/tests/node"
+	"github.com/k8snetworkplumbingwg/ovs-cni/tests/kubernetes/node"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
@@ -31,9 +32,12 @@ var _ = Describe("ovs-mirror 0.4.0", func() { testMirrorFunc("0.4.0") })
 var _ = Describe("ovs-mirror 1.0.0", func() { testMirrorFunc("1.0.0") })
 
 var testMirrorFunc = func(version string) {
+	// Use a unique bridge per CNI version so that async namespace cleanup
+	// from one test cannot interfere with the next test's OVS mirror state.
+	bridgeName := "br-mrr" + strings.ReplaceAll(version, ".", "")
+
 	Describe("ovs traffic mirroring tests", func() {
 		Context("when an OVS bridge is configured on a node", func() {
-			const bridgeName = "br-test"
 			BeforeEach(func() {
 				clusterApi.NewTestNamespace()
 				node.AddOvsBridgeOnNode(bridgeName)
@@ -93,15 +97,14 @@ var testMirrorFunc = func(version string) {
 						ipPodProd2, _, err := net.ParseCIDR(cidrPodProd2)
 						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should succeed parsing podProd2's cidr: %s", cidrPodProd2))
 
-						By("Pinging over the network")
-						err = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
-						Expect(err).ToNot(HaveOccurred(), fmt.Sprintf("should be able to ping from pod '%s@%s' to pod '%s@%s'", podProd1Name, ipPodProd1.String(), podProd2Name, ipPodProd2.String()))
-
-						By("Confirming that the communication was recorded")
+						By("Pinging and confirming that the communication was recorded")
 						Eventually(func() string {
+							// Ping each iteration so mirrored traffic is captured even
+							// if the OVS mirror was not yet fully configured on earlier attempts.
+							_ = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
 							out, _ := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
 							return out
-						}, 30*time.Second, time.Second).Should(And(
+						}, 60*time.Second, time.Second).Should(And(
 							ContainSubstring("IP "+ipPodProd1.String()+" > "+ipPodProd2.String()+": ICMP echo request"),
 							ContainSubstring("IP "+ipPodProd2.String()+" > "+ipPodProd1.String()+": ICMP echo reply"),
 						), fmt.Sprintf("tcpdump on pod '%s' should have captured mirrored ICMP traffic", podConsName))

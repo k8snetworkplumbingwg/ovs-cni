@@ -1,4 +1,5 @@
 // Copyright 2018 Red Hat, Inc.
+// Copyright 2014 CNI authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,16 +13,42 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package plugin
+package tests_test
 
 import (
+	"flag"
+	"os"
+	"testing"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"testing"
+	clusterapi "github.com/k8snetworkplumbingwg/ovs-cni/tests/kubernetes/cluster"
 )
+
+var kubeconfig *string
+var clusterApi *clusterapi.ClusterAPI
 
 func TestPlugin(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Mirror Consumer Suite")
+	RunSpecs(t, "Plugin Suite")
+}
+
+var _ = BeforeSuite(func() {
+	flag.Parse()
+
+	// Change to root directory some test expect that
+	err := os.Chdir("../../")
+	Expect(err).NotTo(HaveOccurred())
+
+	clusterApi = clusterapi.NewClusterAPI(*kubeconfig)
+	clusterApi.CleanupTestNamespaces()
+})
+
+var _ = AfterSuite(func() {
+	clusterApi.DeleteTestNamespacesAsync()
+})
+
+func init() {
+	kubeconfig = flag.String("kubeconfig", "", "absolute path to the kubeconfig file")
 }

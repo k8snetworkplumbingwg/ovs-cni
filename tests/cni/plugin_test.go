@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package plugin
+package cni
 
 import (
 	"bytes"
@@ -42,6 +42,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/plugin"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
 
@@ -91,29 +92,18 @@ type NetCurrent struct {
 	PrevResult    current.Result         `json:"-"`
 }
 
-const bridgeName = "test-bridge"
-const vlanID = 100
-const mtu = 1456
-const defaultMTU = 1500
-const IFNAME = "eth0"
+const pluginVlanID = 100
+const pluginMtu = 1456
+const pluginDefaultMTU = 1500
+const pluginIFNAME = "eth0"
 const systemType = "system"
 
-var _ = BeforeSuite(func() {
-	output, err := exec.Command("ovs-vsctl", "show").CombinedOutput()
-	Expect(err).NotTo(HaveOccurred(), "Open vSwitch is not available, if you have it installed and running, try to run tests with `sudo -E`: %v", string(output[:]))
-})
+var _ = Describe("CNI Plugin 0.3.0", func() { pluginTestFunc("0.3.0") })
+var _ = Describe("CNI Plugin 0.3.1", func() { pluginTestFunc("0.3.1") })
+var _ = Describe("CNI Plugin 0.4.0", func() { pluginTestFunc("0.4.0") })
+var _ = Describe("CNI Plugin 1.0.0", func() { pluginTestFunc("1.0.0") })
 
-var _ = AfterSuite(func() {
-	output, err := exec.Command("ovs-vsctl", "--if-exists", "del-br", bridgeName).CombinedOutput()
-	Expect(err).NotTo(HaveOccurred(), "Cleanup of the bridge failed: %v", string(output[:]))
-})
-
-var _ = Describe("CNI Plugin 0.3.0", func() { testFunc("0.3.0") })
-var _ = Describe("CNI Plugin 0.3.1", func() { testFunc("0.3.1") })
-var _ = Describe("CNI Plugin 0.4.0", func() { testFunc("0.4.0") })
-var _ = Describe("CNI Plugin 1.0.0", func() { testFunc("1.0.0") })
-
-var testFunc = func(version string) {
+var pluginTestFunc = func(version string) {
 	testSplitVlanIds := func(conf string, expTrunks []uint, expErr error, setUnmarshalErr bool) {
 		var trunks []*types.Trunk
 		err := json.Unmarshal([]byte(conf), &trunks)
@@ -123,7 +113,7 @@ var testFunc = func(version string) {
 		}
 		Expect(err).NotTo(HaveOccurred())
 		By("Calling testSplitVlanIds method")
-		vlanIds, err := splitVlanIds(trunks)
+		vlanIds, err := plugin.SplitVlanIds(trunks)
 		if expErr != nil {
 			By("Checking expected error is occurred")
 			Expect(err).To(Equal(expErr))
@@ -141,7 +131,7 @@ var testFunc = func(version string) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
-			IfName:      IFNAME,
+			IfName:      pluginIFNAME,
 			StdinData:   []byte(conf),
 		}
 
@@ -192,7 +182,7 @@ var testFunc = func(version string) {
 		args.StdinData = confString
 
 		err = cmdCheckWithArgs(args, func() error {
-			return CmdCheck(args)
+			return plugin.CmdCheck(args)
 		})
 		Expect(err).NotTo(HaveOccurred())
 	}
@@ -209,7 +199,7 @@ var testFunc = func(version string) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
-			IfName:      IFNAME,
+			IfName:      pluginIFNAME,
 			StdinData:   []byte(conf),
 		}
 
@@ -217,7 +207,7 @@ var testFunc = func(version string) {
 
 		By("Calling ADD command")
 		r, _, err := cmdAddWithArgs(args, func() error {
-			return CmdAdd(args)
+			return plugin.CmdAdd(args)
 		})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -237,9 +227,9 @@ var testFunc = func(version string) {
 		err = targetNs.Do(func(ns.NetNS) error {
 			defer GinkgoRecover()
 
-			link, err := netlink.LinkByName(IFNAME)
+			link, err := netlink.LinkByName(pluginIFNAME)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(link.Attrs().Name).To(Equal(IFNAME))
+			Expect(link.Attrs().Name).To(Equal(pluginIFNAME))
 
 			hwaddr, err := net.ParseMAC(result.Interfaces[1].Mac)
 			Expect(err).NotTo(HaveOccurred())
@@ -249,7 +239,7 @@ var testFunc = func(version string) {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(addrs)).To(Equal(1))
 			Expect(addrs[0].String()).To(HavePrefix(ipPrefix))
-			Expect(link.Attrs().HardwareAddr).To(Equal(IPAddrToHWAddr(addrs[0].IP)))
+			Expect(link.Attrs().HardwareAddr).To(Equal(plugin.IPAddrToHWAddr(addrs[0].IP)))
 
 			if isDual {
 				addrs, err := netlink.AddrList(link, syscall.AF_INET6)
@@ -268,7 +258,7 @@ var testFunc = func(version string) {
 
 		By("Calling DEL command to cleanup assigned ip address")
 		err = cmdDelWithArgs(args, func() error {
-			return CmdDel(args)
+			return plugin.CmdDel(args)
 		})
 		Expect(err).NotTo(HaveOccurred())
 	}
@@ -277,13 +267,13 @@ var testFunc = func(version string) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
-			IfName:      IFNAME,
+			IfName:      pluginIFNAME,
 			StdinData:   []byte(conf),
 		}
 
 		By("Calling DEL command")
 		err := cmdDelWithArgs(args, func() error {
-			return CmdDel(args)
+			return plugin.CmdDel(args)
 		})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -293,7 +283,7 @@ var testFunc = func(version string) {
 				defer GinkgoRecover()
 
 				By("Checking that container side of the veth pair was deleted")
-				contLink, err := netlink.LinkByName(IFNAME)
+				contLink, err := netlink.LinkByName(pluginIFNAME)
 				Expect(err).To(HaveOccurred())
 				Expect(contLink).To(BeNil())
 
@@ -319,7 +309,7 @@ var testFunc = func(version string) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
-			IfName:      IFNAME,
+			IfName:      pluginIFNAME,
 			StdinData:   []byte(conf),
 		}
 
@@ -327,7 +317,7 @@ var testFunc = func(version string) {
 
 		By("Calling ADD command")
 		r, _, err := cmdAddWithArgs(args, func() error {
-			return CmdAdd(args)
+			return plugin.CmdAdd(args)
 		})
 		Expect(err).NotTo(HaveOccurred())
 
@@ -358,15 +348,15 @@ var testFunc = func(version string) {
 		portVlan, err := getPortAttribute(hostIface.Name, "tag")
 		Expect(err).NotTo(HaveOccurred())
 		if setVlan {
-			Expect(portVlan).To(Equal(strconv.Itoa(vlanID)))
+			Expect(portVlan).To(Equal(strconv.Itoa(pluginVlanID)))
 		} else {
 			Expect(portVlan).To(Equal("[]"))
 		}
 
 		if setMtu {
-			Expect(hostLink.Attrs().MTU).To(Equal(mtu))
+			Expect(hostLink.Attrs().MTU).To(Equal(pluginMtu))
 		} else {
-			Expect(hostLink.Attrs().MTU).To(Equal(defaultMTU))
+			Expect(hostLink.Attrs().MTU).To(Equal(pluginDefaultMTU))
 		}
 
 		By("Checking that Trunk VLAN range matches expected state")
@@ -391,7 +381,7 @@ var testFunc = func(version string) {
 			defer GinkgoRecover()
 
 			By("Checking that veth interface was created inside the container")
-			contLink, err := netlink.LinkByName(IFNAME)
+			contLink, err := netlink.LinkByName(pluginIFNAME)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Checking that container interface MAC in the result matches reality")
@@ -403,9 +393,9 @@ var testFunc = func(version string) {
 			Expect(contLink.Attrs().OperState).To(Equal(netlink.LinkOperState(netlink.OperUp)))
 
 			if setMtu {
-				Expect(contLink.Attrs().MTU).To(Equal(mtu))
+				Expect(contLink.Attrs().MTU).To(Equal(pluginMtu))
 			} else {
-				Expect(contLink.Attrs().MTU).To(Equal(defaultMTU))
+				Expect(contLink.Attrs().MTU).To(Equal(pluginDefaultMTU))
 			}
 
 			return nil
@@ -427,7 +417,7 @@ var testFunc = func(version string) {
 		args := &skel.CmdArgs{
 			ContainerID: "dummy",
 			Netns:       targetNs.Path(),
-			IfName:      IFNAME,
+			IfName:      pluginIFNAME,
 			StdinData:   []byte(conf),
 		}
 		netconf, err := config.LoadConf(args.StdinData)
@@ -439,7 +429,7 @@ var testFunc = func(version string) {
 
 		By("Calling ADD command")
 		_, _, err = cmdAddWithArgs(args, func() error {
-			return CmdAdd(args)
+			return plugin.CmdAdd(args)
 		})
 		Expect(err).To(HaveOccurred())
 
@@ -451,13 +441,13 @@ var testFunc = func(version string) {
 
 	Context("connecting container to a bridge", func() {
 		BeforeEach(func() {
-			output, err := exec.Command("ovs-vsctl", "add-br", bridgeName).CombinedOutput()
+			output, err := exec.Command("ovs-vsctl", "add-br", pluginBridgeName).CombinedOutput()
 			Expect(err).NotTo(HaveOccurred(), "Failed to create testing OVS bridge: %v", string(output[:]))
 
 			var bridgeLink netlink.Link
 			Eventually(func() error {
 				var linkErr error
-				bridgeLink, linkErr = netlink.LinkByName(bridgeName)
+				bridgeLink, linkErr = netlink.LinkByName(pluginBridgeName)
 				return linkErr
 			}, 5*time.Second, 100*time.Millisecond).Should(Succeed(),
 				"Interface of testing OVS bridge was not found in the system")
@@ -467,7 +457,7 @@ var testFunc = func(version string) {
 
 			// Clean up any stale OVS ports whose interfaces are in error
 			// state. This prevents false negatives in CmdCheck's
-			// validateOvs, which calls InterfaceHasError(hostIfname) to
+			// ValidateOvs, which calls InterfaceHasError(hostIfname) to
 			// check the specific container interface for errors.
 			// The bridge's own internal interface is excluded because its
 			// error field may be transiently non-empty right after creation.
@@ -483,7 +473,7 @@ var testFunc = func(version string) {
 				var stale []string
 				for _, name := range strings.Split(strings.TrimSpace(string(out)), "\n") {
 					name = strings.TrimSpace(name)
-					if name == "" || name == bridgeName {
+					if name == "" || name == pluginBridgeName {
 						continue
 					}
 					// Skip interfaces that are OVS bridges from other test
@@ -500,7 +490,7 @@ var testFunc = func(version string) {
 		})
 
 		AfterEach(func() {
-			output, err := exec.Command("ovs-vsctl", "del-br", bridgeName).CombinedOutput()
+			output, err := exec.Command("ovs-vsctl", "del-br", pluginBridgeName).CombinedOutput()
 			Expect(err).NotTo(HaveOccurred(), "Failed to remove testing OVS bridge: %v", string(output[:]))
 		})
 
@@ -511,7 +501,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-			}`, version, bridgeName, vlanID)
+			}`, version, pluginBridgeName, pluginVlanID)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -528,7 +518,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -546,7 +536,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"trunk": [ {"minID": 10, "maxID": 12}, {"id": 15}, {"minID": 17, "maxID": 18}  ]
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -564,7 +554,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"trunk": [ {"minID": 17, "maxID": 18}, {"id": 15}, {"minID": 10, "maxID": 12}  ]
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -586,7 +576,7 @@ var testFunc = func(version string) {
 					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ]],
 					"dataDir": "/tmp/ovs-cni/conf"
 				}
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				testIPAM(conf, false, "10.1.2", "")
 			})
@@ -602,7 +592,7 @@ var testFunc = func(version string) {
 					"ranges": [[ {"subnet": "10.1.2.0/24", "gateway": "10.1.2.1"} ], [{"subnet": "3ffe:ffff:0:1ff::/64", "rangeStart": "3ffe:ffff:0:1ff::10", "rangeEnd": "3ffe:ffff:0:1ff::20"}]],
 					"dataDir": "/tmp/ovs-cni/conf"
 				}
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				testIPAM(conf, true, "10.1.2", "3ffe:ffff:0:1ff")
 			})
@@ -614,7 +604,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": 9999
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should fail and leave no leftovers", func() {
 				testInvalidAdd(conf)
 			})
@@ -630,7 +620,7 @@ var testFunc = func(version string) {
 					"ranges": [[ {"subnet": "invalid", "gateway": "10.1.2.1"} ]],
 					"dataDir": "/tmp/ovs-cni/conf"
 				}
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should fail and leave no leftovers", func() {
 				testInvalidAdd(conf)
 			})
@@ -642,7 +632,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"mtu": %d
-			}`, version, bridgeName, mtu)
+			}`, version, pluginBridgeName, pluginMtu)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -659,7 +649,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -680,7 +670,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -690,7 +680,7 @@ var testFunc = func(version string) {
 				testCheck(conf, result, targetNs)
 				err := targetNs.Do(func(ns.NetNS) error {
 					defer GinkgoRecover()
-					return ip.DelLinkByName(IFNAME)
+					return ip.DelLinkByName(pluginIFNAME)
 				})
 				Expect(err).NotTo(HaveOccurred())
 				testDel(conf, hostIfName, targetNs, true)
@@ -704,7 +694,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-				}`, version, bridgeName, vlanID)
+				}`, version, pluginBridgeName, pluginVlanID)
 
 				By("Creating two temporary target namespace to simulate two containers")
 				targetNsOne := newNS()
@@ -717,10 +707,10 @@ var testFunc = func(version string) {
 				}()
 
 				By("Checking that both namespaces have different mac addresses on eth0")
-				resultOne := attach(targetNsOne, conf, IFNAME, "", "")
+				resultOne := pluginAttach(targetNsOne, conf, pluginIFNAME, "", "")
 				contOneIface := resultOne.Interfaces[0]
 
-				resultTwo := attach(targetNsTwo, conf, IFNAME, "", "")
+				resultTwo := pluginAttach(targetNsTwo, conf, pluginIFNAME, "", "")
 				contTwoIface := resultTwo.Interfaces[1]
 
 				Expect(contOneIface.Mac).NotTo(Equal(contTwoIface.Mac))
@@ -734,7 +724,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"vlan": %d
-				}`, version, bridgeName, vlanID)
+				}`, version, pluginBridgeName, pluginVlanID)
 
 				By("Creating temporary target namespace to simulate a container")
 				targetNs := newNS()
@@ -744,7 +734,7 @@ var testFunc = func(version string) {
 
 				By("Checking that the mac address on eth0 equals to the requested one")
 				mac := "0a:00:00:00:00:80"
-				result := attach(targetNs, conf, IFNAME, mac, "")
+				result := pluginAttach(targetNs, conf, pluginIFNAME, mac, "")
 				contIface := result.Interfaces[1]
 
 				Expect(contIface.Mac).To(Equal(mac))
@@ -759,7 +749,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"OvnPort": "test-port",
-				"bridge": "%s"}`, version, bridgeName)
+				"bridge": "%s"}`, version, pluginBridgeName)
 
 				targetNs := newNS()
 				defer func() {
@@ -767,7 +757,7 @@ var testFunc = func(version string) {
 				}()
 
 				OvnPort := "test-port"
-				result := attach(targetNs, conf, IFNAME, "", OvnPort)
+				result := pluginAttach(targetNs, conf, pluginIFNAME, "", OvnPort)
 				hostIface := result.Interfaces[0]
 				output, err := exec.Command("ovs-vsctl", "--column=external_ids", "find", "Interface", fmt.Sprintf("name=%s", hostIface.Name)).CombinedOutput()
 				Expect(err).NotTo(HaveOccurred())
@@ -785,14 +775,14 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"ofport_request": %d,
-				"bridge": "%s"}`, version, ofportRequest, bridgeName)
+				"bridge": "%s"}`, version, ofportRequest, pluginBridgeName)
 
 				targetNs := newNS()
 				defer func() {
 					closeNS(targetNs)
 				}()
 
-				result := attach(targetNs, conf, IFNAME, "", "")
+				result := pluginAttach(targetNs, conf, pluginIFNAME, "", "")
 				hostIface := result.Interfaces[0]
 
 				// Wait for OVS to actually assign the port, even when the add returns
@@ -812,7 +802,7 @@ var testFunc = func(version string) {
 				"type": "ovs",
 				"bridge": "%s",
 				"interface_type": "%s"
-			}`, version, bridgeName, systemType)
+			}`, version, pluginBridgeName, systemType)
 			It("should successfully complete ADD and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -829,7 +819,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 			It("should successfully complete ADD, CHECK and DEL commands", func() {
 				targetNs := newNS()
 				defer func() {
@@ -846,7 +836,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"bridge": "%s"
-			}`, version, bridgeName)
+			}`, version, pluginBridgeName)
 
 			It("should detect when an OVS interface is in error state", func() {
 				targetNs := newNS()
@@ -862,17 +852,17 @@ var testFunc = func(version string) {
 
 				waitForIfaceError(hostIfName, 10, 100*time.Millisecond)
 
-				// Call validateOvs directly to exercise the InterfaceHasError path.
+				// Call ValidateOvs directly to exercise the InterfaceHasError path.
 				args := &skel.CmdArgs{
 					ContainerID: "dummy",
 					Netns:       targetNs.Path(),
-					IfName:      IFNAME,
+					IfName:      pluginIFNAME,
 					StdinData:   []byte(conf),
 				}
 				netconf, err := config.LoadConf(args.StdinData)
 				Expect(err).NotTo(HaveOccurred())
 
-				err = validateOvs(args, netconf, hostIfName)
+				err = plugin.ValidateOvs(args, netconf, hostIfName)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("error state"))
 			})
@@ -883,7 +873,7 @@ var testFunc = func(version string) {
 				"name": "mynet",
 				"type": "ovs",
 				"OvnPort": "test-port",
-				"bridge": "%s"}`, version, bridgeName)
+				"bridge": "%s"}`, version, pluginBridgeName)
 
 			It("DEL removes ports without network namespace", func() {
 				firstTargetNs := newNS()
@@ -897,8 +887,8 @@ var testFunc = func(version string) {
 				}()
 
 				// Create two ports for two separate target namespaces.
-				firstResult := attach(firstTargetNs, conf, IFNAME, "", "test-port-1")
-				secondResult := attach(secondTargetNs, conf, IFNAME, "", "test-port-2")
+				firstResult := pluginAttach(firstTargetNs, conf, pluginIFNAME, "", "test-port-1")
+				secondResult := pluginAttach(secondTargetNs, conf, pluginIFNAME, "", "test-port-2")
 
 				// Remove the host interface of the first port. This makes the
 				// port faulty. Our test should remove the interfaces of this
@@ -916,11 +906,11 @@ var testFunc = func(version string) {
 
 				args := &skel.CmdArgs{
 					ContainerID: "dummy",
-					IfName:      IFNAME,
+					IfName:      pluginIFNAME,
 					StdinData:   []byte(conf),
 				}
 				err = cmdDelWithArgs(args, func() error {
-					return CmdDel(args)
+					return plugin.CmdDel(args)
 				})
 				Expect(err).NotTo(HaveOccurred())
 
@@ -985,7 +975,7 @@ var testFunc = func(version string) {
 	})
 }
 
-func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Result {
+func pluginAttach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Result {
 	extraArgs := ""
 	if mac != "" {
 		extraArgs += fmt.Sprintf("MAC=%s,", mac)
@@ -1007,7 +997,7 @@ func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Resu
 
 	By("Calling ADD command")
 	r, _, err := cmdAddWithArgs(args, func() error {
-		return CmdAdd(args)
+		return plugin.CmdAdd(args)
 	})
 	Expect(err).NotTo(HaveOccurred())
 
@@ -1016,29 +1006,6 @@ func attach(namespace ns.NetNS, conf, ifName, mac, ovnPort string) *current.Resu
 	Expect(err).NotTo(HaveOccurred())
 
 	return result
-}
-
-func newNS() ns.NetNS {
-	targetNs, err := testutils.NewNS()
-	Expect(err).NotTo(HaveOccurred())
-	return targetNs
-}
-
-func closeNS(targetNs ns.NetNS) {
-	Expect(targetNs.Close()).To(Succeed())
-	Expect(testutils.UnmountNS(targetNs)).To(Succeed())
-}
-
-func cmdAddWithArgs(args *skel.CmdArgs, f func() error) (cnitypes.Result, []byte, error) {
-	return testutils.CmdAdd(args.Netns, args.ContainerID, args.IfName, args.StdinData, f)
-}
-
-func cmdCheckWithArgs(args *skel.CmdArgs, f func() error) error {
-	return testutils.CmdCheck(args.Netns, args.ContainerID, args.IfName, f)
-}
-
-func cmdDelWithArgs(args *skel.CmdArgs, f func() error) error {
-	return testutils.CmdDel(args.Netns, args.ContainerID, args.IfName, f)
 }
 
 func listBridgePorts(brName string) ([]string, error) {
