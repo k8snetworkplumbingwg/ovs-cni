@@ -48,10 +48,17 @@ func init() {
 	}
 	os.Stderr = w
 	go func() {
-		scanner := bufio.NewScanner(r)
-		for scanner.Scan() {
-			if !strings.Contains(scanner.Text(), "libovsdb:") {
-				fmt.Fprintln(origStderr, scanner.Text())
+		reader := bufio.NewReader(r)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				if line != "" && !strings.Contains(line, "libovsdb:") {
+					fmt.Fprint(origStderr, line)
+				}
+				break
+			}
+			if !strings.Contains(line, "libovsdb:") {
+				fmt.Fprint(origStderr, line)
 			}
 		}
 	}()
