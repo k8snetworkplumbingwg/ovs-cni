@@ -1,6 +1,6 @@
 FROM quay.io/fedora/fedora:40-x86_64
 
-RUN dnf -y install make git gcc openvswitch hostname && \
+RUN dnf -y install make git gcc openvswitch hostname catatonit && \
     dnf -y clean all
 
 RUN mkdir -p /opt/cni/bin
@@ -16,4 +16,4 @@ ENV PATH="/opt/cni/bin:$PATH"
 RUN printf '#!/bin/bash\nset -e\n/usr/share/openvswitch/scripts/ovs-ctl start --system-id=random\nexec "$@"\n' > /entrypoint.sh && \
     chmod +x /entrypoint.sh
 
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/usr/libexec/catatonit/catatonit", "-g", "--", "/entrypoint.sh"]

@@ -78,7 +78,7 @@ unit-tests: $(GO)
 
 cni-tests: $(GO)
 	$(OCI_BIN) build -t ovs-cni-cni-tests -f tests/cni/Containerfile tests/cni/
-	$(OCI_BIN) run --rm --init --privileged --network host \
+	$(OCI_BIN) run --rm --privileged --network host \
 		-v /lib/modules:/lib/modules \
 		-v $(CURDIR):/src:z \
 		-w /src \
