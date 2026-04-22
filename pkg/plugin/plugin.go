@@ -45,6 +45,7 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/vdpa"
 )
 
 const (
@@ -340,14 +341,28 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
+	vdpaDev, err := vdpa.GetVdpaDeviceFromID(netconf.DeviceID)
+	if err != nil {
+		return err
+	}
+	vdpaDevType, err := vdpa.GetDeviceType(vdpaDev)
+	if err != nil {
+		return err
+	}
+
 	// Cache NetConf for CmdDel
 	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName),
-		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName, UserspaceMode: userspaceMode}); err != nil {
+		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName, UserspaceMode: userspaceMode, VdpaType: vdpaDevType}); err != nil {
 		return fmt.Errorf("error saving NetConf %q", err)
 	}
 
 	var hostIface, contIface *current.Interface
-	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+	if vdpaDevType == types.VdpaDeviceTypeKernelVhost {
+		hostIface, contIface, err = vdpa.SetupVdpaInterface(contNetns, args.IfName, netconf.DeviceID, mac, vdpaDev, netconf.MTU)
+		if err != nil {
+			return err
+		}
+	} else if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
 		if err != nil {
 			return err
@@ -392,7 +407,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// run the IPAM plugin
 	// userspace driver does not support IPAM plugin,
 	// because there is no network interface for the VF on the host
-	if netconf.IPAM.Type != "" && !userspaceMode {
+	if netconf.IPAM.Type != "" && !userspaceMode && vdpaDevType != types.VdpaDeviceTypeKernelVhost {
 		var r cnitypes.Result
 		r, err = ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
 		defer func() {
@@ -601,7 +616,8 @@ func CmdDel(args *skel.CmdArgs) error {
 				log.Printf("Error: %v\n", err)
 			}
 			// there is no network interface in case of userspace driver, so OrigIfName is empty
-			if !cache.UserspaceMode {
+			// For vhost_vdpa devices backed by sriov mgmtdevs is the same
+			if !cache.UserspaceMode && cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
 				if err = sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
 					return err
 				}
@@ -633,7 +649,8 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 		// there is no network interface in case of userspace driver, so OrigIfName is empty
-		if !cache.UserspaceMode {
+		// For vhost_vdpa devices backed by sriov mgmtdevs is the same
+		if !cache.UserspaceMode && cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
 			err = sriov.ReleaseVF(args, cache.OrigIfName)
 			if err != nil {
 				// try to reset vf into original state as much as possible in case of error
@@ -716,7 +733,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	// run the IPAM plugin
 	// userspace driver does not support IPAM plugin,
 	// because there is no network interface for the VF on the host
-	if netconf.NetConf.IPAM.Type != "" && !cache.UserspaceMode {
+	if netconf.NetConf.IPAM.Type != "" && !cache.UserspaceMode && cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
 		err = ipam.ExecCheck(netconf.NetConf.IPAM.Type, args.StdinData)
 		if err != nil {
 			return fmt.Errorf("failed to check with IPAM plugin type %q: %v", netconf.NetConf.IPAM.Type, err)
@@ -757,32 +774,39 @@ func CmdCheck(args *skel.CmdArgs) error {
 			contIntf.Sandbox, args.Netns)
 	}
 
-	netns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer func() { _ = netns.Close() }()
+	if cache.VdpaType != types.VdpaDeviceTypeKernelVhost {
+		netns, err := ns.GetNS(args.Netns)
+		if err != nil {
+			return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+		}
+		defer func() { _ = netns.Close() }()
 
-	// Check prevResults for ips and routes against values found in the container
-	if err := netns.Do(func(_ ns.NetNS) error {
-		// Check interface against values found in the container
-		err := validateInterface(contIntf, false, ovsHWOffloadEnable)
+		// Check prevResults for ips and routes against values found in the container
+		if err := netns.Do(func(_ ns.NetNS) error {
+			// Check interface against values found in the container
+			err := validateInterface(contIntf, false, ovsHWOffloadEnable)
+			if err != nil {
+				return err
+			}
+
+			err = ip.ValidateExpectedInterfaceIPs(args.IfName, result.IPs)
+			if err != nil {
+				return err
+			}
+
+			err = ip.ValidateExpectedRoute(result.Routes)
+			if err != nil {
+				return err
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	} else {
+		err := vdpa.ValidateVdpaDevice(contIntf, netconf.DeviceID, cache.VdpaType)
 		if err != nil {
 			return err
 		}
-
-		err = ip.ValidateExpectedInterfaceIPs(args.IfName, result.IPs)
-		if err != nil {
-			return err
-		}
-
-		err = ip.ValidateExpectedRoute(result.Routes)
-		if err != nil {
-			return err
-		}
-		return nil
-	}); err != nil {
-		return err
 	}
 
 	// ovs specific check
