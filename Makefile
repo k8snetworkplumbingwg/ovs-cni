@@ -77,7 +77,7 @@ unit-tests: $(GO)
 	$(GO) test -mod=readonly ./cmd/... ./pkg/... -v --ginkgo.v
 
 cni-tests: $(GO)
-	$(OCI_BIN) build -t ovs-cni-cni-tests -f tests/cni/Containerfile tests/cni/
+	$(OCI_BIN) build --network host -t ovs-cni-cni-tests -f tests/cni/Containerfile tests/cni/
 	$(OCI_BIN) run --rm --privileged --network host \
 		-v /lib/modules:/lib/modules \
 		-v $(CURDIR):/src:z \
