@@ -530,6 +530,52 @@ func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
 	return ovsDriver.DeletePort(portName)
 }
 
+func releaseVFWithRetry(args *skel.CmdArgs, deviceID, origIfName string) error {
+	const (
+		maxRetryDuration = 5 * time.Second
+		initialBackoff  = 100 * time.Millisecond
+		maxBackoff      = 1 * time.Second
+	)
+
+	deadline := time.Now().Add(maxRetryDuration)
+	backoff := initialBackoff
+	var lastErr error
+
+	for attempt := 1; ; attempt++ {
+		err := sriov.ReleaseVF(args, deviceID, origIfName)
+		if err == nil {
+			return nil
+		}
+
+		// If the container namespace no longer exists, the kernel has already
+		// moved the VF back to the host namespace. Per the CNI spec, DEL
+		// should succeed when resources are already gone.
+		var nsPathErr ns.NSPathNotExistErr
+		if errors.As(err, &nsPathErr) {
+			log.Printf("ReleaseVF: container netns gone, VF %s (deviceID=%s) assumed restored to host", origIfName, deviceID)
+			return nil
+		}
+
+		lastErr = err
+
+		log.Printf("ReleaseVF attempt %d failed for VF %s (deviceID=%s): %v", attempt, origIfName, deviceID, err)
+		if resetErr := sriov.ResetVF(args, deviceID, origIfName); resetErr == nil || errors.Is(resetErr, ip.ErrLinkNotFound) {
+			log.Printf("Failed best-effort cleanup of VF %s: %v", origIfName, resetErr)
+		}
+
+		if time.Now().Add(backoff).After(deadline) {
+			break
+		}
+		time.Sleep(backoff)
+		backoff *= 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+	}
+
+	return fmt.Errorf("failed to release VF %s (deviceID=%s) after retries: %v", origIfName, deviceID, lastErr)
+}
+
 // CmdDel remove handler for deleting container from network
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
@@ -634,13 +680,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 		// there is no network interface in case of userspace driver, so OrigIfName is empty
 		if !cache.UserspaceMode {
-			err = sriov.ReleaseVF(args, cache.OrigIfName)
-			if err != nil {
-				// try to reset vf into original state as much as possible in case of error
-				if err := sriov.ResetVF(args, cache.Netconf.DeviceID, cache.OrigIfName); err != nil {
-					log.Printf("Failed best-effort cleanup of VF %s: %v", cache.OrigIfName, err)
-				}
-			}
+			err = releaseVFWithRetry(args, cache.Netconf.DeviceID, cache.OrigIfName)
 		}
 	} else {
 		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
