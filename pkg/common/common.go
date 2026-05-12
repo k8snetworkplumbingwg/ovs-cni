@@ -16,6 +16,7 @@ package common
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
@@ -99,4 +100,16 @@ func ParseOvsPortConfig(netconf *types.NetConf) (*OvsPortConfig, error) {
 		Trunks:  trunks,
 		VlanTag: vlanTagNum,
 	}, nil
+}
+
+// GetBridgeName checks the bridgeName and ovnPort variables to resolve
+// bridge name to defaults if needed
+func GetBridgeName(bridgeName, ovnPort string) (string, error) {
+	if bridgeName != "" {
+		return bridgeName, nil
+	} else if bridgeName == "" && ovnPort != "" {
+		return "br-int", nil
+	}
+
+	return "", fmt.Errorf("failed to get bridge name")
 }

@@ -24,6 +24,9 @@ import (
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/k8snetworkplumbingwg/sriovnet"
 	"github.com/vishvananda/netlink"
+
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 )
 
 var (
@@ -420,4 +423,31 @@ func ResetVF(args *skel.CmdArgs, deviceID, origIfName string) error {
 	}
 
 	return nil
+}
+
+func GetBridgeName(driver *ovsdb.OvsDriver, bridgeName, ovnPort, deviceID string) (string, error) {
+	ret, err := common.GetBridgeName(bridgeName, ovnPort)
+	if err == nil {
+		return ret, nil
+	}
+
+	if deviceID != "" {
+		possibleUplinkNames, err := GetBridgeUplinkNameByDeviceID(deviceID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get bridge name - failed to resolve uplink name: %v", err)
+		}
+		var errList []error
+		for _, uplinkName := range possibleUplinkNames {
+			bridgeName, err = driver.FindBridgeByInterface(uplinkName)
+			if err != nil {
+				errList = append(errList,
+					fmt.Errorf("failed to get bridge name - failed to find bridge name by uplink name %s: %v", uplinkName, err))
+				continue
+			}
+			return bridgeName, nil
+		}
+		return "", fmt.Errorf("failed to find bridge by uplink names %v: %v", possibleUplinkNames, errList)
+	}
+
+	return "", err
 }

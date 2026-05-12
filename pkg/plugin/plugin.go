@@ -143,32 +143,6 @@ func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error
 	return nil
 }
 
-func getBridgeName(driver *ovsdb.OvsDriver, bridgeName, ovnPort, deviceID string) (string, error) {
-	if bridgeName != "" {
-		return bridgeName, nil
-	} else if bridgeName == "" && ovnPort != "" {
-		return "br-int", nil
-	} else if deviceID != "" {
-		possibleUplinkNames, err := sriov.GetBridgeUplinkNameByDeviceID(deviceID)
-		if err != nil {
-			return "", fmt.Errorf("failed to get bridge name - failed to resolve uplink name: %v", err)
-		}
-		var errList []error
-		for _, uplinkName := range possibleUplinkNames {
-			bridgeName, err = driver.FindBridgeByInterface(uplinkName)
-			if err != nil {
-				errList = append(errList,
-					fmt.Errorf("failed to get bridge name - failed to find bridge name by uplink name %s: %v", uplinkName, err))
-				continue
-			}
-			return bridgeName, nil
-		}
-		return "", fmt.Errorf("failed to find bridge by uplink names %v: %v", possibleUplinkNames, errList)
-	}
-
-	return "", fmt.Errorf("failed to get bridge name")
-}
-
 func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string, contPodUid string) error {
 	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType, contPodUid)
 	if err != nil {
@@ -228,7 +202,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	bridgeName, err := getBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
+	bridgeName, err := sriov.GetBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
 	if err != nil {
 		return err
 	}
@@ -500,7 +474,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	bridgeName, err := getBridgeName(ovsDriver, cache.Netconf.BrName, ovnPort, cache.Netconf.DeviceID)
+	bridgeName, err := sriov.GetBridgeName(ovsDriver, cache.Netconf.BrName, ovnPort, cache.Netconf.DeviceID)
 	if err != nil {
 		return err
 	}
@@ -623,7 +597,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	}
 	// cached config may contain bridge name which were automatically
 	// discovered in CmdAdd, we need to re-discover the bridge name before we validating the cache
-	bridgeName, err := getBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
+	bridgeName, err := sriov.GetBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
 	if err != nil {
 		return err
 	}
