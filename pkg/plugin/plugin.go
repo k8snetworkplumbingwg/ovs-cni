@@ -21,12 +21,9 @@
 package plugin
 
 import (
-	"errors"
 	"fmt"
 	"log"
-	"net"
 	"runtime"
-	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
@@ -35,7 +32,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
@@ -69,14 +65,6 @@ func getEnvArgs(envArgsString string) (*types.EnvArgs, error) {
 		return &e, nil
 	}
 	return nil, nil
-}
-
-func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error {
-	err := netlink.LinkSetHardwareAddr(link, mac)
-	if err != nil {
-		return fmt.Errorf("failed to set container iface %q MAC %q: %v", name, mac.String(), err)
-	}
-	return nil
 }
 
 // CmdAdd add handler for attaching container into network
@@ -203,115 +191,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// userspace driver does not support IPAM plugin,
 	// because there is no network interface for the VF on the host
 	if netconf.IPAM.Type != "" && !userspaceMode {
-		var r cnitypes.Result
-		r, err = ipam.ExecAdd(netconf.IPAM.Type, args.StdinData)
-		defer func() {
-			if err != nil {
-				if err := ipam.ExecDel(netconf.IPAM.Type, args.StdinData); err != nil {
-					log.Printf("Failed best-effort cleanup IPAM configuration: %v", err)
-				}
-			}
-		}()
-		if err != nil {
-			return fmt.Errorf("failed to set up IPAM plugin type %q: %v", netconf.IPAM.Type, err)
-		}
-
-		// Convert the IPAM result into the current Result type
-		var newResult *current.Result
-		newResult, err = current.NewResultFromResult(r)
+		result, err = common.ManagedIPAMAddCall(
+			ovsBridgeDriver, args, netconf, mac, hostIface, contIface, contNetns, sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID),
+		)
 		if err != nil {
 			return err
-		}
-
-		if len(newResult.IPs) == 0 {
-			return errors.New("IPAM plugin returned missing IP config")
-		}
-
-		newResult.Interfaces = []*current.Interface{contIface}
-		newResult.Interfaces[0].Mac = contIface.Mac
-
-		for _, ipc := range newResult.IPs {
-			// All addresses apply to the container interface
-			ipc.Interface = current.Int(0)
-		}
-
-		// wait until OF port link state becomes up. This is needed to make
-		// gratuitous arp for args.IfName to be sent over ovs bridge
-		err = waitLinkUp(ovsBridgeDriver, hostIface.Name, netconf.LinkStateCheckRetries, netconf.LinkStateCheckInterval)
-		if err != nil {
-			return err
-		}
-
-		err = contNetns.Do(func(_ ns.NetNS) error {
-			if mac == "" && !sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) && len(newResult.IPs) >= 1 {
-				containerMac := common.IPAddrToHWAddr(newResult.IPs[0].Address.IP)
-				containerLink, err := netlink.LinkByName(args.IfName)
-				if err != nil {
-					return fmt.Errorf("failed to lookup container interface %q: %v", args.IfName, err)
-				}
-				err = assignMacToLink(containerLink, containerMac, args.IfName)
-				if err != nil {
-					return err
-				}
-				newResult.Interfaces[0].Mac = containerMac.String()
-			}
-			err := ipam.ConfigureIface(args.IfName, newResult)
-			if err != nil {
-				return err
-			}
-			contVeth, err := net.InterfaceByName(args.IfName)
-			if err != nil {
-				return fmt.Errorf("failed to look up %q: %v", args.IfName, err)
-			}
-			for _, ipc := range newResult.IPs {
-				// if ip address version is 4
-				if ipc.Address.IP.To4() != nil {
-					// send gratuitous arp for other ends to refresh its arp cache
-					err = arping.GratuitousArpOverIface(ipc.Address.IP, *contVeth)
-					if err != nil {
-						// ok to ignore returning this error
-						log.Printf("error sending garp for ip %s: %v", ipc.Address.IP.String(), err)
-					}
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			return err
-		}
-		result = newResult
-		result.Interfaces = []*current.Interface{hostIface, result.Interfaces[0]}
-
-		for ifIndex, ifCfg := range result.Interfaces {
-			// Adjust interface index with new container interface index in result.Interfaces
-			if ifCfg.Name == args.IfName {
-				for ipIndex := range result.IPs {
-					result.IPs[ipIndex].Interface = current.Int(ifIndex)
-				}
-			}
 		}
 	}
 
 	return cnitypes.PrintResult(result, netconf.CNIVersion)
-}
-
-func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string, retryCount, interval int) error {
-	checkInterval := time.Duration(interval) * time.Millisecond
-	for i := 1; i <= retryCount; i++ {
-		portState, err := ovsDriver.GetOFPortOpState(ofPortName)
-		if err != nil {
-			log.Printf("error in retrieving port %s state: %v", ofPortName, err)
-		} else {
-			if portState == "up" {
-				break
-			}
-		}
-		if i == retryCount {
-			return fmt.Errorf("The OF port %s state is not up, try increasing number of retries/interval config parameter", ofPortName)
-		}
-		time.Sleep(checkInterval)
-	}
-	return nil
 }
 
 // CmdDel remove handler for deleting container from network
