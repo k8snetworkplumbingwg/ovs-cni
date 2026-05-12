@@ -145,3 +145,21 @@ func RefetchIface(iface *current.Interface) error {
 	iface.Mac = link.Attrs().HardwareAddr.String()
 	return nil
 }
+
+func AttachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string, contPodUid string) error {
+	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType, contPodUid)
+	if err != nil {
+		return err
+	}
+
+	hostLink, err := netlink.LinkByName(hostIfaceName)
+	if err != nil {
+		return err
+	}
+
+	if err := netlink.LinkSetUp(hostLink); err != nil {
+		return err
+	}
+
+	return nil
+}

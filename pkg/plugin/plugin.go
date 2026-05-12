@@ -96,24 +96,6 @@ func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error
 	return nil
 }
 
-func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string, contIfaceName string, ofportRequest uint, vlanTag uint, trunks []uint, portType string, intfType string, contNetnsPath string, ovnPortName string, contPodUid string) error {
-	err := ovsDriver.CreatePort(hostIfaceName, contNetnsPath, contIfaceName, ovnPortName, ofportRequest, vlanTag, trunks, portType, intfType, contPodUid)
-	if err != nil {
-		return err
-	}
-
-	hostLink, err := netlink.LinkByName(hostIfaceName)
-	if err != nil {
-		return err
-	}
-
-	if err := netlink.LinkSetUp(hostLink); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // CmdAdd add handler for attaching container into network
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
@@ -209,7 +191,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, portCfg.VlanTag, portCfg.Trunks, portCfg.Type, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
+	if err = common.AttachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, portCfg.VlanTag, portCfg.Trunks, portCfg.Type, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
 		return err
 	}
 
