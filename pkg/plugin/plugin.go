@@ -313,47 +313,5 @@ func CmdCheck(args *skel.CmdArgs) error {
 		return veth.CmdCheck(args, netconf)
 	}
 
-	envArgs, err := common.GetEnvArgs(args.Args)
-	if err != nil {
-		return err
-	}
-	var ovnPort string
-	if envArgs != nil {
-		ovnPort = string(envArgs.OvnPort)
-	}
-
-	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
-	if err != nil {
-		return err
-	}
-	// cached config may contain bridge name which were automatically
-	// discovered in CmdAdd, we need to re-discover the bridge name before we validating the cache
-	bridgeName, err := sriov.GetBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
-	if err != nil {
-		return err
-	}
-	netconf.BrName = bridgeName
-
-	// check cache
-	cache, err := common.CacheLoadAndCheck(args, netconf)
-	if err != nil {
-		return err
-	}
-
-	// TODO: CmdCheck for userspace driver
-	if cache.UserspaceMode {
-		return nil
-	}
-
-	// run the IPAM plugin
-	// userspace driver does not support IPAM plugin,
-	// because there is no network interface for the VF on the host
-	if netconf.NetConf.IPAM.Type != "" && !cache.UserspaceMode {
-		err = ipam.ExecCheck(netconf.NetConf.IPAM.Type, args.StdinData)
-		if err != nil {
-			return fmt.Errorf("failed to check with IPAM plugin type %q: %v", netconf.NetConf.IPAM.Type, err)
-		}
-	}
-
-	return common.ValidateAttachment(args, netconf, cache)
+	return sriov.CmdCheck(args, netconf)
 }
