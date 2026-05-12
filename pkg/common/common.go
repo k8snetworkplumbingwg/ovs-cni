@@ -30,6 +30,7 @@ import (
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/containernetworking/cni/pkg/version"
+	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 
@@ -537,4 +538,30 @@ func ExtractInterfaces(args *skel.CmdArgs, result *current.Result, ovsHWOffloadE
 	}
 
 	return hostIntf, contIntf, nil
+}
+
+// ValidateNetnsAttachment validates IPs and routes in the container namespace
+func ValidateNetnsAttachment(args *skel.CmdArgs, result *current.Result, contIntf current.Interface, ovsHWOffloadEnable bool) error {
+	netns, err := ns.GetNS(args.Netns)
+	if err != nil {
+		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
+	}
+	defer func() { _ = netns.Close() }()
+
+	// Check prevResults for ips and routes against values found in the container
+	return netns.Do(func(_ ns.NetNS) error {
+		// Check interface against values found in the container
+		if err := ValidateInterface(contIntf, false, ovsHWOffloadEnable); err != nil {
+			return err
+		}
+
+		if err := ip.ValidateExpectedInterfaceIPs(args.IfName, result.IPs); err != nil {
+			return err
+		}
+
+		if err := ip.ValidateExpectedRoute(result.Routes); err != nil {
+			return err
+		}
+		return nil
+	})
 }
