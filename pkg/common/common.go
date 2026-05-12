@@ -17,8 +17,10 @@ package common
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
 
@@ -112,4 +114,21 @@ func GetBridgeName(bridgeName, ovnPort string) (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to get bridge name")
+}
+
+// CleanPorts removes all ports whose interfaces have an error.
+func CleanPorts(ovsDriver *ovsdb.OvsBridgeDriver) error {
+	ifaces, err := ovsDriver.FindInterfacesWithError()
+	if err != nil {
+		return fmt.Errorf("clean ports: %v", err)
+	}
+	for _, iface := range ifaces {
+		log.Printf("Info: interface %s has error: removing corresponding port", iface)
+		if err := ovsDriver.DeletePort(iface); err != nil {
+			// Don't return an error here, just log its occurrence.
+			// Something else may have removed the port already.
+			log.Printf("Error: %v\n", err)
+		}
+	}
+	return nil
 }
