@@ -32,6 +32,7 @@ import (
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
@@ -458,7 +459,7 @@ func ValidateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 	return nil
 }
 
-func ValidateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
+func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	if cache.Netconf.BrName != netconf.BrName {
 		return fmt.Errorf("BrName mismatch. cache=%s,netconf=%s",
 			cache.Netconf.BrName, netconf.BrName)
@@ -480,4 +481,19 @@ func ValidateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	}
 
 	return nil
+}
+
+func CacheLoadAndCheck(args *skel.CmdArgs, netconf *types.NetConf) (*types.CachedNetConf, error) {
+	cRef := config.GetCRef(args.ContainerID, args.IfName)
+	cache, err := config.LoadConfFromCache(cRef)
+	if err != nil {
+		return nil, err
+	}
+
+	err = validateCache(cache, netconf)
+	if err != nil {
+		return nil, err
+	}
+
+	return cache, nil
 }

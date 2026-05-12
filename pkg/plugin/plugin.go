@@ -349,13 +349,8 @@ func CmdCheck(args *skel.CmdArgs) error {
 	netconf.BrName = bridgeName
 
 	// check cache
-	cRef := config.GetCRef(args.ContainerID, args.IfName)
-	cache, err := config.LoadConfFromCache(cRef)
+	cache, err := common.CacheLoadAndCheck(args, netconf)
 	if err != nil {
-		return err
-	}
-
-	if err := common.ValidateCache(cache, netconf); err != nil {
 		return err
 	}
 
