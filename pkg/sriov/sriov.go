@@ -177,20 +177,27 @@ func GetNetRepresentor(deviceID string) (string, error) {
 	return rep, nil
 }
 
-// setupKernelSriovContIface moves smartVF into container namespace,
-// configures the smartVF and also fills in the contIface fields
-func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface, deviceID string, pfLink netlink.Link, vfIdx int, ifName string, hwaddr net.HardwareAddr, mtu int) error {
+func GetNetVF(deviceID string) (string, error) {
 	// get smart VF netdevice from PCI
 	vfNetdevices, err := sriovnet.GetNetDevicesFromPci(deviceID)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// Make sure we have 1 netdevice per pci address
 	if len(vfNetdevices) != 1 {
-		return fmt.Errorf("failed to get one netdevice interface per %s", deviceID)
+		return "", fmt.Errorf("failed to get one netdevice interface per %s", deviceID)
 	}
-	vfNetdevice := vfNetdevices[0]
+	return vfNetdevices[0], nil
+}
+
+// setupKernelSriovContIface moves smartVF into container namespace,
+// configures the smartVF and also fills in the contIface fields
+func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface, deviceID string, pfLink netlink.Link, vfIdx int, ifName string, hwaddr net.HardwareAddr, mtu int) error {
+	vfNetdevice, err := GetNetVF(deviceID)
+	if err != nil {
+		return err
+	}
 
 	// if MAC address is provided, set it to the VF by using PF netlink
 	// which is accessible in the host namespace, not in the container namespace
