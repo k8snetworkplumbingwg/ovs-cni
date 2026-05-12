@@ -19,6 +19,8 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/containernetworking/plugins/pkg/ip"
+	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
@@ -126,4 +128,69 @@ func CmdAdd(args *skel.CmdArgs, netconf *types.NetConf) error {
 	}
 
 	return cnitypes.PrintResult(result, netconf.CNIVersion)
+}
+
+func CmdDel(args *skel.CmdArgs, cache *types.CachedNetConf) error {
+	envArgs, err := common.GetEnvArgs(args.Args)
+	if err != nil {
+		return err
+	}
+
+	var ovnPort string
+	if envArgs != nil {
+		ovnPort = string(envArgs.OvnPort)
+	}
+
+	bridgeName, err := common.GetBridgeName(cache.Netconf.BrName, ovnPort)
+	if err != nil {
+		return err
+	}
+
+	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, cache.Netconf.SocketFile)
+	if err != nil {
+		return err
+	}
+
+	if cache.Netconf.IPAM.Type != "" {
+		err = ipam.ExecDel(cache.Netconf.IPAM.Type, args.StdinData)
+		if err != nil {
+			return err
+		}
+	}
+
+	if args.Netns == "" {
+		// The CNI_NETNS parameter may be empty according to version 0.4.0
+		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
+		if err := common.CleanPorts(ovsBridgeDriver); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	portName, portFound, err := common.CleanupOvsPortBestEffort(ovsBridgeDriver, args.IfName, args.Netns)
+	if err != nil {
+		return err
+	}
+
+	err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
+		err = ip.DelLinkByName(args.IfName)
+		return err
+	})
+	// do the following as per cni spec (i.e. Plugins should generally complete a DEL action
+	// without error even if some resources are missing)
+	if _, ok := err.(ns.NSPathNotExistErr); ok || err == ip.ErrLinkNotFound {
+		if portFound {
+			if err := ip.DelLinkByName(portName); err != nil {
+				log.Printf("Failed best-effort cleanup of %s: %v", portName, err)
+			}
+		}
+		return nil
+	}
+
+	// removes all ports whose interfaces have an error
+	if err := common.CleanPorts(ovsBridgeDriver); err != nil {
+		return err
+	}
+
+	return err
 }

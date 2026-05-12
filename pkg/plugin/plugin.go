@@ -28,7 +28,6 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
-	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 
@@ -217,6 +216,11 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	if !common.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
+		err = veth.CmdDel(args, cache)
+		return err
+	}
+
 	var ovnPort string
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
@@ -263,11 +267,6 @@ func CmdDel(args *skel.CmdArgs) error {
 					return err
 				}
 			}
-		} else {
-			// In accordance with the spec we clean up as many resources as possible.
-			if err := common.CleanPorts(ovsBridgeDriver); err != nil {
-				return err
-			}
 		}
 		return nil
 	}
@@ -275,7 +274,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	// Unlike veth pair, OVS port will not be automatically removed when
 	// container namespace is gone. Find port matching DEL arguments and remove
 	// it explicitly.
-	portName, portFound, err := common.CleanupOvsPortBestEffort(ovsBridgeDriver, args.IfName, args.Netns)
+	_, _, err = common.CleanupOvsPortBestEffort(ovsBridgeDriver, args.IfName, args.Netns)
 	if err != nil {
 		return err
 	}
@@ -290,21 +289,6 @@ func CmdDel(args *skel.CmdArgs) error {
 					log.Printf("Failed best-effort cleanup of VF %s: %v", cache.OrigIfName, err)
 				}
 			}
-		}
-	} else {
-		err = ns.WithNetNSPath(args.Netns, func(ns.NetNS) error {
-			err = ip.DelLinkByName(args.IfName)
-			return err
-		})
-		// do the following as per cni spec (i.e. Plugins should generally complete a DEL action
-		// without error even if some resources are missing)
-		if _, ok := err.(ns.NSPathNotExistErr); ok || err == ip.ErrLinkNotFound {
-			if portFound {
-				if err := ip.DelLinkByName(portName); err != nil {
-					log.Printf("Failed best-effort cleanup of %s: %v", portName, err)
-				}
-			}
-			return nil
 		}
 	}
 
