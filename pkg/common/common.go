@@ -15,9 +15,11 @@
 package common
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"sort"
 
 	"github.com/vishvananda/netlink"
@@ -181,4 +183,20 @@ func CleanupOvsPortBestEffort(ovsDriver *ovsdb.OvsBridgeDriver, ifaceName string
 	}
 
 	return portName, portFound, nil
+}
+
+// IPAddrToHWAddr takes the four octets of IPv4 address (aa.bb.cc.dd, for example) and uses them in creating
+// a MAC address (0A:58:AA:BB:CC:DD).  For IPv6, create a hash from the IPv6 string and use that for MAC Address.
+// Assumption: the caller will ensure that an empty net.IP{} will NOT be passed.
+// This method is copied from https://github.com/ovn-org/ovn-kubernetes/blob/master/go-controller/pkg/util/net.go
+func IPAddrToHWAddr(ip net.IP) net.HardwareAddr {
+	// Ensure that for IPv4, we are always working with the IP in 4-byte form.
+	ip4 := ip.To4()
+	if ip4 != nil {
+		// safe to use private MAC prefix: 0A:58
+		return net.HardwareAddr{0x0A, 0x58, ip4[0], ip4[1], ip4[2], ip4[3]}
+	}
+
+	hash := sha256.Sum256([]byte(ip.String()))
+	return net.HardwareAddr{0x0A, 0x58, hash[0], hash[1], hash[2], hash[3]}
 }

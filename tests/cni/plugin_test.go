@@ -41,6 +41,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/plugin"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
@@ -219,7 +220,7 @@ var pluginTestFunc = func(version string) {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(addrs)).To(Equal(1))
 			Expect(addrs[0].String()).To(HavePrefix(ipPrefix))
-			Expect(link.Attrs().HardwareAddr).To(Equal(plugin.IPAddrToHWAddr(addrs[0].IP)))
+			Expect(link.Attrs().HardwareAddr).To(Equal(common.IPAddrToHWAddr(addrs[0].IP)))
 
 			if isDual {
 				addrs, err := netlink.AddrList(link, syscall.AF_INET6)
