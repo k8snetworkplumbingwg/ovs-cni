@@ -59,6 +59,12 @@ func GetEnvArgs(envArgsString string) (*types.EnvArgs, error) {
 	return nil, nil
 }
 
+// IsOvsHardwareOffloadEnabled when device id is set, then ovs hardware offload
+// is enabled.
+func IsOvsHardwareOffloadEnabled(deviceID string) bool {
+	return deviceID != ""
+}
+
 func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 	vlans := make(map[uint]bool)
 	for _, item := range trunks {

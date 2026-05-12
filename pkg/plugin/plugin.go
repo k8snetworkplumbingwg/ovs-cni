@@ -103,7 +103,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	// check if the device driver is the type of userspace driver
 	userspaceMode := false
-	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		userspaceMode, err = sriov.HasUserspaceDriver(netconf.DeviceID)
 		if err != nil {
 			return err
@@ -123,7 +123,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	// userspace driver does not create a network interface for the VF on the host
 	var origIfName string
-	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) && !userspaceMode {
+	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) && !userspaceMode {
 		origIfName, err = sriov.GetVFLinkName(netconf.DeviceID)
 		if err != nil {
 			return err
@@ -137,7 +137,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	var hostIface, contIface *current.Interface
-	if sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
 		if err != nil {
 			return err
@@ -179,7 +179,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// because there is no network interface for the VF on the host
 	if netconf.IPAM.Type != "" && !userspaceMode {
 		result, err = common.ManagedIPAMAddCall(
-			ovsBridgeDriver, args, netconf, mac, hostIface, contIface, contNetns, sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID),
+			ovsBridgeDriver, args, netconf, mac, hostIface, contIface, contNetns, common.IsOvsHardwareOffloadEnabled(netconf.DeviceID),
 		)
 		if err != nil {
 			return err
@@ -247,7 +247,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	if args.Netns == "" {
 		// The CNI_NETNS parameter may be empty according to version 0.4.0
 		// of the CNI spec (https://github.com/containernetworking/cni/blob/spec-v0.4.0/SPEC.md).
-		if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
+		if common.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 			// SR-IOV Case - The sriov device is moved into host network namespace when args.Netns is empty.
 			// This happens container is killed due to an error (example: CrashLoopBackOff, OOMKilled)
 			var rep string
@@ -282,7 +282,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
+	if common.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 		// there is no network interface in case of userspace driver, so OrigIfName is empty
 		if !cache.UserspaceMode {
 			err = sriov.ReleaseVF(args, cache.OrigIfName)
@@ -326,7 +326,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	ovsHWOffloadEnable := sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID)
+	ovsHWOffloadEnable := common.IsOvsHardwareOffloadEnabled(netconf.DeviceID)
 
 	envArgs, err := common.GetEnvArgs(args.Args)
 	if err != nil {

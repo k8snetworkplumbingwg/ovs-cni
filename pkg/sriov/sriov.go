@@ -60,12 +60,6 @@ func GetVFLinkName(pciAddr string) (string, error) {
 	return names[0], nil
 }
 
-// IsOvsHardwareOffloadEnabled when device id is set, then ovs hardware offload
-// is enabled.
-func IsOvsHardwareOffloadEnabled(deviceID string) bool {
-	return deviceID != ""
-}
-
 // HasUserspaceDriver checks if a device is attached to userspace driver
 // This method is copied from https://github.com/k8snetworkplumbingwg/sriov-cni/blob/8af83a33b2cac8e2df0bd6276b76658eb7c790ab/pkg/utils/utils.go#L222
 func HasUserspaceDriver(pciAddr string) (bool, error) {
