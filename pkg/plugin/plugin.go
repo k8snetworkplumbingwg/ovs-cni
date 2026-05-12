@@ -45,6 +45,7 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/veth"
 )
 
 func init() {
@@ -85,54 +86,6 @@ func IPAddrToHWAddr(ip net.IP) net.HardwareAddr {
 
 	hash := sha256.Sum256([]byte(ip.String()))
 	return net.HardwareAddr{0x0A, 0x58, hash[0], hash[1], hash[2], hash[3]}
-}
-
-func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mtu int) (*current.Interface, *current.Interface, error) {
-	hostIface := &current.Interface{}
-	contIface := &current.Interface{}
-
-	// Enter container network namespace and create veth pair inside. Doing
-	// this we will make sure that both ends of the veth pair will be removed
-	// when the container is gone.
-	err := contNetns.Do(func(hostNetns ns.NetNS) error {
-		hostVeth, containerVeth, err := ip.SetupVeth(contIfaceName, mtu, requestedMac, hostNetns)
-		if err != nil {
-			return err
-		}
-
-		if err := setInterfaceUp(contIfaceName); err != nil {
-			return err
-		}
-
-		contIface.Name = containerVeth.Name
-		contIface.Mac = containerVeth.HardwareAddr.String()
-		contIface.Sandbox = contNetns.Path()
-		hostIface.Name = hostVeth.Name
-		return nil
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Refetch the hostIface since its MAC address may change during network namespace move.
-	if err = common.RefetchIface(hostIface); err != nil {
-		return nil, nil, err
-	}
-
-	return hostIface, contIface, nil
-}
-
-func setInterfaceUp(name string) error {
-	link, err := netlink.LinkByName(name)
-	if err != nil {
-		return err
-	}
-
-	if err := netlink.LinkSetUp(link); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func assignMacToLink(link netlink.Link, mac net.HardwareAddr, name string) error {
@@ -250,7 +203,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 			return err
 		}
 	} else {
-		hostIface, contIface, err = setupVeth(contNetns, args.IfName, mac, netconf.MTU)
+		hostIface, contIface, err = veth.SetupVeth(contNetns, args.IfName, mac, netconf.MTU)
 		if err != nil {
 			return err
 		}
