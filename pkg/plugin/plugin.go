@@ -115,7 +115,7 @@ func setupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mt
 	}
 
 	// Refetch the hostIface since its MAC address may change during network namespace move.
-	if err = refetchIface(hostIface); err != nil {
+	if err = common.RefetchIface(hostIface); err != nil {
 		return nil, nil, err
 	}
 
@@ -158,15 +158,6 @@ func attachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string,
 		return err
 	}
 
-	return nil
-}
-
-func refetchIface(iface *current.Interface) error {
-	link, err := netlink.LinkByName(iface.Name)
-	if err != nil {
-		return fmt.Errorf("failed to refetch interface %s: %v", iface.Name, err)
-	}
-	iface.Mac = link.Attrs().HardwareAddr.String()
 	return nil
 }
 
@@ -271,7 +262,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	// Refetch the host interface MAC since OVS may change it when
 	// attaching the port to the bridge.
-	if err = refetchIface(hostIface); err != nil {
+	if err = common.RefetchIface(hostIface); err != nil {
 		return err
 	}
 

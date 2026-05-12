@@ -20,6 +20,10 @@ import (
 	"log"
 	"sort"
 
+	"github.com/vishvananda/netlink"
+
+	current "github.com/containernetworking/cni/pkg/types/100"
+
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
@@ -130,5 +134,14 @@ func CleanPorts(ovsDriver *ovsdb.OvsBridgeDriver) error {
 			log.Printf("Error: %v\n", err)
 		}
 	}
+	return nil
+}
+
+func RefetchIface(iface *current.Interface) error {
+	link, err := netlink.LinkByName(iface.Name)
+	if err != nil {
+		return fmt.Errorf("failed to refetch interface %s: %v", iface.Name, err)
+	}
+	iface.Mac = link.Attrs().HardwareAddr.String()
 	return nil
 }
