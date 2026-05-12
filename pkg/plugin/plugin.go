@@ -76,6 +76,10 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	if !common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+		return veth.CmdAdd(args, netconf)
+	}
+
 	portCfg, err := common.ParseOvsPortConfig(netconf)
 	if err != nil {
 		return err
@@ -138,11 +142,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 	var hostIface, contIface *current.Interface
 	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
 		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
-		if err != nil {
-			return err
-		}
-	} else {
-		hostIface, contIface, err = veth.SetupVeth(contNetns, args.IfName, mac, netconf.MTU)
 		if err != nil {
 			return err
 		}
