@@ -451,3 +451,27 @@ func ValidateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 
 	return nil
 }
+
+func ValidateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
+	if cache.Netconf.BrName != netconf.BrName {
+		return fmt.Errorf("BrName mismatch. cache=%s,netconf=%s",
+			cache.Netconf.BrName, netconf.BrName)
+	}
+
+	if cache.Netconf.SocketFile != netconf.SocketFile {
+		return fmt.Errorf("SocketFile mismatch. cache=%s,netconf=%s",
+			cache.Netconf.SocketFile, netconf.SocketFile)
+	}
+
+	if cache.Netconf.IPAM.Type != netconf.IPAM.Type {
+		return fmt.Errorf("IPAM mismatch. cache=%s,netconf=%s",
+			cache.Netconf.IPAM.Type, netconf.IPAM.Type)
+	}
+
+	if cache.Netconf.DeviceID != netconf.DeviceID {
+		return fmt.Errorf("DeviceID mismatch. cache=%s,netconf=%s",
+			cache.Netconf.DeviceID, netconf.DeviceID)
+	}
+
+	return nil
+}

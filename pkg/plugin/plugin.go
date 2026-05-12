@@ -355,7 +355,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 		return err
 	}
 
-	if err := validateCache(cache, netconf); err != nil {
+	if err := common.ValidateCache(cache, netconf); err != nil {
 		return err
 	}
 
@@ -439,30 +439,6 @@ func CmdCheck(args *skel.CmdArgs) error {
 	// ovs specific check
 	if err := common.ValidateOvs(args, netconf, hostIntf.Name); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
-	if cache.Netconf.BrName != netconf.BrName {
-		return fmt.Errorf("BrName mismatch. cache=%s,netconf=%s",
-			cache.Netconf.BrName, netconf.BrName)
-	}
-
-	if cache.Netconf.SocketFile != netconf.SocketFile {
-		return fmt.Errorf("SocketFile mismatch. cache=%s,netconf=%s",
-			cache.Netconf.SocketFile, netconf.SocketFile)
-	}
-
-	if cache.Netconf.IPAM.Type != netconf.IPAM.Type {
-		return fmt.Errorf("IPAM mismatch. cache=%s,netconf=%s",
-			cache.Netconf.IPAM.Type, netconf.IPAM.Type)
-	}
-
-	if cache.Netconf.DeviceID != netconf.DeviceID {
-		return fmt.Errorf("DeviceID mismatch. cache=%s,netconf=%s",
-			cache.Netconf.DeviceID, netconf.DeviceID)
 	}
 
 	return nil
