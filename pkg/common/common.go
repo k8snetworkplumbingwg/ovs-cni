@@ -29,6 +29,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
 
@@ -496,4 +497,19 @@ func CacheLoadAndCheck(args *skel.CmdArgs, netconf *types.NetConf) (*types.Cache
 	}
 
 	return cache, nil
+}
+
+// ParsePrevResult parses the previous CNI result from netconf
+func ParsePrevResult(netconf *types.NetConf) (*current.Result, error) {
+	if netconf.NetConf.RawPrevResult == nil {
+		return nil, fmt.Errorf("Required prevResult missing")
+	}
+	if err := version.ParsePrevResult(&netconf.NetConf); err != nil {
+		return nil, err
+	}
+	result, err := current.NewResultFromResult(netconf.NetConf.PrevResult)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }

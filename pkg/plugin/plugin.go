@@ -28,7 +28,6 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cnitypes "github.com/containernetworking/cni/pkg/types"
 	current "github.com/containernetworking/cni/pkg/types/100"
-	"github.com/containernetworking/cni/pkg/version"
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
@@ -369,14 +368,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 		}
 	}
 
-	// Parse previous result.
-	if netconf.NetConf.RawPrevResult == nil {
-		return fmt.Errorf("Required prevResult missing")
-	}
-	if err := version.ParsePrevResult(&netconf.NetConf); err != nil {
-		return err
-	}
-	result, err := current.NewResultFromResult(netconf.NetConf.PrevResult)
+	result, err := common.ParsePrevResult(netconf)
 	if err != nil {
 		return err
 	}
