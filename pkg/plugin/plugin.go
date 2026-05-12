@@ -325,7 +325,6 @@ func CmdCheck(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	ovsHWOffloadEnable := common.IsOvsHardwareOffloadEnabled(netconf.DeviceID)
 
 	envArgs, err := common.GetEnvArgs(args.Args)
 	if err != nil {
@@ -368,26 +367,5 @@ func CmdCheck(args *skel.CmdArgs) error {
 		}
 	}
 
-	result, err := common.ParsePrevResult(netconf)
-	if err != nil {
-		return err
-	}
-
-	hostIntf, contIntf, err := common.ExtractInterfaces(args, result, ovsHWOffloadEnable)
-	if err != nil {
-		return err
-	}
-
-	// Check prevResults for ips and routes against values found in the container
-	err = common.ValidateNetnsAttachment(args, result, contIntf, ovsHWOffloadEnable)
-	if err != nil {
-		return nil
-	}
-
-	// ovs specific check
-	if err := common.ValidateOvs(args, netconf, hostIntf.Name); err != nil {
-		return err
-	}
-
-	return nil
+	return common.ValidateAttachment(args, netconf, cache)
 }

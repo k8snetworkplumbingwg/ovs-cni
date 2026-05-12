@@ -565,3 +565,30 @@ func ValidateNetnsAttachment(args *skel.CmdArgs, result *current.Result, contInt
 		return nil
 	})
 }
+
+// Checks that host and container interfaces are properly configured, as
+// well as the ovs port is assigned to the expected bridge.
+//
+// Bridge name from netconf must be updated with the expected one before
+// calling the function.
+func ValidateAttachment(args *skel.CmdArgs, netconf *types.NetConf, cache *types.CachedNetConf) error {
+	ovsHWOffloadEnable := IsOvsHardwareOffloadEnabled(netconf.DeviceID)
+
+	result, err := ParsePrevResult(netconf)
+	if err != nil {
+		return err
+	}
+
+	hostIntf, contIntf, err := ExtractInterfaces(args, result, ovsHWOffloadEnable)
+	if err != nil {
+		return err
+	}
+
+	err = ValidateNetnsAttachment(args, result, contIntf, ovsHWOffloadEnable)
+	if err != nil {
+		return err
+	}
+
+	// ovs specific check
+	return ValidateOvs(args, netconf, hostIntf.Name)
+}
