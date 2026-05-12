@@ -47,6 +47,18 @@ type OvsPortConfig struct {
 	VlanTag uint
 }
 
+func GetEnvArgs(envArgsString string) (*types.EnvArgs, error) {
+	if envArgsString != "" {
+		e := types.EnvArgs{}
+		err := cnitypes.LoadArgs(envArgsString, &e)
+		if err != nil {
+			return nil, err
+		}
+		return &e, nil
+	}
+	return nil, nil
+}
+
 func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 	vlans := make(map[uint]bool)
 	for _, item := range trunks {

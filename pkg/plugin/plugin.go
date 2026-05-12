@@ -54,23 +54,11 @@ func logCall(command string, args *skel.CmdArgs) {
 		command, args.ContainerID, args.Netns, args.IfName, string(args.StdinData[:]))
 }
 
-func getEnvArgs(envArgsString string) (*types.EnvArgs, error) {
-	if envArgsString != "" {
-		e := types.EnvArgs{}
-		err := cnitypes.LoadArgs(envArgsString, &e)
-		if err != nil {
-			return nil, err
-		}
-		return &e, nil
-	}
-	return nil, nil
-}
-
 // CmdAdd add handler for attaching container into network
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
 
-	envArgs, err := getEnvArgs(args.Args)
+	envArgs, err := common.GetEnvArgs(args.Args)
 	if err != nil {
 		return err
 	}
@@ -226,7 +214,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}()
 
-	envArgs, err := getEnvArgs(args.Args)
+	envArgs, err := common.GetEnvArgs(args.Args)
 	if err != nil {
 		return err
 	}
@@ -340,7 +328,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	}
 	ovsHWOffloadEnable := sriov.IsOvsHardwareOffloadEnabled(netconf.DeviceID)
 
-	envArgs, err := getEnvArgs(args.Args)
+	envArgs, err := common.GetEnvArgs(args.Args)
 	if err != nil {
 		return err
 	}
