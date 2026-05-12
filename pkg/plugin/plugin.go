@@ -309,6 +309,10 @@ func CmdCheck(args *skel.CmdArgs) error {
 		return err
 	}
 
+	if !common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
+		return veth.CmdCheck(args, netconf)
+	}
+
 	envArgs, err := common.GetEnvArgs(args.Args)
 	if err != nil {
 		return err
@@ -317,6 +321,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+
 	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
 	if err != nil {
 		return err

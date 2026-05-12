@@ -194,3 +194,36 @@ func CmdDel(args *skel.CmdArgs, cache *types.CachedNetConf) error {
 
 	return err
 }
+
+func CmdCheck(args *skel.CmdArgs, netconf *types.NetConf) error {
+	envArgs, err := common.GetEnvArgs(args.Args)
+	if err != nil {
+		return err
+	}
+	var ovnPort string
+	if envArgs != nil {
+		ovnPort = string(envArgs.OvnPort)
+	}
+
+	// Discover bridge name
+	bridgeName, err := common.GetBridgeName(netconf.BrName, ovnPort)
+	if err != nil {
+		return err
+	}
+	netconf.BrName = bridgeName
+
+	// check cache
+	cache, err := common.CacheLoadAndCheck(args, netconf)
+	if err != nil {
+		return err
+	}
+
+	// run the IPAM plugin
+	if netconf.NetConf.IPAM.Type != "" {
+		if err := ipam.ExecCheck(netconf.NetConf.IPAM.Type, args.StdinData); err != nil {
+			return fmt.Errorf("failed to check with IPAM plugin type %q: %v", netconf.NetConf.IPAM.Type, err)
+		}
+	}
+
+	return common.ValidateAttachment(args, netconf, cache)
+}
