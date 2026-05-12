@@ -117,3 +117,11 @@ type CachedNetConf struct {
 type CachedPrevResultNetConf struct {
 	PrevResult *current.Result
 }
+
+// EnvArgs args containing common, desired mac and ovs port name
+type EnvArgs struct {
+	types.CommonArgs
+	MAC         types.UnmarshallableString `json:"mac,omitempty"`
+	OvnPort     types.UnmarshallableString `json:"ovnPort,omitempty"`
+	K8S_POD_UID types.UnmarshallableString
+}

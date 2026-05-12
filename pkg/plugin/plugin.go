@@ -52,14 +52,6 @@ const (
 	portTypeTrunk  = "trunk"
 )
 
-// EnvArgs args containing common, desired mac and ovs port name
-type EnvArgs struct {
-	cnitypes.CommonArgs
-	MAC         cnitypes.UnmarshallableString `json:"mac,omitempty"`
-	OvnPort     cnitypes.UnmarshallableString `json:"ovnPort,omitempty"`
-	K8S_POD_UID cnitypes.UnmarshallableString
-}
-
 func init() {
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
@@ -72,9 +64,9 @@ func logCall(command string, args *skel.CmdArgs) {
 		command, args.ContainerID, args.Netns, args.IfName, string(args.StdinData[:]))
 }
 
-func getEnvArgs(envArgsString string) (*EnvArgs, error) {
+func getEnvArgs(envArgsString string) (*types.EnvArgs, error) {
 	if envArgsString != "" {
-		e := EnvArgs{}
+		e := types.EnvArgs{}
 		err := cnitypes.LoadArgs(envArgsString, &e)
 		if err != nil {
 			return nil, err
