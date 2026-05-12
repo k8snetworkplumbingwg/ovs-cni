@@ -205,14 +205,9 @@ func CmdAdd(args *skel.CmdArgs) error {
 		if err != nil {
 			// Unlike veth pair, OVS port will not be automatically removed
 			// if the following IPAM configuration fails and netns gets removed.
-			portName, portFound, err := getOvsPortForContIface(ovsBridgeDriver, args.IfName, args.Netns)
+			_, _, err = common.CleanupOvsPortBestEffort(ovsBridgeDriver, args.IfName, args.Netns)
 			if err != nil {
 				log.Printf("Failed best-effort cleanup: %v", err)
-			}
-			if portFound {
-				if err := removeOvsPort(ovsBridgeDriver, portName); err != nil {
-					log.Printf("Failed best-effort cleanup: %v", err)
-				}
 			}
 		}
 	}()
@@ -336,15 +331,6 @@ func waitLinkUp(ovsDriver *ovsdb.OvsBridgeDriver, ofPortName string, retryCount,
 	return nil
 }
 
-func getOvsPortForContIface(ovsDriver *ovsdb.OvsBridgeDriver, contIface string, contNetnsPath string) (string, bool, error) {
-	// External IDs were set on the port during ADD call.
-	return ovsDriver.GetOvsPortForContIface(contIface, contNetnsPath)
-}
-
-func removeOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
-	return ovsDriver.DeletePort(portName)
-}
-
 // CmdDel remove handler for deleting container from network
 func CmdDel(args *skel.CmdArgs) error {
 	logCall("DEL", args)
@@ -410,7 +396,7 @@ func CmdDel(args *skel.CmdArgs) error {
 			if rep, err = sriov.GetNetRepresentor(cache.Netconf.DeviceID); err != nil {
 				return err
 			}
-			if err = removeOvsPort(ovsBridgeDriver, rep); err != nil {
+			if err = common.RemoveOvsPort(ovsBridgeDriver, rep); err != nil {
 				// Don't throw err as delete can be called multiple times because of error in ResetVF and ovs
 				// port is already deleted in a previous invocation.
 				log.Printf("Error: %v\n", err)
@@ -433,17 +419,9 @@ func CmdDel(args *skel.CmdArgs) error {
 	// Unlike veth pair, OVS port will not be automatically removed when
 	// container namespace is gone. Find port matching DEL arguments and remove
 	// it explicitly.
-	portName, portFound, err := getOvsPortForContIface(ovsBridgeDriver, args.IfName, args.Netns)
+	portName, portFound, err := common.CleanupOvsPortBestEffort(ovsBridgeDriver, args.IfName, args.Netns)
 	if err != nil {
-		return fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
-	}
-
-	// Do not return an error if the port was not found, it may have been
-	// already removed by someone.
-	if portFound {
-		if err := removeOvsPort(ovsBridgeDriver, portName); err != nil {
-			return err
-		}
+		return err
 	}
 
 	if sriov.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {

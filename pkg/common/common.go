@@ -163,3 +163,22 @@ func AttachIfaceToBridge(ovsDriver *ovsdb.OvsBridgeDriver, hostIfaceName string,
 
 	return nil
 }
+
+func RemoveOvsPort(ovsDriver *ovsdb.OvsBridgeDriver, portName string) error {
+	return ovsDriver.DeletePort(portName)
+}
+
+func CleanupOvsPortBestEffort(ovsDriver *ovsdb.OvsBridgeDriver, ifaceName string, contNetns string) (string, bool, error) {
+	portName, portFound, err := ovsDriver.GetOvsPortForContIface(ifaceName, contNetns)
+
+	if err != nil {
+		return "", false, fmt.Errorf("Failed to obtain OVS port for given connection: %v", err)
+	}
+	if portFound {
+		if err := RemoveOvsPort(ovsDriver, portName); err != nil {
+			return portName, portFound, err
+		}
+	}
+
+	return portName, portFound, nil
+}
