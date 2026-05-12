@@ -47,11 +47,6 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 )
 
-const (
-	portTypeAccess = "access"
-	portTypeTrunk  = "trunk"
-)
-
 func init() {
 	// this ensures that main runs only on main thread (thread group leader).
 	// since namespace ops (unshare, setns) are done for a single thread, we
@@ -224,21 +219,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	var vlanTagNum uint = 0
-	trunks := make([]uint, 0)
-	portType := portTypeAccess
-	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
-		portType = portTypeTrunk
-		if len(netconf.Trunk) > 0 {
-			trunkVlanIds, err := common.SplitVlanIds(netconf.Trunk)
-			if err != nil {
-				return err
-			}
-			trunks = append(trunks, trunkVlanIds...)
-		}
-	} else if netconf.VlanTag != nil {
-		vlanTagNum = *netconf.VlanTag
+	portCfg, err := common.ParseOvsPortConfig(netconf)
+	if err != nil {
+		return err
 	}
+
 	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
 	if err != nil {
 		return err
@@ -306,7 +291,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		}
 	}
 
-	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, vlanTagNum, trunks, portType, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
+	if err = attachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, portCfg.VlanTag, portCfg.Trunks, portCfg.Type, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
 		return err
 	}
 

@@ -21,6 +21,17 @@ import (
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 )
 
+const (
+	portTypeAccess = "access"
+	portTypeTrunk  = "trunk"
+)
+
+type OvsPortConfig struct {
+	Type    string
+	Trunks  []uint
+	VlanTag uint
+}
+
 func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 	vlans := make(map[uint]bool)
 	for _, item := range trunks {
@@ -64,4 +75,28 @@ func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 	}
 	sort.Slice(vlanIds, func(i, j int) bool { return vlanIds[i] < vlanIds[j] })
 	return vlanIds, nil
+}
+
+func ParseOvsPortConfig(netconf *types.NetConf) (*OvsPortConfig, error) {
+	var vlanTagNum uint = 0
+	trunks := make([]uint, 0)
+	portType := portTypeAccess
+	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
+		portType = portTypeTrunk
+		if len(netconf.Trunk) > 0 {
+			trunkVlanIds, err := SplitVlanIds(netconf.Trunk)
+			if err != nil {
+				return nil, err
+			}
+			trunks = append(trunks, trunkVlanIds...)
+		}
+	} else if netconf.VlanTag != nil {
+		vlanTagNum = *netconf.VlanTag
+	}
+
+	return &OvsPortConfig{
+		Type:    portType,
+		Trunks:  trunks,
+		VlanTag: vlanTagNum,
+	}, nil
 }
