@@ -513,3 +513,28 @@ func ParsePrevResult(netconf *types.NetConf) (*current.Result, error) {
 	}
 	return result, nil
 }
+
+// ExtractInterfaces extracts and validates host and container interfaces from result
+func ExtractInterfaces(args *skel.CmdArgs, result *current.Result, ovsHWOffloadEnable bool) (hostIntf, contIntf current.Interface, err error) {
+	for _, intf := range result.Interfaces {
+		if args.IfName == intf.Name {
+			if args.Netns == intf.Sandbox {
+				contIntf = *intf
+			}
+		} else {
+			// Check prevResults for ips against values found in the host
+			if err := ValidateInterface(*intf, true, ovsHWOffloadEnable); err != nil {
+				return current.Interface{}, current.Interface{}, err
+			}
+			hostIntf = *intf
+		}
+	}
+
+	// The namespace must be the same as what was configured
+	if args.Netns != contIntf.Sandbox {
+		return current.Interface{}, current.Interface{}, fmt.Errorf("Sandbox in prevResult %s doesn't match configured netns: %s",
+			contIntf.Sandbox, args.Netns)
+	}
+
+	return hostIntf, contIntf, nil
+}

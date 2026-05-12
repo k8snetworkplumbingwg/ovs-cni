@@ -373,26 +373,9 @@ func CmdCheck(args *skel.CmdArgs) error {
 		return err
 	}
 
-	var contIntf, hostIntf current.Interface
-	// Find interfaces
-	for _, intf := range result.Interfaces {
-		if args.IfName == intf.Name {
-			if args.Netns == intf.Sandbox {
-				contIntf = *intf
-			}
-		} else {
-			// Check prevResults for ips against values found in the host
-			if err := common.ValidateInterface(*intf, true, ovsHWOffloadEnable); err != nil {
-				return err
-			}
-			hostIntf = *intf
-		}
-	}
-
-	// The namespace must be the same as what was configured
-	if args.Netns != contIntf.Sandbox {
-		return fmt.Errorf("Sandbox in prevResult %s doesn't match configured netns: %s",
-			contIntf.Sandbox, args.Netns)
+	hostIntf, contIntf, err := common.ExtractInterfaces(args, result, ovsHWOffloadEnable)
+	if err != nil {
+		return err
 	}
 
 	netns, err := ns.GetNS(args.Netns)
