@@ -27,7 +27,6 @@ import (
 	"log"
 	"net"
 	"runtime"
-	"sort"
 	"time"
 
 	"github.com/containernetworking/cni/pkg/skel"
@@ -40,6 +39,7 @@ import (
 	"github.com/j-keck/arping"
 	"github.com/vishvananda/netlink"
 
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
@@ -201,51 +201,6 @@ func refetchIface(iface *current.Interface) error {
 	return nil
 }
 
-func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
-	vlans := make(map[uint]bool)
-	for _, item := range trunks {
-		var minID uint = 0
-		var maxID uint = 0
-		if item.MinID != nil {
-			minID = *item.MinID
-			if minID > 4096 {
-				return nil, errors.New("incorrect trunk minID parameter")
-			}
-		}
-		if item.MaxID != nil {
-			maxID = *item.MaxID
-			if maxID > 4096 {
-				return nil, errors.New("incorrect trunk maxID parameter")
-			}
-			if maxID < minID {
-				return nil, errors.New("minID is greater than maxID in trunk parameter")
-			}
-		}
-		if minID > 0 && maxID > 0 {
-			for v := minID; v <= maxID; v++ {
-				vlans[v] = true
-			}
-		}
-		var id uint
-		if item.ID != nil {
-			id = *item.ID
-			if minID > 4096 {
-				return nil, errors.New("incorrect trunk id parameter")
-			}
-			vlans[id] = true
-		}
-	}
-	if len(vlans) == 0 {
-		return nil, errors.New("trunk parameter is misconfigured")
-	}
-	vlanIds := make([]uint, 0, len(vlans))
-	for k := range vlans {
-		vlanIds = append(vlanIds, k)
-	}
-	sort.Slice(vlanIds, func(i, j int) bool { return vlanIds[i] < vlanIds[j] })
-	return vlanIds, nil
-}
-
 // CmdAdd add handler for attaching container into network
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
@@ -275,7 +230,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if netconf.VlanTag == nil || len(netconf.Trunk) > 0 {
 		portType = portTypeTrunk
 		if len(netconf.Trunk) > 0 {
-			trunkVlanIds, err := SplitVlanIds(netconf.Trunk)
+			trunkVlanIds, err := common.SplitVlanIds(netconf.Trunk)
 			if err != nil {
 				return err
 			}
@@ -890,7 +845,7 @@ func ValidateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) 
 	// check trunk
 	netconfTrunks := make([]uint, 0)
 	if len(netconf.Trunk) > 0 {
-		trunkVlanIds, err := SplitVlanIds(netconf.Trunk)
+		trunkVlanIds, err := common.SplitVlanIds(netconf.Trunk)
 		if err != nil {
 			return err
 		}
