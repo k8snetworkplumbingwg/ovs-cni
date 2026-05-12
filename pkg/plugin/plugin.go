@@ -28,8 +28,10 @@ import (
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/deviceinfo"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
+	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/vdpa"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/veth"
 )
 
@@ -52,6 +54,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 	netconf, err := config.LoadConf(args.StdinData)
 	if err != nil {
 		return err
+	}
+
+	deviceInfo, err := deviceinfo.GetDeviceInfo(netconf)
+	if err != nil {
+		return err
+	}
+
+	if vdpa.IsVdpa(deviceInfo) {
+		return vdpa.CmdAdd(args, netconf)
 	}
 
 	if !common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
@@ -86,6 +97,11 @@ func CmdDel(args *skel.CmdArgs) error {
 		}
 	}()
 
+	if vdpa.CachedDeviceIsVdpa(cache) {
+		err = vdpa.CmdDel(args, cache)
+		return err
+	}
+
 	if !common.IsOvsHardwareOffloadEnabled(cache.Netconf.DeviceID) {
 		err = veth.CmdDel(args, cache)
 		return err
@@ -102,6 +118,15 @@ func CmdCheck(args *skel.CmdArgs) error {
 	netconf, err := config.LoadConf(args.StdinData)
 	if err != nil {
 		return err
+	}
+
+	deviceInfo, err := deviceinfo.GetDeviceInfo(netconf)
+	if err != nil {
+		return err
+	}
+
+	if vdpa.IsVdpa(deviceInfo) {
+		return vdpa.CmdCheck(args, netconf)
 	}
 
 	if !common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
