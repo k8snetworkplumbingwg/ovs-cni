@@ -449,7 +449,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	}
 
 	// ovs specific check
-	if err := ValidateOvs(args, netconf, hostIntf.Name); err != nil {
+	if err := common.ValidateOvs(args, netconf, hostIntf.Name); err != nil {
 		return err
 	}
 
@@ -475,77 +475,6 @@ func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	if cache.Netconf.DeviceID != netconf.DeviceID {
 		return fmt.Errorf("DeviceID mismatch. cache=%s,netconf=%s",
 			cache.Netconf.DeviceID, netconf.DeviceID)
-	}
-
-	return nil
-}
-
-func ValidateOvs(args *skel.CmdArgs, netconf *types.NetConf, hostIfname string) error {
-	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(netconf.BrName, netconf.SocketFile)
-	if err != nil {
-		return err
-	}
-
-	found, err := ovsBridgeDriver.IsBridgePresent(netconf.BrName)
-	if err != nil {
-		return err
-	}
-	if !found {
-		return fmt.Errorf("Error: bridge %s is not found in OVS", netconf.BrName)
-	}
-
-	hasError, err := ovsBridgeDriver.InterfaceHasError(hostIfname)
-	if err != nil {
-		return err
-	}
-	if hasError {
-		return fmt.Errorf("Error: interface %s is in error state", hostIfname)
-	}
-
-	vlanMode, tag, trunk, err := ovsBridgeDriver.GetOFPortVlanState(hostIfname)
-	if err != nil {
-		return fmt.Errorf("Error: Failed to retrieve port %s state: %v", hostIfname, err)
-	}
-
-	// check vlan tag
-	if netconf.VlanTag == nil {
-		if tag != nil {
-			return fmt.Errorf("vlan tag mismatch. ovs=%d,netconf=nil", *tag)
-		}
-	} else {
-		if tag == nil {
-			return fmt.Errorf("vlan tag mismatch. ovs=nil,netconf=%d", *netconf.VlanTag)
-		}
-		if *tag != *netconf.VlanTag {
-			return fmt.Errorf("vlan tag mismatch. ovs=%d,netconf=%d", *tag, *netconf.VlanTag)
-		}
-		if vlanMode != "access" {
-			return fmt.Errorf("vlan mode mismatch. expected=access,real=%s", vlanMode)
-		}
-	}
-
-	// check trunk
-	netconfTrunks := make([]uint, 0)
-	if len(netconf.Trunk) > 0 {
-		trunkVlanIds, err := common.SplitVlanIds(netconf.Trunk)
-		if err != nil {
-			return err
-		}
-		netconfTrunks = append(netconfTrunks, trunkVlanIds...)
-	}
-	if len(trunk) != len(netconfTrunks) {
-		return fmt.Errorf("trunk mismatch. ovs=%v,netconf=%v", trunk, netconfTrunks)
-	}
-	if len(netconfTrunks) > 0 {
-		for i := 0; i < len(trunk); i++ {
-			if trunk[i] != netconfTrunks[i] {
-				return fmt.Errorf("trunk mismatch. ovs=%v,netconf=%v", trunk, netconfTrunks)
-			}
-		}
-
-		if vlanMode != "trunk" {
-			return fmt.Errorf("vlan mode mismatch. expected=trunk,real=%s", vlanMode)
-		}
 	}
 
 	return nil

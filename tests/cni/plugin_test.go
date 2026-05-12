@@ -843,7 +843,7 @@ var pluginTestFunc = func(version string) {
 				netconf, err := config.LoadConf(args.StdinData)
 				Expect(err).NotTo(HaveOccurred())
 
-				err = plugin.ValidateOvs(args, netconf, hostIfName)
+				err = common.ValidateOvs(args, netconf, hostIfName)
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(ContainSubstring("error state"))
 			})
