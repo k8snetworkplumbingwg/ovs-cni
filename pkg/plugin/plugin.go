@@ -21,20 +21,14 @@
 package plugin
 
 import (
-	"fmt"
 	"log"
 	"runtime"
 
 	"github.com/containernetworking/cni/pkg/skel"
-	cnitypes "github.com/containernetworking/cni/pkg/types"
-	current "github.com/containernetworking/cni/pkg/types/100"
-	"github.com/containernetworking/plugins/pkg/ns"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
-	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/ovsdb"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/sriov"
-	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/types"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/utils"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/veth"
 )
@@ -55,20 +49,6 @@ func logCall(command string, args *skel.CmdArgs) {
 func CmdAdd(args *skel.CmdArgs) error {
 	logCall("ADD", args)
 
-	envArgs, err := common.GetEnvArgs(args.Args)
-	if err != nil {
-		return err
-	}
-
-	var mac string
-	var ovnPort string
-	var contPodUid string
-	if envArgs != nil {
-		mac = string(envArgs.MAC)
-		ovnPort = string(envArgs.OvnPort)
-		contPodUid = string(envArgs.K8S_POD_UID)
-	}
-
 	netconf, err := config.LoadConf(args.StdinData)
 	if err != nil {
 		return err
@@ -78,111 +58,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return veth.CmdAdd(args, netconf)
 	}
 
-	portCfg, err := common.ParseOvsPortConfig(netconf)
-	if err != nil {
-		return err
-	}
-
-	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
-	if err != nil {
-		return err
-	}
-	bridgeName, err := sriov.GetBridgeName(ovsDriver, netconf.BrName, ovnPort, netconf.DeviceID)
-	if err != nil {
-		return err
-	}
-	// save discovered bridge name to the netconf struct to make
-	// sure it is save in the cache.
-	// we need to cache discovered bridge name to make sure that we will
-	// use the right bridge name in CmdDel
-	netconf.BrName = bridgeName
-
-	ovsBridgeDriver, err := ovsdb.NewOvsBridgeDriver(bridgeName, netconf.SocketFile)
-	if err != nil {
-		return err
-	}
-
-	// check if the device driver is the type of userspace driver
-	userspaceMode := false
-	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
-		userspaceMode, err = sriov.HasUserspaceDriver(netconf.DeviceID)
-		if err != nil {
-			return err
-		}
-	}
-
-	// removes all ports whose interfaces have an error
-	if err := common.CleanPorts(ovsBridgeDriver); err != nil {
-		return err
-	}
-
-	contNetns, err := ns.GetNS(args.Netns)
-	if err != nil {
-		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
-	}
-	defer func() { _ = contNetns.Close() }()
-
-	// userspace driver does not create a network interface for the VF on the host
-	var origIfName string
-	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) && !userspaceMode {
-		origIfName, err = sriov.GetVFLinkName(netconf.DeviceID)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Cache NetConf for CmdDel
-	if err = utils.SaveCache(config.GetCRef(args.ContainerID, args.IfName),
-		&types.CachedNetConf{Netconf: netconf, OrigIfName: origIfName, UserspaceMode: userspaceMode}); err != nil {
-		return fmt.Errorf("error saving NetConf %q", err)
-	}
-
-	var hostIface, contIface *current.Interface
-	if common.IsOvsHardwareOffloadEnabled(netconf.DeviceID) {
-		hostIface, contIface, err = sriov.SetupSriovInterface(contNetns, args.ContainerID, args.IfName, mac, netconf.MTU, netconf.DeviceID, userspaceMode)
-		if err != nil {
-			return err
-		}
-	}
-
-	if err = common.AttachIfaceToBridge(ovsBridgeDriver, hostIface.Name, contIface.Name, netconf.OfportRequest, portCfg.VlanTag, portCfg.Trunks, portCfg.Type, netconf.InterfaceType, args.Netns, ovnPort, contPodUid); err != nil {
-		return err
-	}
-
-	// Refetch the host interface MAC since OVS may change it when
-	// attaching the port to the bridge.
-	if err = common.RefetchIface(hostIface); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err != nil {
-			// Unlike veth pair, OVS port will not be automatically removed
-			// if the following IPAM configuration fails and netns gets removed.
-			_, _, err = common.CleanupOvsPortBestEffort(ovsBridgeDriver, args.IfName, args.Netns)
-			if err != nil {
-				log.Printf("Failed best-effort cleanup: %v", err)
-			}
-		}
-	}()
-
-	result := &current.Result{
-		Interfaces: []*current.Interface{hostIface, contIface},
-	}
-
-	// run the IPAM plugin
-	// userspace driver does not support IPAM plugin,
-	// because there is no network interface for the VF on the host
-	if netconf.IPAM.Type != "" && !userspaceMode {
-		result, err = common.ManagedIPAMAddCall(
-			ovsBridgeDriver, args, netconf, mac, hostIface, contIface, contNetns, common.IsOvsHardwareOffloadEnabled(netconf.DeviceID),
-		)
-		if err != nil {
-			return err
-		}
-	}
-
-	return cnitypes.PrintResult(result, netconf.CNIVersion)
+	return sriov.CmdAdd(args, netconf)
 }
 
 // CmdDel remove handler for deleting container from network
