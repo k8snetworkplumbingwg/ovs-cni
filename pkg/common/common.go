@@ -334,3 +334,37 @@ func ManagedIPAMAddCall(
 
 	return result, nil
 }
+
+func ValidateInterface(intf current.Interface, isHost bool, hwOffload bool) error {
+	var link netlink.Link
+	var err error
+	var iftype string
+	if isHost {
+		iftype = "Host"
+	} else {
+		iftype = "Container"
+	}
+
+	if intf.Name == "" {
+		return fmt.Errorf("%s interface name missing in prevResult: %v", iftype, intf.Name)
+	}
+	link, err = netlink.LinkByName(intf.Name)
+	if err != nil {
+		return fmt.Errorf("Error: %s Interface name in prevResult: %s not found", iftype, intf.Name)
+	}
+	if !isHost && intf.Sandbox == "" {
+		return fmt.Errorf("Error: %s interface %s should not be in host namespace", iftype, link.Attrs().Name)
+	}
+	if !hwOffload {
+		_, isVeth := link.(*netlink.Veth)
+		if !isVeth {
+			return fmt.Errorf("Error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
+		}
+	}
+
+	if intf.Mac != "" && intf.Mac != link.Attrs().HardwareAddr.String() {
+		return fmt.Errorf("Error: Interface %s Mac %s doesn't match %s Mac: %s", intf.Name, intf.Mac, iftype, link.Attrs().HardwareAddr)
+	}
+
+	return nil
+}

@@ -32,7 +32,6 @@ import (
 	"github.com/containernetworking/plugins/pkg/ip"
 	"github.com/containernetworking/plugins/pkg/ipam"
 	"github.com/containernetworking/plugins/pkg/ns"
-	"github.com/vishvananda/netlink"
 
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/common"
 	"github.com/k8snetworkplumbingwg/ovs-cni/pkg/config"
@@ -408,7 +407,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 			}
 		} else {
 			// Check prevResults for ips against values found in the host
-			if err := validateInterface(*intf, true, ovsHWOffloadEnable); err != nil {
+			if err := common.ValidateInterface(*intf, true, ovsHWOffloadEnable); err != nil {
 				return err
 			}
 			hostIntf = *intf
@@ -430,7 +429,7 @@ func CmdCheck(args *skel.CmdArgs) error {
 	// Check prevResults for ips and routes against values found in the container
 	if err := netns.Do(func(_ ns.NetNS) error {
 		// Check interface against values found in the container
-		err := validateInterface(contIntf, false, ovsHWOffloadEnable)
+		err := common.ValidateInterface(contIntf, false, ovsHWOffloadEnable)
 		if err != nil {
 			return err
 		}
@@ -476,40 +475,6 @@ func validateCache(cache *types.CachedNetConf, netconf *types.NetConf) error {
 	if cache.Netconf.DeviceID != netconf.DeviceID {
 		return fmt.Errorf("DeviceID mismatch. cache=%s,netconf=%s",
 			cache.Netconf.DeviceID, netconf.DeviceID)
-	}
-
-	return nil
-}
-
-func validateInterface(intf current.Interface, isHost bool, hwOffload bool) error {
-	var link netlink.Link
-	var err error
-	var iftype string
-	if isHost {
-		iftype = "Host"
-	} else {
-		iftype = "Container"
-	}
-
-	if intf.Name == "" {
-		return fmt.Errorf("%s interface name missing in prevResult: %v", iftype, intf.Name)
-	}
-	link, err = netlink.LinkByName(intf.Name)
-	if err != nil {
-		return fmt.Errorf("Error: %s Interface name in prevResult: %s not found", iftype, intf.Name)
-	}
-	if !isHost && intf.Sandbox == "" {
-		return fmt.Errorf("Error: %s interface %s should not be in host namespace", iftype, link.Attrs().Name)
-	}
-	if !hwOffload {
-		_, isVeth := link.(*netlink.Veth)
-		if !isVeth {
-			return fmt.Errorf("Error: %s interface %s not of type veth/p2p", iftype, link.Attrs().Name)
-		}
-	}
-
-	if intf.Mac != "" && intf.Mac != link.Attrs().HardwareAddr.String() {
-		return fmt.Errorf("Error: Interface %s Mac %s doesn't match %s Mac: %s", intf.Name, intf.Mac, iftype, link.Attrs().HardwareAddr)
 	}
 
 	return nil
