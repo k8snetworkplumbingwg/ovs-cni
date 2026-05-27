@@ -84,6 +84,27 @@ func getEnvArgs(envArgsString string) (*EnvArgs, error) {
 	return nil, nil
 }
 
+// applyConfArgsFallback fills mac/ovnPort from netconf.Args.Cni when the
+// CNI_ARGS env did not provide them. multus-cni propagates per-pod cni-args
+// through StdinData (args.cni.<Key>), not via CNI_ARGS, so OvnPort from a
+// pod annotation only reaches us through this path. Keys are case-sensitive
+// and match the EnvArgs struct field names.
+func applyConfArgsFallback(netconf *types.NetConf, mac, ovnPort *string) {
+	if netconf == nil || netconf.Args == nil || netconf.Args.Cni == nil {
+		return
+	}
+	if mac != nil && *mac == "" {
+		if v, ok := netconf.Args.Cni["MAC"]; ok {
+			*mac = v
+		}
+	}
+	if ovnPort != nil && *ovnPort == "" {
+		if v, ok := netconf.Args.Cni["OvnPort"]; ok {
+			*ovnPort = v
+		}
+	}
+}
+
 // IPAddrToHWAddr takes the four octets of IPv4 address (aa.bb.cc.dd, for example) and uses them in creating
 // a MAC address (0A:58:AA:BB:CC:DD).  For IPv6, create a hash from the IPv6 string and use that for MAC Address.
 // Assumption: the caller will ensure that an empty net.IP{} will NOT be passed.
@@ -276,6 +297,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
+	applyConfArgsFallback(netconf, &mac, &ovnPort)
 
 	var vlanTagNum uint = 0
 	trunks := make([]uint, 0)
@@ -564,6 +586,9 @@ func CmdDel(args *skel.CmdArgs) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	var delMACUnused string
+	applyConfArgsFallback(cache.Netconf, &delMACUnused, &ovnPort)
+
 	ovsDriver, err := ovsdb.NewOvsDriver(cache.Netconf.SocketFile)
 	if err != nil {
 		return err
@@ -685,6 +710,9 @@ func CmdCheck(args *skel.CmdArgs) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	var checkMACUnused string
+	applyConfArgsFallback(netconf, &checkMACUnused, &ovnPort)
+
 	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
 	if err != nil {
 		return err

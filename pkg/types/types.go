@@ -42,6 +42,17 @@ type NetConf struct {
 	SocketFile             string   `json:"socket_file"`
 	LinkStateCheckRetries  int      `json:"link_state_check_retries"`
 	LinkStateCheckInterval int      `json:"link_state_check_interval"`
+
+	// Args carries CNI 0.4.0+ "args" passthrough. Meta-plugins such as
+	// multus-cni inject per-invocation parameters (e.g. ovnPort) here from a
+	// pod's `k8s.v1.cni.cncf.io/networks[].cni-args` annotation. Only the
+	// reserved "cni" sub-key is consulted.
+	Args *PluginArgs `json:"args,omitempty"`
+}
+
+// PluginArgs carries the "args.cni" map from CNI conf StdinData.
+type PluginArgs struct {
+	Cni map[string]string `json:"cni,omitempty"`
 }
 
 // netConfAlias is used to avoid infinite recursion when marshaling NetConf.
