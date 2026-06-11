@@ -78,4 +78,10 @@ var _ = Describe("", func() {
 			testSplitVlanIds(trunks, nil, errors.New("incorrect trunk maxID parameter"), false)
 		})
 	})
+	Context("specify trunk with id greater than 4096", func() {
+		trunks := `[ {"id": 15}, {"id": 5000} ]`
+		It("testSplitVlanIds method should throw appropriate error", func() {
+			testSplitVlanIds(trunks, nil, errors.New("incorrect trunk id parameter"), false)
+		})
+	})
 })

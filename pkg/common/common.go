@@ -96,7 +96,7 @@ func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 		var id uint
 		if item.ID != nil {
 			id = *item.ID
-			if minID > 4096 {
+			if id > 4096 {
 				return nil, errors.New("incorrect trunk id parameter")
 			}
 			vlans[id] = true
