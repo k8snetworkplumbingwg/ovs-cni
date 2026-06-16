@@ -31,6 +31,10 @@ type NetlinkOps interface {
 	DevLinkGetAllPortList() ([]*netlink.DevlinkPort, error)
 	// DevLinkGetPortByNetdevName gets devlink port by netdev name
 	DevLinkGetPortByNetdevName(netdev string) (*netlink.DevlinkPort, error)
+	// DevLinkGetDevicePortList gets all devlink ports for a bus and device names
+	DevLinkGetDevicePortList(busName string, deviceName string) ([]*netlink.DevlinkPort, error)
+	// DevLinkPortFnSet sets devlink port function attributes
+	DevLinkPortFnSet(busName string, deviceName string, portIndex uint32, fnAttrs netlink.DevlinkPortFnSetAttrs) error
 }
 
 // GetNetlinkOps returns NetlinkOps interface
@@ -111,4 +115,26 @@ func (nlo *netlinkOps) DevLinkGetPortByNetdevName(netdev string) (*netlink.Devli
 		}
 	}
 	return nil, fmt.Errorf("failed to get devlink port for netdev %s", netdev)
+}
+
+// DevLinkGetDevicePortList gets all devlink ports for a bus and device names
+func (nlo *netlinkOps) DevLinkGetDevicePortList(busName string, deviceName string) ([]*netlink.DevlinkPort, error) {
+	ports, err := netlink.DevLinkGetAllPortList()
+	if err != nil {
+		return nil, err
+	}
+
+	devicePorts := make([]*netlink.DevlinkPort, 0)
+	for _, port := range ports {
+		if port.BusName == busName && port.DeviceName == deviceName {
+			devicePorts = append(devicePorts, port)
+		}
+	}
+
+	return devicePorts, nil
+}
+
+// DevLinkPortFnSet sets devlink port function attributes
+func (nlo *netlinkOps) DevLinkPortFnSet(busName string, deviceName string, portIndex uint32, fnAttrs netlink.DevlinkPortFnSetAttrs) error {
+	return netlink.DevlinkPortFnSet(busName, deviceName, portIndex, fnAttrs)
 }
