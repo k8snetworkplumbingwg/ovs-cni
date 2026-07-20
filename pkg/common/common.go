@@ -97,7 +97,7 @@ func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 		var id uint
 		if item.ID != nil {
 			id = *item.ID
-			if minID > highestVlanID {
+			if id > highestVlanID {
 				return nil, errors.New("incorrect trunk id parameter")
 			}
 			vlans[id] = true
