@@ -72,10 +72,16 @@ var _ = Describe("", func() {
 			testSplitVlanIds(trunks, nil, errors.New("minID is greater than maxID in trunk parameter"), false)
 		})
 	})
-	Context("specify trunk with maxID greater than 4096", func() {
-		trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 1, "maxID": 5000} ]`
+	Context("specify trunk with maxID greater than 4095", func() {
+		trunks := `[ {"minID": 10, "maxID": 12}, {"minID": 1, "maxID": 4096} ]`
 		It("testSplitVlanIds method should throw appropriate error", func() {
 			testSplitVlanIds(trunks, nil, errors.New("incorrect trunk maxID parameter"), false)
+		})
+	})
+	Context("specify trunk with ID greater than 4095", func() {
+		trunks := `[ {"id": 15}, {"id": 4096}, {"id": 1} ]`
+		It("testSplitVlanIds method should throw appropriate error", func() {
+			testSplitVlanIds(trunks, []uint{}, errors.New("incorrect trunk id parameter"), false)
 		})
 	})
 })

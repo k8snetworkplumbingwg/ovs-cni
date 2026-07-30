@@ -44,6 +44,7 @@ import (
 const (
 	portTypeAccess = "access"
 	portTypeTrunk  = "trunk"
+	highestVlanID  = 4095
 )
 
 type OvsPortConfig struct {
@@ -131,13 +132,13 @@ func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 		var maxID uint = 0
 		if item.MinID != nil {
 			minID = *item.MinID
-			if minID > 4096 {
+			if minID > highestVlanID {
 				return nil, errors.New("incorrect trunk minID parameter")
 			}
 		}
 		if item.MaxID != nil {
 			maxID = *item.MaxID
-			if maxID > 4096 {
+			if maxID > highestVlanID {
 				return nil, errors.New("incorrect trunk maxID parameter")
 			}
 			if maxID < minID {
@@ -152,7 +153,7 @@ func SplitVlanIds(trunks []*types.Trunk) ([]uint, error) {
 		var id uint
 		if item.ID != nil {
 			id = *item.ID
-			if minID > 4096 {
+			if id > highestVlanID {
 				return nil, errors.New("incorrect trunk id parameter")
 			}
 			vlans[id] = true
