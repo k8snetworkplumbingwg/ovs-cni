@@ -48,6 +48,20 @@ type NetConf struct {
 	LinkStateCheckRetries  int            `json:"link_state_check_retries"`
 	LinkStateCheckInterval int            `json:"link_state_check_interval"`
 	RuntimeConfig          *RuntimeConfig `json:"runtimeConfig,omitempty"`
+
+	// Args carries CNI 0.4.0+ "args" passthrough. Meta-plugins such as
+	// multus-cni inject per-invocation parameters (e.g. ovnPort) here from a
+	// pod's `k8s.v1.cni.cncf.io/networks[].cni-args` annotation. Only the
+	// reserved "cni" sub-key is consulted.
+	Args *PluginArgs `json:"args,omitempty"`
+}
+
+// PluginArgs carries the "args.cni" map from CNI conf StdinData. Values are
+// kept as json.RawMessage rather than string so foreign entries (e.g. the
+// IPAM-style `ips` array) coexisting under args.cni do not break NetConf
+// unmarshal — the fallback decodes only the keys it consumes.
+type PluginArgs struct {
+	Cni map[string]json.RawMessage `json:"cni,omitempty"`
 }
 
 // netConfAlias is used to avoid infinite recursion when marshaling NetConf.

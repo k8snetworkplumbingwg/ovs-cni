@@ -62,6 +62,16 @@ Another example with a port which has an interface of type system:
 * `configuration_path` (optional): configuration file containing ovsdb
   socket file path, etc.
 
+The following are *per-invocation* arguments rather than static network
+configuration. They are not set in the `NetworkAttachmentDefinition` `config`
+body, but passed per pod through CNI args (see
+[Per-Pod Arguments](#per-pod-arguments-mac--ovnport)):
+
+* `mac` (string, optional): MAC address to assign to the container interface.
+* `ovnPort` (string, optional): value written to the OVS interface's
+  `external_ids:iface-id`, used to bind the port to an OVN logical switch port.
+  When set, `bridge` may be omitted (it is derived from the port).
+
 
 _*Note:* if `deviceID` is provided, then it is possible to omit `bridge` argument. Bridge will be automatically selected by the CNI plugin by following
 the chain: Virtual Function PCI address (provided in `deviceID` argument) > Physical Function > Bond interface 
@@ -105,6 +115,68 @@ The `socket_file` consist of socket type and socket detail like these.
 If no socket type is specified, it is assumed to be a unix domain socket, for backwards compatibility.
 
 The `link_state_check_interval` is in milliseconds.
+
+## Per-Pod Arguments (`mac` / `ovnPort`)
+
+Some parameters are specific to a single pod attachment rather than to the
+network as a whole, and therefore cannot live in the shared
+`NetworkAttachmentDefinition` `config`. ovs-cni accepts two such per-invocation
+arguments:
+
+* `mac` — MAC address for the container interface.
+* `ovnPort` — value stored in the OVS interface's `external_ids:iface-id`,
+  which binds the port to a pre-created OVN logical switch port.
+
+They can be supplied through either of the two standard CNI mechanisms:
+
+### 1. `CNI_ARGS` environment variable
+
+When invoking the plugin directly, pass them as `CNI_ARGS`:
+
+```shell
+CNI_ARGS="mac=0a:58:0a:f4:00:07;ovnPort=my-logical-port" ...
+```
+
+### 2. Multus network annotation (`cni-args`)
+
+When Multus is in use, `CNI_ARGS` is not available per network. Instead, attach
+the parameters to the individual network selection using the `cni-args` field of
+the `k8s.v1.cni.cncf.io/networks` annotation. Multus forwards `cni-args` to the
+delegate plugin inside the CNI config's `args.cni` object, and ovs-cni reads
+`mac` / `ovnPort` from there:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: samplepod
+  annotations:
+    k8s.v1.cni.cncf.io/networks: |
+      [
+        {
+          "name": "ovs-conf",
+          "cni-args": {
+            "mac": "0a:58:0a:f4:00:07",
+            "ovnPort": "my-logical-port"
+          }
+        }
+      ]
+spec:
+  containers:
+  - name: samplepod
+    command: ["/bin/sh", "-c", "sleep 99999"]
+    image: alpine
+```
+
+This is the path that lets a per-pod `ovnPort` (for example, one allocated by an
+external OVN/Neutron controller and written onto the pod) actually reach the OVS
+port, which is not possible through `CNI_ARGS` alone under Multus.
+
+Key matching for these arguments is **case-insensitive** (`ovnPort`, `ovnport`
+and `OvnPort` are all accepted), so a casing difference in a hand-written
+annotation does not silently drop the value. Entries under
+`args.cni` that are not JSON strings, or whose keys ovs-cni does not recognize,
+are ignored, so unrelated `cni-args` used by other plugins do not interfere.
 
 ## Manual Testing
 

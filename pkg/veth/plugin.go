@@ -44,6 +44,7 @@ func CmdAdd(args *skel.CmdArgs, netconf *types.NetConf) error {
 		ovnPort = string(envArgs.OvnPort)
 		contPodUid = string(envArgs.K8S_POD_UID)
 	}
+	common.ApplyConfArgsFallback(netconf, &mac, &ovnPort)
 
 	portCfg, err := common.ParseOvsPortConfig(netconf)
 	if err != nil {
@@ -140,6 +141,7 @@ func CmdDel(args *skel.CmdArgs, cache *types.CachedNetConf) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	common.ApplyConfArgsFallback(cache.Netconf, nil, &ovnPort)
 
 	bridgeName, err := common.GetBridgeName(cache.Netconf.BrName, ovnPort)
 	if err != nil {
@@ -204,6 +206,7 @@ func CmdCheck(args *skel.CmdArgs, netconf *types.NetConf) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	common.ApplyConfArgsFallback(netconf, nil, &ovnPort)
 
 	// Discover bridge name
 	bridgeName, err := common.GetBridgeName(netconf.BrName, ovnPort)

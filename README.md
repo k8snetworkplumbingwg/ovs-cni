@@ -47,6 +47,10 @@ spec:
 EOF
 ```
 
+Per-pod parameters such as the interface `mac` or an OVN `ovnPort` can be passed
+through the network's `cni-args`; see
+[Per-Pod Arguments](docs/cni-plugin.md#per-pod-arguments-mac--ovnport) for details.
+
 Such pod should contain default `eth0` interface connected to default Kubernetes network and also `net1` connected to the bridge.
 
 ```shell

@@ -16,11 +16,13 @@ package common
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/j-keck/arping"
@@ -60,6 +62,60 @@ func GetEnvArgs(envArgsString string) (*types.EnvArgs, error) {
 		return &e, nil
 	}
 	return nil, nil
+}
+
+// ApplyConfArgsFallback fills mac/ovnPort from netconf.Args.Cni when the
+// CNI_ARGS env did not provide them. multus-cni propagates per-pod cni-args
+// through StdinData (args.cni.<Key>), not via CNI_ARGS, so OvnPort from a
+// pod annotation only reaches us through this path. Key matching is
+// case-insensitive ("OvnPort", "ovnPort", "ovnport" all work). Either
+// pointer may be nil if the caller does not care about that value. Values
+// that are not JSON strings (e.g. numbers, arrays) are silently skipped so
+// unrelated entries under args.cni do not break the lookup.
+func ApplyConfArgsFallback(netconf *types.NetConf, mac, ovnPort *string) {
+	if netconf == nil || netconf.Args == nil || netconf.Args.Cni == nil {
+		return
+	}
+	wantMAC := mac != nil && *mac == ""
+	wantOvnPort := ovnPort != nil && *ovnPort == ""
+	if !wantMAC && !wantOvnPort {
+		return
+	}
+	for k, raw := range netconf.Args.Cni {
+		switch strings.ToLower(k) {
+		case "mac":
+			if wantMAC {
+				if v, ok := decodeArgString(raw); ok {
+					*mac = v
+					wantMAC = false
+				}
+			}
+		case "ovnport":
+			if wantOvnPort {
+				if v, ok := decodeArgString(raw); ok {
+					*ovnPort = v
+					wantOvnPort = false
+				}
+			}
+		}
+		if !wantMAC && !wantOvnPort {
+			return
+		}
+	}
+}
+
+// decodeArgString decodes a JSON-encoded args.cni value as a string. Non-string
+// types (numbers, arrays, objects) return ok=false rather than an error, so a
+// foreign entry like `"ips": ["1.2.3.4/24"]` is ignored without aborting.
+func decodeArgString(raw json.RawMessage) (string, bool) {
+	if len(raw) == 0 {
+		return "", false
+	}
+	var s string
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return "", false
+	}
+	return s, true
 }
 
 // IsOvsHardwareOffloadEnabled when device id is set, then ovs hardware offload

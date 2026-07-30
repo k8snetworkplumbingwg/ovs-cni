@@ -43,6 +43,7 @@ func CmdAdd(args *skel.CmdArgs, netconf *types.NetConf) error {
 		ovnPort = string(envArgs.OvnPort)
 		contPodUid = string(envArgs.K8S_POD_UID)
 	}
+	common.ApplyConfArgsFallback(netconf, &mac, &ovnPort)
 
 	portCfg, err := common.ParseOvsPortConfig(netconf)
 	if err != nil {
@@ -136,6 +137,7 @@ func CmdDel(args *skel.CmdArgs, cache *types.CachedNetConf) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	common.ApplyConfArgsFallback(cache.Netconf, nil, &ovnPort)
 	ovsDriver, err := ovsdb.NewOvsDriver(cache.Netconf.SocketFile)
 	if err != nil {
 		return err
@@ -188,6 +190,7 @@ func CmdCheck(args *skel.CmdArgs, netconf *types.NetConf) error {
 	if envArgs != nil {
 		ovnPort = string(envArgs.OvnPort)
 	}
+	common.ApplyConfArgsFallback(netconf, nil, &ovnPort)
 
 	// Discover bridge name using SR-IOV specific logic
 	ovsDriver, err := ovsdb.NewOvsDriver(netconf.SocketFile)
