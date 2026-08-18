@@ -11,7 +11,7 @@ require (
 	github.com/k8snetworkplumbingwg/govdpa v0.1.5-0.20260114172534-639773118e4f
 	github.com/k8snetworkplumbingwg/network-attachment-definition-client v1.7.7
 	github.com/k8snetworkplumbingwg/sriovnet v1.3.0
-	github.com/onsi/ginkgo/v2 v2.28.3
+	github.com/onsi/ginkgo/v2 v2.32.1
 	github.com/onsi/gomega v1.42.1
 	github.com/ovn-org/libovsdb v0.7.0
 	github.com/pkg/errors v0.9.1
