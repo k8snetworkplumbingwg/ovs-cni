@@ -183,6 +183,8 @@ func setupKernelVdpaVhost(
 		if err = netlink.LinkSetMTU(vfLink, mtu); err != nil {
 			return nil, nil, err
 		}
+		hostIface.Mtu = mtu
+		contIface.Mtu = mtu
 	}
 
 	contIface.Name = ifName
