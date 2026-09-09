@@ -234,6 +234,7 @@ func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface,
 			if err = netlink.LinkSetMTU(link, mtu); err != nil {
 				return err
 			}
+			contIface.Mtu = mtu
 		}
 		err = netlink.LinkSetUp(link)
 		if err != nil {
@@ -322,6 +323,7 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName, mac string, mt
 		if err = netlink.LinkSetMTU(link, mtu); err != nil {
 			return nil, nil, fmt.Errorf("failed to set MTU on %s: %v", hostIface.Name, err)
 		}
+		hostIface.Mtu = mtu
 	}
 
 	if !userspaceMode {
