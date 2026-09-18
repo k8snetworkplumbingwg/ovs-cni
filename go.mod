@@ -100,4 +100,4 @@ replace (
 
 go 1.22.0
 
-toolchain go1.22.5
+toolchain go1.25.13
