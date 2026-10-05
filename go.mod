@@ -15,7 +15,7 @@ require (
 	github.com/onsi/gomega v1.42.1
 	github.com/ovn-org/libovsdb v0.7.0
 	github.com/pkg/errors v0.9.1
-	github.com/vishvananda/netlink v1.3.2-0.20251101063711-6e61cd407d1d
+	github.com/vishvananda/netlink v1.3.2-0.20260629151558-4e35dc940f49
 	k8s.io/api v0.34.3
 	k8s.io/apimachinery v0.34.3
 	k8s.io/client-go v0.34.3
