@@ -1,7 +1,11 @@
 #!/bin/bash -xe
 
 destination=$1
-version=$(curl -s https://go.dev/dl/?mode=json | jq -r ".[0].version")
+version="go$(awk '$1 == "go" { print $2; exit }' go.mod)"
+if [ "$version" = "go" ]; then
+    echo "could not determine Go version from go.mod" >&2
+    exit 1
+fi
 arch=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
 tarball=$version.linux-$arch.tar.gz
 url=https://dl.google.com/go/
