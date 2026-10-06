@@ -251,7 +251,7 @@ func setupKernelSriovContIface(contNetns ns.NetNS, contIface *current.Interface,
 }
 
 // setupUserspaceSriovContIface configures smartVF via PF netlink and fills in the contIface fields
-func setupUserspaceSriovContIface(contNetns ns.NetNS, contIface *current.Interface, pfLink netlink.Link, vfIdx int, ifName string, hwaddr net.HardwareAddr) error {
+func setupUserspaceSriovContIface(contNetns ns.NetNS, contIface *current.Interface, pfLink netlink.Link, vfIdx int, vfInfo netlink.VfInfo, ifName string, hwaddr net.HardwareAddr) error {
 	contIface.Name = ifName
 	contIface.Sandbox = contNetns.Path()
 
@@ -262,11 +262,18 @@ func setupUserspaceSriovContIface(contNetns ns.NetNS, contIface *current.Interfa
 		}
 		contIface.Mac = hwaddr.String()
 	} else {
-		vfInfo := pfLink.Attrs().Vfs[vfIdx]
 		contIface.Mac = vfInfo.Mac.String()
 	}
 
 	return nil
+}
+
+func getVFInfo(pfLink netlink.Link, vfIdx int) (netlink.VfInfo, error) {
+	attrs := pfLink.Attrs()
+	if vfIdx < 0 || vfIdx >= len(attrs.Vfs) || attrs.Vfs[vfIdx].ID != vfIdx {
+		return netlink.VfInfo{}, fmt.Errorf("failed to get vf info from %s at index %d with Vfs %v", attrs.Name, vfIdx, attrs.Vfs)
+	}
+	return attrs.Vfs[vfIdx], nil
 }
 
 // SetupSriovInterface configures smartVF and returns VF's representor device as host interface and VF's netdevice as container interface
@@ -303,8 +310,9 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName, mac string, mt
 	}
 
 	// make sure PF netlink and VF index are valid
-	if len(pfLink.Attrs().Vfs) < vfIdx || pfLink.Attrs().Vfs[vfIdx].ID != vfIdx {
-		return nil, nil, fmt.Errorf("failed to get vf info from %s at index %d with Vfs %v", pfIface, vfIdx, pfLink.Attrs().Vfs)
+	vfInfo, err := getVFInfo(pfLink, vfIdx)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	// parse MAC address if provided from args as described
@@ -331,7 +339,7 @@ func SetupSriovInterface(contNetns ns.NetNS, containerID, ifName, mac string, mt
 		}
 	} else {
 		// configure the smart VF netdevice via PF netlink
-		if err = setupUserspaceSriovContIface(contNetns, contIface, pfLink, vfIdx, ifName, hwaddr); err != nil {
+		if err = setupUserspaceSriovContIface(contNetns, contIface, pfLink, vfIdx, vfInfo, ifName, hwaddr); err != nil {
 			return nil, nil, err
 		}
 	}
