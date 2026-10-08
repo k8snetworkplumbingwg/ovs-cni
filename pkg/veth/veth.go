@@ -67,5 +67,10 @@ func SetupVeth(contNetns ns.NetNS, contIfaceName string, requestedMac string, mt
 		return nil, nil, err
 	}
 
+	if mtu != 0 {
+		hostIface.Mtu = mtu
+		contIface.Mtu = mtu
+	}
+
 	return hostIface, contIface, nil
 }
