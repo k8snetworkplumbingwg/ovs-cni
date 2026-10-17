@@ -71,6 +71,7 @@ var _ = Describe("ovs-cni-marker", func() {
 				Expect(pods.Items).ToNot(BeEmpty(), "ovs-cni pods should be running")
 
 				for _, pod := range pods.Items {
+					Expect(pod.Status.ContainerStatuses).ToNot(BeEmpty(), "pod %s should report container statuses", pod.Name)
 					restartCount := pod.Status.ContainerStatuses[0].RestartCount
 					if restartCount > 0 {
 						return false
