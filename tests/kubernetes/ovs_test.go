@@ -37,7 +37,8 @@ var testFunc = func(version string) {
 	Describe("pod availability tests", func() {
 		Context("When ovs-cni is deployed on the cluster", func() {
 			Specify("ovs-cni pod should be up and running", func() {
-				pods, _ := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				pods, err := clusterApi.Clientset.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{LabelSelector: "app=ovs-cni"})
+				Expect(err).ToNot(HaveOccurred(), "should fetch ovs-cni pods successfully")
 				Expect(len(pods.Items)).To(BeNumerically(">", 0), "should have at least 1 ovs-cni pod deployed")
 			})
 		})

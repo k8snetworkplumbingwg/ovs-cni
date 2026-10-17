@@ -79,7 +79,10 @@ var testMirrorFunc = func(version string) {
 						consAdditionalCommands := "apk add tcpdump; tcpdump -l -i net1 > /tcpdump.log 2>&1;"
 						clusterApi.CreatePrivilegedPodWithIP(podConsName, nadConsumerName, bridgeName, cidrCons, consAdditionalCommands)
 						Eventually(func() string {
-							out, _ := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							out, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							if err != nil {
+								return fmt.Sprintf("failed to read /tcpdump.log: %v", err)
+							}
 							return out
 						}, 120*time.Second, time.Second).Should(ContainSubstring("listening on"), "tcpdump did not start in time")
 
@@ -102,7 +105,10 @@ var testMirrorFunc = func(version string) {
 							// Ping each iteration so mirrored traffic is captured even
 							// if the OVS mirror was not yet fully configured on earlier attempts.
 							_ = clusterApi.PingFromPod(podProd1Name, "test", ipPodProd2.String())
-							out, _ := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							out, err := clusterApi.ReadFileFromPod(podConsName, "test", "/tcpdump.log")
+							if err != nil {
+								return fmt.Sprintf("failed to read /tcpdump.log: %v", err)
+							}
 							return out
 						}, 60*time.Second, time.Second).Should(And(
 							ContainSubstring("IP "+ipPodProd1.String()+" > "+ipPodProd2.String()+": ICMP echo request"),
