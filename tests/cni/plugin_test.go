@@ -336,6 +336,10 @@ var pluginTestFunc = func(version string) {
 
 		if setMtu {
 			Expect(hostLink.Attrs().MTU).To(Equal(pluginMtu))
+			if mtuInResult, _ := cniversion.GreaterThanOrEqualTo(version, "1.0.0"); mtuInResult {
+				By("Checking that host interface MTU in the result matches configured MTU")
+				Expect(hostIface.Mtu).To(Equal(pluginMtu))
+			}
 		} else {
 			Expect(hostLink.Attrs().MTU).To(Equal(pluginDefaultMTU))
 		}
@@ -375,6 +379,10 @@ var pluginTestFunc = func(version string) {
 
 			if setMtu {
 				Expect(contLink.Attrs().MTU).To(Equal(pluginMtu))
+				if mtuInResult, _ := cniversion.GreaterThanOrEqualTo(version, "1.0.0"); mtuInResult {
+					By("Checking that container interface MTU in the result matches configured MTU")
+					Expect(contIface.Mtu).To(Equal(pluginMtu))
+				}
 			} else {
 				Expect(contLink.Attrs().MTU).To(Equal(pluginDefaultMTU))
 			}
