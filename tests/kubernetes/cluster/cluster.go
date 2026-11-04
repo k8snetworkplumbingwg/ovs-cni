@@ -250,6 +250,10 @@ func (api *ClusterAPI) ReadFileFromPod(podName, containerName, filePath string) 
 	return out, nil
 }
 
+// execTimeout bounds a single pod exec so a hung remote command fails the
+// test instead of blocking until the Go test deadline.
+const execTimeout = 30 * time.Second
+
 func (api *ClusterAPI) execOnPod(podName, containerName, namespace, command string) (string, string, error) {
 	req := api.Clientset.CoreV1().RESTClient().
 		Post().
@@ -279,7 +283,9 @@ func (api *ClusterAPI) execOnPod(podName, containerName, namespace, command stri
 	}
 
 	var stdout, stderr bytes.Buffer
-	err = exec.StreamWithContext(context.Background(), remotecommand.StreamOptions{
+	ctx, cancel := context.WithTimeout(context.Background(), execTimeout)
+	defer cancel()
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
 		Stdout: &stdout,
 		Stderr: &stderr,
 		Tty:    false,
